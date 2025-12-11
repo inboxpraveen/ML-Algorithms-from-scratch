@@ -18,24 +18,26 @@ Machine learning algorithms can often seem complex and mysterious, especially fo
 
 ## Algorithms Included
 
-1. Linear Regression
-2. Multiple Regression
-3. Ridge Regression
-4. Logistic Regression
-5. K-Nearest Neighbors (KNN)
-6. Decision Trees
-7. Random Forests
-8. Support Vector Machines (SVM)
-9. Naive Bayes
-10. k-Means Clustering
-11. Principal Component Analysis (PCA)
-12. Hierarchical Clustering
-13. Apriori Algorithm (Association Rule Mining)
-14. t-Distributed Stochastic Neighbor Embedding (t-SNE)
-15. Decision Tree ID3 (Feature Selection)
-16. AdaBoost
-17. Gradient Boosting
-18. Xtreme Gradient Boosting (XGB)
+| # | Algorithm | Status | Documentation |
+|---|-----------|--------|---------------|
+| 1 | Linear Regression | ✅ Implemented | [View Details](1.%20Linear%20Regression/_1_linear_regression.md) |
+| 2 | Multiple Regression | ✅ Implemented | [View Details](2.%20Multiple%20Regression/_2_multiple_regression.md) |
+| 3 | Ridge Regression | 🔜 Coming Soon | - |
+| 4 | Logistic Regression | 🔜 Coming Soon | - |
+| 5 | K-Nearest Neighbors (KNN) | 🔜 Coming Soon | - |
+| 6 | Decision Trees | 🔜 Coming Soon | - |
+| 7 | Random Forests | 🔜 Coming Soon | - |
+| 8 | Support Vector Machines (SVM) | 🔜 Coming Soon | - |
+| 9 | Naive Bayes | 🔜 Coming Soon | - |
+| 10 | k-Means Clustering | 🔜 Coming Soon | - |
+| 11 | Principal Component Analysis (PCA) | 🔜 Coming Soon | - |
+| 12 | Hierarchical Clustering | 🔜 Coming Soon | - |
+| 13 | Apriori Algorithm (Association Rule Mining) | 🔜 Coming Soon | - |
+| 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | 🔜 Coming Soon | - |
+| 15 | Decision Tree ID3 (Feature Selection) | 🔜 Coming Soon | - |
+| 16 | AdaBoost | 🔜 Coming Soon | - |
+| 17 | Gradient Boosting | 🔜 Coming Soon | - |
+| 18 | Xtreme Gradient Boosting (XGB) | 🔜 Coming Soon | - |
 
 
 ## Getting Started

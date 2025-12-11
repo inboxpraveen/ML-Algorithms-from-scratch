@@ -1,33 +1,33 @@
 import numpy as np
 
-class LinearRegression:
+class MultipleRegression:
     """
-    Simple Linear Regression Implementation from Scratch
+    Multiple Linear Regression Implementation from Scratch
     
-    Linear regression is used when we want to predict a target variable
-    using a single feature (independent variable).
+    Multiple regression is used when we want to predict a target variable
+    using multiple features (independent variables).
     
-    Formula: y = b0 + b1*x
+    Formula: y = b0 + b1*x1 + b2*x2 + ... + bn*xn
     where:
         y = target variable (dependent variable)
-        x = independent variable (feature)
+        x1, x2, ..., xn = independent variables (features)
         b0 = intercept (bias term)
-        b1 = slope (coefficient)
+        b1, b2, ..., bn = coefficients for each feature
     """
     
     def __init__(self):
-        """Initialize the Linear Regression model"""
+        """Initialize the Multiple Regression model"""
         self.coefficients = None
         self.intercept = None
     
     def fit(self, X, y):
         """
-        Train the linear regression model using the Normal Equation
+        Train the multiple regression model using the Normal Equation
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, 1) or (n_samples,)
-            Training data with single feature
+        X : numpy array of shape (n_samples, n_features)
+            Training data with multiple features
         y : numpy array of shape (n_samples,)
             Target values
             
@@ -40,7 +40,7 @@ class LinearRegression:
         # θ = (X^T * X)^(-1) * X^T * y
         self.coefficients = np.linalg.inv(X_with_bias.T @ X_with_bias) @ X_with_bias.T @ y
         
-        # Separate intercept from feature coefficient for clarity
+        # Separate intercept from feature coefficients for clarity
         self.intercept = self.coefficients[0]
         self.feature_coefficients = self.coefficients[1:]
     
@@ -50,7 +50,7 @@ class LinearRegression:
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, 1) or (n_samples,)
+        X : numpy array of shape (n_samples, n_features)
             Data to make predictions on
             
         Returns:
@@ -70,11 +70,11 @@ class LinearRegression:
         
         Returns:
         --------
-        dict : Dictionary containing intercept and slope
+        dict : Dictionary containing intercept and feature coefficients
         """
         return {
             'intercept': self.intercept,
-            'slope': self.feature_coefficients[0] if len(self.feature_coefficients) > 0 else None
+            'coefficients': self.feature_coefficients
         }
     
     def score(self, X, y):
@@ -83,7 +83,7 @@ class LinearRegression:
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, 1) or (n_samples,)
+        X : numpy array of shape (n_samples, n_features)
             Test data
         y : numpy array of shape (n_samples,)
             True values
@@ -104,45 +104,55 @@ class LinearRegression:
 
 
 """
-USAGE EXAMPLE 1: Simple Linear Regression with Single Feature
+USAGE EXAMPLE 1: Simple Multiple Regression with 3 Features
 
 import numpy as np
 
-# Sample data: Predicting salary based on years of experience
-X_train = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).reshape(-1, 1)  # Years of experience
-y_train = np.array([30000, 35000, 40000, 45000, 50000, 55000, 60000, 65000, 70000, 75000])  # Salary
+# Sample data: Predicting house prices based on [square_feet, bedrooms, age]
+X_train = np.array([
+    [1500, 3, 10],  # 1500 sq ft, 3 bedrooms, 10 years old
+    [2000, 4, 5],   # 2000 sq ft, 4 bedrooms, 5 years old
+    [1200, 2, 15],  # 1200 sq ft, 2 bedrooms, 15 years old
+    [1800, 3, 8],   # 1800 sq ft, 3 bedrooms, 8 years old
+    [2500, 5, 2]    # 2500 sq ft, 5 bedrooms, 2 years old
+])
+
+y_train = np.array([300000, 400000, 250000, 350000, 500000])  # House prices
 
 # Create and train the model
-model = LinearRegression()
+model = MultipleRegression()
 model.fit(X_train, y_train)
 
 # Make predictions
-X_test = np.array([11, 12, 15]).reshape(-1, 1)  # 11, 12, and 15 years of experience
+X_test = np.array([
+    [1600, 3, 7],   # 1600 sq ft, 3 bedrooms, 7 years old
+    [2200, 4, 3]    # 2200 sq ft, 4 bedrooms, 3 years old
+])
+
 predictions = model.predict(X_test)
-print("Predicted salaries:", predictions)
+print("Predicted prices:", predictions)
 
 # Get coefficients
 coeffs = model.get_coefficients()
-print(f"Intercept: ${coeffs['intercept']:.2f}")
-print(f"Slope: ${coeffs['slope']:.2f} per year")
+print(f"Intercept: {coeffs['intercept']}")
+print(f"Coefficients: {coeffs['coefficients']}")
 """
 
 """
-USAGE EXAMPLE 2: Using Real Dataset (Diabetes Dataset - Single Feature)
+USAGE EXAMPLE 2: Using Real Dataset (Diabetes Dataset)
 
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
 
-# Load the diabetes dataset
+# Load the diabetes dataset (has 10 features)
 data = load_diabetes()
-# Use only the first feature (BMI) for simple linear regression
-X, y = data.data[:, 2:3], data.target  # Taking only BMI column
+X, y = data.data, data.target
 
 # Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Create and train the linear regression model
-model = LinearRegression()
+# Create and train the multiple regression model
+model = MultipleRegression()
 model.fit(X_train, y_train)
 
 # Make predictions on the test set
@@ -155,5 +165,8 @@ print(f"R² Score: {r2:.4f}")
 # Display coefficients
 coeffs = model.get_coefficients()
 print(f"\nIntercept: {coeffs['intercept']:.2f}")
-print(f"Slope: {coeffs['slope']:.2f}")
+print("\nFeature Coefficients:")
+for i, coef in enumerate(coeffs['coefficients']):
+    print(f"  Feature {i+1}: {coef:.2f}")
 """
+
