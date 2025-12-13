@@ -52,6 +52,10 @@ ML-Algorithms-from-scratch/
 │   ├── _2_multiple_regression.md    # Comprehensive guide
 │   └── _2_multiple_regression.py    # Implementation
 │
+├── 3. Ridge Regression/
+│   ├── _3_ridge_regression.md       # Comprehensive guide
+│   └── _3_ridge_regression.py       # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -66,7 +70,7 @@ Each algorithm folder contains:
 |---|-----------|--------|---------------|
 | 1 | Linear Regression | ✅ Implemented | [View Details](1.%20Linear%20Regression/_1_linear_regression.md) |
 | 2 | Multiple Regression | ✅ Implemented | [View Details](2.%20Multiple%20Regression/_2_multiple_regression.md) |
-| 3 | Ridge Regression | 🔜 Coming Soon | - |
+| 3 | Ridge Regression | ✅ Implemented | [View Details](3.%20Ridge%20Regression/_3_ridge_regression.md) |
 | 4 | Logistic Regression | 🔜 Coming Soon | - |
 | 5 | K-Nearest Neighbors (KNN) | 🔜 Coming Soon | - |
 | 6 | Decision Trees | 🔜 Coming Soon | - |
