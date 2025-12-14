@@ -64,6 +64,10 @@ ML-Algorithms-from-scratch/
 │   ├── _5_knn.md                    # Comprehensive guide
 │   └── _5_knn.py                    # Implementation
 │
+├── 6. Decision Trees/
+│   ├── _6_decision_trees.md         # Comprehensive guide
+│   └── _6_decision_trees.py         # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -81,7 +85,7 @@ Each algorithm folder contains:
 | 3 | Ridge Regression | ✅ Implemented | [View Details](3.%20Ridge%20Regression/_3_ridge_regression.md) |
 | 4 | Logistic Regression | ✅ Implemented | [View Details](4.%20Logistic%20Regression/_4_logistic_regression.md) |
 | 5 | K-Nearest Neighbors (KNN) | ✅ Implemented | [View Details](5.%20KNN/_5_knn.md) |
-| 6 | Decision Trees | 🔜 Coming Soon | - |
+| 6 | Decision Trees | ✅ Implemented | [View Details](6.%20Decision%20Trees/_6_decision_trees.md) |
 | 7 | Random Forests | 🔜 Coming Soon | - |
 | 8 | Support Vector Machines (SVM) | 🔜 Coming Soon | - |
 | 9 | Naive Bayes | 🔜 Coming Soon | - |
