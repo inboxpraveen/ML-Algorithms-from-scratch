@@ -8,7 +8,7 @@
 
 ## 📚 About This Repository
 
-This repository contains **clear, educational implementations** of 18 essential machine learning algorithms built from scratch using only Python and NumPy. Each algorithm includes comprehensive documentation, mathematical explanations, and practical examples.
+This repository contains **clear, educational implementations** of essential machine learning algorithms built from scratch using only Python and NumPy. Each algorithm includes comprehensive documentation, mathematical explanations, and practical examples.
 
 **Perfect for:**
 - 🎓 Students learning machine learning fundamentals
@@ -68,6 +68,10 @@ ML-Algorithms-from-scratch/
 │   ├── _6_decision_trees.md         # Comprehensive guide
 │   └── _6_decision_trees.py         # Implementation
 │
+├── 7. Random Forests/
+│   ├── _7_random_forests.md         # Comprehensive guide
+│   └── _7_random_forests.py         # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -86,7 +90,7 @@ Each algorithm folder contains:
 | 4 | Logistic Regression | ✅ Implemented | [View Details](4.%20Logistic%20Regression/_4_logistic_regression.md) |
 | 5 | K-Nearest Neighbors (KNN) | ✅ Implemented | [View Details](5.%20KNN/_5_knn.md) |
 | 6 | Decision Trees | ✅ Implemented | [View Details](6.%20Decision%20Trees/_6_decision_trees.md) |
-| 7 | Random Forests | 🔜 Coming Soon | - |
+| 7 | Random Forests | ✅ Implemented | [View Details](7.%20Random%20Forests/_7_random_forests.md) |
 | 8 | Support Vector Machines (SVM) | 🔜 Coming Soon | - |
 | 9 | Naive Bayes | 🔜 Coming Soon | - |
 | 10 | k-Means Clustering | 🔜 Coming Soon | - |
