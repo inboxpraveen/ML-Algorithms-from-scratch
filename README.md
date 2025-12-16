@@ -76,6 +76,10 @@ ML-Algorithms-from-scratch/
 │   ├── _8_svm.md                    # Comprehensive guide
 │   └── _8_svm.py                    # Implementation
 │
+├── 9. Naive Bayes/
+│   ├── _9_naive_bayes.md            # Comprehensive guide
+│   └── _9_naive_bayes.py            # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -96,7 +100,7 @@ Each algorithm folder contains:
 | 6 | Decision Trees | ✅ Implemented | [View Details](6.%20Decision%20Trees/_6_decision_trees.md) |
 | 7 | Random Forests | ✅ Implemented | [View Details](7.%20Random%20Forests/_7_random_forests.md) |
 | 8 | Support Vector Machines (SVM) | ✅ Implemented | [View Details](8.%20SVM/_8_svm.md) |
-| 9 | Naive Bayes | 🔜 Coming Soon | - |
+| 9 | Naive Bayes | ✅ Implemented | [View Details](9.%20Naive%20Bayes/_9_naive_bayes.md) |
 | 10 | k-Means Clustering | 🔜 Coming Soon | - |
 | 11 | Principal Component Analysis (PCA) | 🔜 Coming Soon | - |
 | 12 | Hierarchical Clustering | 🔜 Coming Soon | - |
