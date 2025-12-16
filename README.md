@@ -80,6 +80,10 @@ ML-Algorithms-from-scratch/
 │   ├── _9_naive_bayes.md            # Comprehensive guide
 │   └── _9_naive_bayes.py            # Implementation
 │
+├── 10. k-Means Clustering/
+│   ├── _10_kmeans_clustering.md     # Comprehensive guide
+│   └── _10_kmeans_clustering.py     # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -101,7 +105,7 @@ Each algorithm folder contains:
 | 7 | Random Forests | ✅ Implemented | [View Details](7.%20Random%20Forests/_7_random_forests.md) |
 | 8 | Support Vector Machines (SVM) | ✅ Implemented | [View Details](8.%20SVM/_8_svm.md) |
 | 9 | Naive Bayes | ✅ Implemented | [View Details](9.%20Naive%20Bayes/_9_naive_bayes.md) |
-| 10 | k-Means Clustering | 🔜 Coming Soon | - |
+| 10 | k-Means Clustering | ✅ Implemented | [View Details](10.%20k-Means%20Clustering/_10_kmeans_clustering.md) |
 | 11 | Principal Component Analysis (PCA) | 🔜 Coming Soon | - |
 | 12 | Hierarchical Clustering | 🔜 Coming Soon | - |
 | 13 | Apriori Algorithm (Association Rule Mining) | 🔜 Coming Soon | - |
