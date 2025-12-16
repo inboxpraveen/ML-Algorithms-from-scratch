@@ -72,6 +72,10 @@ ML-Algorithms-from-scratch/
 │   ├── _7_random_forests.md         # Comprehensive guide
 │   └── _7_random_forests.py         # Implementation
 │
+├── 8. SVM/
+│   ├── _8_svm.md                    # Comprehensive guide
+│   └── _8_svm.py                    # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -91,7 +95,7 @@ Each algorithm folder contains:
 | 5 | K-Nearest Neighbors (KNN) | ✅ Implemented | [View Details](5.%20KNN/_5_knn.md) |
 | 6 | Decision Trees | ✅ Implemented | [View Details](6.%20Decision%20Trees/_6_decision_trees.md) |
 | 7 | Random Forests | ✅ Implemented | [View Details](7.%20Random%20Forests/_7_random_forests.md) |
-| 8 | Support Vector Machines (SVM) | 🔜 Coming Soon | - |
+| 8 | Support Vector Machines (SVM) | ✅ Implemented | [View Details](8.%20SVM/_8_svm.md) |
 | 9 | Naive Bayes | 🔜 Coming Soon | - |
 | 10 | k-Means Clustering | 🔜 Coming Soon | - |
 | 11 | Principal Component Analysis (PCA) | 🔜 Coming Soon | - |
