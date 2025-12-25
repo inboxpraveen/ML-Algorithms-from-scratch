@@ -1,5 +1,7 @@
 # Machine Learning Algorithms from Scratch
 
+![Header](./assets/Header.png)
+
 [![Python](https://img.shields.io/badge/Python-3.7%2B-blue.svg)](https://www.python.org/)
 [![NumPy](https://img.shields.io/badge/NumPy-Latest-orange.svg)](https://numpy.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
