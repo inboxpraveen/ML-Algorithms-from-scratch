@@ -88,6 +88,10 @@ ML-Algorithms-from-scratch/
 │   ├── _11_pca.md                   # Comprehensive guide
 │   └── _11_pca.py                   # Implementation
 │
+├── 12. Hierarchical Clustering/
+│   ├── _12_hierarchical_clustering.md  # Comprehensive guide
+│   └── _12_hierarchical_clustering.py  # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -111,7 +115,7 @@ Each algorithm folder contains:
 | 9 | Naive Bayes | ✅ Implemented | [View Details](9.%20Naive%20Bayes/_9_naive_bayes.md) |
 | 10 | k-Means Clustering | ✅ Implemented | [View Details](10.%20k-Means%20Clustering/_10_kmeans_clustering.md) |
 | 11 | Principal Component Analysis (PCA) | ✅ Implemented | [View Details](11.%20PCA/_11_pca.md) |
-| 12 | Hierarchical Clustering | 🔜 Coming Soon | - |
+| 12 | Hierarchical Clustering | ✅ Implemented | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
 | 13 | Apriori Algorithm (Association Rule Mining) | 🔜 Coming Soon | - |
 | 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | 🔜 Coming Soon | - |
 | 15 | Decision Tree ID3 (Feature Selection) | 🔜 Coming Soon | - |
