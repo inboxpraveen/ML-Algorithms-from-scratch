@@ -94,6 +94,10 @@ ML-Algorithms-from-scratch/
 │   ├── _12_hierarchical_clustering.md  # Comprehensive guide
 │   └── _12_hierarchical_clustering.py  # Implementation
 │
+├── 13. Apriori/
+│   ├── _13_apriori.md                  # Comprehensive guide
+│   └── _13_apriori.py                  # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -118,7 +122,7 @@ Each algorithm folder contains:
 | 10 | k-Means Clustering | ✅ Implemented | [View Details](10.%20k-Means%20Clustering/_10_kmeans_clustering.md) |
 | 11 | Principal Component Analysis (PCA) | ✅ Implemented | [View Details](11.%20PCA/_11_pca.md) |
 | 12 | Hierarchical Clustering | ✅ Implemented | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
-| 13 | Apriori Algorithm (Association Rule Mining) | 🔜 Coming Soon | - |
+| 13 | Apriori Algorithm (Association Rule Mining) | ✅ Implemented | [View Details](13.%20Apriori/_13_apriori.md) |
 | 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | 🔜 Coming Soon | - |
 | 15 | Decision Tree ID3 (Feature Selection) | 🔜 Coming Soon | - |
 | 16 | AdaBoost | 🔜 Coming Soon | - |
