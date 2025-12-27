@@ -98,6 +98,10 @@ ML-Algorithms-from-scratch/
 │   ├── _13_apriori.md                  # Comprehensive guide
 │   └── _13_apriori.py                  # Implementation
 │
+├── 14. t-SNE/
+│   ├── _14_tsne.md                     # Comprehensive guide
+│   └── _14_tsne.py                     # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -123,7 +127,7 @@ Each algorithm folder contains:
 | 11 | Principal Component Analysis (PCA) | ✅ Implemented | [View Details](11.%20PCA/_11_pca.md) |
 | 12 | Hierarchical Clustering | ✅ Implemented | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
 | 13 | Apriori Algorithm (Association Rule Mining) | ✅ Implemented | [View Details](13.%20Apriori/_13_apriori.md) |
-| 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | 🔜 Coming Soon | - |
+| 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | ✅ Implemented | [View Details](14.%20t-SNE/_14_tsne.md) |
 | 15 | Decision Tree ID3 (Feature Selection) | 🔜 Coming Soon | - |
 | 16 | AdaBoost | 🔜 Coming Soon | - |
 | 17 | Gradient Boosting | 🔜 Coming Soon | - |
