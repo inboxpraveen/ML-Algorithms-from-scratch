@@ -128,7 +128,7 @@ Each algorithm folder contains:
 | 12 | Hierarchical Clustering | ✅ Implemented | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
 | 13 | Apriori Algorithm (Association Rule Mining) | ✅ Implemented | [View Details](13.%20Apriori/_13_apriori.md) |
 | 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | ✅ Implemented | [View Details](14.%20t-SNE/_14_tsne.md) |
-| 15 | Decision Tree ID3 (Feature Selection) | 🔜 Coming Soon | - |
+| 15 | Decision Tree ID3 (Feature Selection) | ✅ Implemented | [View Details](15.%20Decision%20Tree%20ID3/_15_decision_tree_id3.md) |
 | 16 | AdaBoost | 🔜 Coming Soon | - |
 | 17 | Gradient Boosting | 🔜 Coming Soon | - |
 | 18 | Xtreme Gradient Boosting (XGB) | 🔜 Coming Soon | - |
