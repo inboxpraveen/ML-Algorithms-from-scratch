@@ -102,6 +102,10 @@ ML-Algorithms-from-scratch/
 │   ├── _14_tsne.md                     # Comprehensive guide
 │   └── _14_tsne.py                     # Implementation
 │
+├── 15. AdaBoost/
+│   ├── _15_adaboost.md                 # Comprehensive guide
+│   └── _15_adaboost.py                 # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -128,10 +132,9 @@ Each algorithm folder contains:
 | 12 | Hierarchical Clustering | ✅ Implemented | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
 | 13 | Apriori Algorithm (Association Rule Mining) | ✅ Implemented | [View Details](13.%20Apriori/_13_apriori.md) |
 | 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | ✅ Implemented | [View Details](14.%20t-SNE/_14_tsne.md) |
-| 15 | Decision Tree ID3 (Feature Selection) | ✅ Implemented | [View Details](15.%20Decision%20Tree%20ID3/_15_decision_tree_id3.md) |
-| 16 | AdaBoost | 🔜 Coming Soon | - |
-| 17 | Gradient Boosting | 🔜 Coming Soon | - |
-| 18 | Xtreme Gradient Boosting (XGB) | 🔜 Coming Soon | - |
+| 15 | AdaBoost (Adaptive Boosting) | ✅ Implemented | [View Details](15.%20AdaBoost/_15_adaboost.md) |
+| 16 | Gradient Boosting | 🔜 Coming Soon | - |
+| 17 | Xtreme Gradient Boosting (XGB) | 🔜 Coming Soon | - |
 
 
 ## 🚀 Getting Started
