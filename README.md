@@ -106,6 +106,10 @@ ML-Algorithms-from-scratch/
 │   ├── _15_adaboost.md                 # Comprehensive guide
 │   └── _15_adaboost.py                 # Implementation
 │
+├── 16. Gradient Boosting/
+│   ├── _16_gradient_boosting.md        # Comprehensive guide
+│   └── _16_gradient_boosting.py        # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -133,7 +137,7 @@ Each algorithm folder contains:
 | 13 | Apriori Algorithm (Association Rule Mining) | ✅ Implemented | [View Details](13.%20Apriori/_13_apriori.md) |
 | 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | ✅ Implemented | [View Details](14.%20t-SNE/_14_tsne.md) |
 | 15 | AdaBoost (Adaptive Boosting) | ✅ Implemented | [View Details](15.%20AdaBoost/_15_adaboost.md) |
-| 16 | Gradient Boosting | 🔜 Coming Soon | - |
+| 16 | Gradient Boosting | ✅ Implemented | [View Details](16.%20Gradient%20Boosting/_16_gradient_boosting.md) |
 | 17 | Xtreme Gradient Boosting (XGB) | 🔜 Coming Soon | - |
 
 
