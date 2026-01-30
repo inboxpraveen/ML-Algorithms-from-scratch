@@ -110,6 +110,10 @@ ML-Algorithms-from-scratch/
 │   ├── _16_gradient_boosting.md        # Comprehensive guide
 │   └── _16_gradient_boosting.py        # Implementation
 │
+├── 17. XGBoost/
+│   ├── _17_xgboost.md                  # Comprehensive guide
+│   └── _17_xgboost.py                  # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -120,25 +124,36 @@ Each algorithm folder contains:
 
 ## Algorithms Included
 
-| # | Algorithm | Status | Documentation |
-|---|-----------|--------|---------------|
-| 1 | Linear Regression | ✅ Implemented | [View Details](1.%20Linear%20Regression/_1_linear_regression.md) |
-| 2 | Multiple Regression | ✅ Implemented | [View Details](2.%20Multiple%20Regression/_2_multiple_regression.md) |
-| 3 | Ridge Regression | ✅ Implemented | [View Details](3.%20Ridge%20Regression/_3_ridge_regression.md) |
-| 4 | Logistic Regression | ✅ Implemented | [View Details](4.%20Logistic%20Regression/_4_logistic_regression.md) |
-| 5 | K-Nearest Neighbors (KNN) | ✅ Implemented | [View Details](5.%20KNN/_5_knn.md) |
-| 6 | Decision Trees | ✅ Implemented | [View Details](6.%20Decision%20Trees/_6_decision_trees.md) |
-| 7 | Random Forests | ✅ Implemented | [View Details](7.%20Random%20Forests/_7_random_forests.md) |
-| 8 | Support Vector Machines (SVM) | ✅ Implemented | [View Details](8.%20SVM/_8_svm.md) |
-| 9 | Naive Bayes | ✅ Implemented | [View Details](9.%20Naive%20Bayes/_9_naive_bayes.md) |
-| 10 | k-Means Clustering | ✅ Implemented | [View Details](10.%20k-Means%20Clustering/_10_kmeans_clustering.md) |
-| 11 | Principal Component Analysis (PCA) | ✅ Implemented | [View Details](11.%20PCA/_11_pca.md) |
-| 12 | Hierarchical Clustering | ✅ Implemented | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
-| 13 | Apriori Algorithm (Association Rule Mining) | ✅ Implemented | [View Details](13.%20Apriori/_13_apriori.md) |
-| 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE) | ✅ Implemented | [View Details](14.%20t-SNE/_14_tsne.md) |
-| 15 | AdaBoost (Adaptive Boosting) | ✅ Implemented | [View Details](15.%20AdaBoost/_15_adaboost.md) |
-| 16 | Gradient Boosting | ✅ Implemented | [View Details](16.%20Gradient%20Boosting/_16_gradient_boosting.md) |
-| 17 | Xtreme Gradient Boosting (XGB) | 🔜 Coming Soon | - |
+| #  | Algorithm                                                     | Status               | Documentation |
+|----|---------------------------------------------------------------|----------------------|---------------|
+| 1  | Linear Regression                                            | ✅ Implemented       | [View Details](1.%20Linear%20Regression/_1_linear_regression.md) |
+| 2  | Multiple Regression                                          | ✅ Implemented       | [View Details](2.%20Multiple%20Regression/_2_multiple_regression.md) |
+| 3  | Ridge Regression                                             | ✅ Implemented       | [View Details](3.%20Ridge%20Regression/_3_ridge_regression.md) |
+| 4  | Logistic Regression                                          | ✅ Implemented       | [View Details](4.%20Logistic%20Regression/_4_logistic_regression.md) |
+| 5  | K-Nearest Neighbors (KNN)                                    | ✅ Implemented       | [View Details](5.%20KNN/_5_knn.md) |
+| 6  | Decision Trees                                               | ✅ Implemented       | [View Details](6.%20Decision%20Trees/_6_decision_trees.md) |
+| 7  | Random Forests                                               | ✅ Implemented       | [View Details](7.%20Random%20Forests/_7_random_forests.md) |
+| 8  | Support Vector Machines (SVM)                                | ✅ Implemented       | [View Details](8.%20SVM/_8_svm.md) |
+| 9  | Naive Bayes                                                  | ✅ Implemented       | [View Details](9.%20Naive%20Bayes/_9_naive_bayes.md) |
+| 10 | k-Means Clustering                                           | ✅ Implemented       | [View Details](10.%20k-Means%20Clustering/_10_kmeans_clustering.md) |
+| 11 | Principal Component Analysis (PCA)                           | ✅ Implemented       | [View Details](11.%20PCA/_11_pca.md) |
+| 12 | Hierarchical Clustering                                      | ✅ Implemented       | [View Details](12.%20Hierarchical%20Clustering/_12_hierarchical_clustering.md) |
+| 13 | Apriori Algorithm (Association Rule Mining)                  | ✅ Implemented       | [View Details](13.%20Apriori/_13_apriori.md) |
+| 14 | t-Distributed Stochastic Neighbor Embedding (t-SNE)          | ✅ Implemented       | [View Details](14.%20t-SNE/_14_tsne.md) |
+| 15 | AdaBoost (Adaptive Boosting)                                 | ✅ Implemented       | [View Details](15.%20AdaBoost/_15_adaboost.md) |
+| 16 | Gradient Boosting                                            | ✅ Implemented       | [View Details](16.%20Gradient%20Boosting/_16_gradient_boosting.md) |
+| 17 | Xtreme Gradient Boosting (XGBoost)                           | ✅ Implemented       | [View Details](17.%20XGBoost/_17_xgboost.md) |
+| 18 | LightGBM                                                     | 🔜 Coming Soon       | - |
+| 19 | CatBoost                                                     | 🔜 Coming Soon       | - |
+| 20 | Isolation Forest                                             | 🔜 Coming Soon       | - |
+| 21 | Gaussian Mixture Models (GMM)                                | 🔜 Coming Soon       | - |
+| 22 | UMAP (Uniform Manifold Approximation and Projection)         | 🔜 Coming Soon       | - |
+| 23 | Hidden Markov Models (HMM)                                   | 🔜 Coming Soon       | - |
+| 24 | Autoencoders                                                 | 🔜 Coming Soon       | - |
+| 25 | Latent Dirichlet Allocation (LDA)                            | 🔜 Coming Soon       | - |
+| 26 | Prophet (Time Series Forecasting)                            | 🔜 Coming Soon       | - |
+| 27 | Learning-to-Rank                                             | 🔜 Coming Soon       | - |
+| 28 | Matrix Factorization                                         | 🔜 Coming Soon       | - |
 
 
 ## 🚀 Getting Started
