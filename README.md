@@ -118,6 +118,10 @@ ML-Algorithms-from-scratch/
 │   ├── _18_lightgbm.md                 # Comprehensive guide
 │   └── _18_lightgbm.py                 # Implementation
 │
+├── 19. CatBoost/
+│   ├── _19_catboost.md                 # Comprehensive guide
+│   └── _19_catboost.py                 # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -148,7 +152,7 @@ Each algorithm folder contains:
 | 16 | Gradient Boosting                                            | ✅ Implemented       | [View Details](16.%20Gradient%20Boosting/_16_gradient_boosting.md) |
 | 17 | Xtreme Gradient Boosting (XGBoost)                           | ✅ Implemented       | [View Details](17.%20XGBoost/_17_xgboost.md) |
 | 18 | LightGBM (Light Gradient Boosting Machine)                   | ✅ Implemented       | [View Details](18.%20LightGBM/_18_lightgbm.md) |
-| 19 | CatBoost                                                     | 🔜 Coming Soon       | - |
+| 19 | CatBoost (Categorical Boosting)                              | ✅ Implemented       | [View Details](19.%20CatBoost/_19_catboost.md) |
 | 20 | Isolation Forest                                             | 🔜 Coming Soon       | - |
 | 21 | Gaussian Mixture Models (GMM)                                | 🔜 Coming Soon       | - |
 | 22 | UMAP (Uniform Manifold Approximation and Projection)         | 🔜 Coming Soon       | - |
