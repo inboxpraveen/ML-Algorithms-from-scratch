@@ -114,6 +114,10 @@ ML-Algorithms-from-scratch/
 │   ├── _17_xgboost.md                  # Comprehensive guide
 │   └── _17_xgboost.py                  # Implementation
 │
+├── 18. LightGBM/
+│   ├── _18_lightgbm.md                 # Comprehensive guide
+│   └── _18_lightgbm.py                 # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -143,7 +147,7 @@ Each algorithm folder contains:
 | 15 | AdaBoost (Adaptive Boosting)                                 | ✅ Implemented       | [View Details](15.%20AdaBoost/_15_adaboost.md) |
 | 16 | Gradient Boosting                                            | ✅ Implemented       | [View Details](16.%20Gradient%20Boosting/_16_gradient_boosting.md) |
 | 17 | Xtreme Gradient Boosting (XGBoost)                           | ✅ Implemented       | [View Details](17.%20XGBoost/_17_xgboost.md) |
-| 18 | LightGBM                                                     | 🔜 Coming Soon       | - |
+| 18 | LightGBM (Light Gradient Boosting Machine)                   | ✅ Implemented       | [View Details](18.%20LightGBM/_18_lightgbm.md) |
 | 19 | CatBoost                                                     | 🔜 Coming Soon       | - |
 | 20 | Isolation Forest                                             | 🔜 Coming Soon       | - |
 | 21 | Gaussian Mixture Models (GMM)                                | 🔜 Coming Soon       | - |
