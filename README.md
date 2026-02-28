@@ -142,6 +142,10 @@ ML-Algorithms-from-scratch/
 │   ├── _24_autoencoders.md             # Comprehensive guide
 │   └── _24_autoencoders.py             # Implementation
 │
+├── 25. LDA/
+│   ├── _25_lda.md                      # Comprehensive guide
+│   └── _25_lda.py                      # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -178,7 +182,7 @@ Each algorithm folder contains:
 | 22 | UMAP (Uniform Manifold Approximation and Projection)         | ✅ Implemented       | [View Details](22.%20UMAP/_22_umap.md) |
 | 23 | Hidden Markov Models (HMM)                                   | ✅ Implemented       | [View Details](23.%20Hidden%20Markov%20Models/_23_hmm.md) |
 | 24 | Autoencoders                                                 | ✅ Implemented       | [View Details](24.%20Autoencoders/_24_autoencoders.md) |
-| 25 | Latent Dirichlet Allocation (LDA)                            | 🔜 Coming Soon       | - |
+| 25 | Latent Dirichlet Allocation (LDA)                            | ✅ Implemented       | [View Details](25.%20LDA/_25_lda.md) |
 | 26 | Prophet (Time Series Forecasting)                            | 🔜 Coming Soon       | - |
 | 27 | Learning-to-Rank                                             | 🔜 Coming Soon       | - |
 | 28 | Matrix Factorization                                         | 🔜 Coming Soon       | - |
