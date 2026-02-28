@@ -138,6 +138,10 @@ ML-Algorithms-from-scratch/
 │   ├── _23_hmm.md                      # Comprehensive guide
 │   └── _23_hmm.py                      # Implementation
 │
+├── 24. Autoencoders/
+│   ├── _24_autoencoders.md             # Comprehensive guide
+│   └── _24_autoencoders.py             # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -173,7 +177,7 @@ Each algorithm folder contains:
 | 21 | Gaussian Mixture Models (GMM)                                | ✅ Implemented       | [View Details](21.%20Gaussian%20Mixture%20Models/_21_gmm.md) |
 | 22 | UMAP (Uniform Manifold Approximation and Projection)         | ✅ Implemented       | [View Details](22.%20UMAP/_22_umap.md) |
 | 23 | Hidden Markov Models (HMM)                                   | ✅ Implemented       | [View Details](23.%20Hidden%20Markov%20Models/_23_hmm.md) |
-| 24 | Autoencoders                                                 | 🔜 Coming Soon       | - |
+| 24 | Autoencoders                                                 | ✅ Implemented       | [View Details](24.%20Autoencoders/_24_autoencoders.md) |
 | 25 | Latent Dirichlet Allocation (LDA)                            | 🔜 Coming Soon       | - |
 | 26 | Prophet (Time Series Forecasting)                            | 🔜 Coming Soon       | - |
 | 27 | Learning-to-Rank                                             | 🔜 Coming Soon       | - |
