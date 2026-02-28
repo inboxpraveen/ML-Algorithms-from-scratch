@@ -126,6 +126,10 @@ ML-Algorithms-from-scratch/
 │   ├── _20_isolation_forest.md         # Comprehensive guide
 │   └── _20_isolation_forest.py         # Implementation
 │
+├── 21. Gaussian Mixture Models/
+│   ├── _21_gmm.md                      # Comprehensive guide
+│   └── _21_gmm.py                      # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -158,7 +162,7 @@ Each algorithm folder contains:
 | 18 | LightGBM (Light Gradient Boosting Machine)                   | ✅ Implemented       | [View Details](18.%20LightGBM/_18_lightgbm.md) |
 | 19 | CatBoost (Categorical Boosting)                              | ✅ Implemented       | [View Details](19.%20CatBoost/_19_catboost.md) |
 | 20 | Isolation Forest                                             | ✅ Implemented       | [View Details](20.%20Isolation%20Forest/_20_isolation_forest.md) |
-| 21 | Gaussian Mixture Models (GMM)                                | 🔜 Coming Soon       | - |
+| 21 | Gaussian Mixture Models (GMM)                                | ✅ Implemented       | [View Details](21.%20Gaussian%20Mixture%20Models/_21_gmm.md) |
 | 22 | UMAP (Uniform Manifold Approximation and Projection)         | 🔜 Coming Soon       | - |
 | 23 | Hidden Markov Models (HMM)                                   | 🔜 Coming Soon       | - |
 | 24 | Autoencoders                                                 | 🔜 Coming Soon       | - |
