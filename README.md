@@ -130,6 +130,10 @@ ML-Algorithms-from-scratch/
 │   ├── _21_gmm.md                      # Comprehensive guide
 │   └── _21_gmm.py                      # Implementation
 │
+├── 22. UMAP/
+│   ├── _22_umap.md                     # Comprehensive guide
+│   └── _22_umap.py                     # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -163,7 +167,7 @@ Each algorithm folder contains:
 | 19 | CatBoost (Categorical Boosting)                              | ✅ Implemented       | [View Details](19.%20CatBoost/_19_catboost.md) |
 | 20 | Isolation Forest                                             | ✅ Implemented       | [View Details](20.%20Isolation%20Forest/_20_isolation_forest.md) |
 | 21 | Gaussian Mixture Models (GMM)                                | ✅ Implemented       | [View Details](21.%20Gaussian%20Mixture%20Models/_21_gmm.md) |
-| 22 | UMAP (Uniform Manifold Approximation and Projection)         | 🔜 Coming Soon       | - |
+| 22 | UMAP (Uniform Manifold Approximation and Projection)         | ✅ Implemented       | [View Details](22.%20UMAP/_22_umap.md) |
 | 23 | Hidden Markov Models (HMM)                                   | 🔜 Coming Soon       | - |
 | 24 | Autoencoders                                                 | 🔜 Coming Soon       | - |
 | 25 | Latent Dirichlet Allocation (LDA)                            | 🔜 Coming Soon       | - |
