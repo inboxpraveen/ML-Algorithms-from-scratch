@@ -89,6 +89,10 @@ ML-Algorithms-from-scratch/
 │   ├── _27_learning_to_rank.md         # Comprehensive guide
 │   └── _27_learning_to_rank.py         # Implementation
 │
+├── 28. Matrix Factorization/
+│   ├── _28_matrix_factorization.md     # Comprehensive guide
+│   └── _28_matrix_factorization.py     # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -128,7 +132,7 @@ Each algorithm folder contains:
 | 25 | Latent Dirichlet Allocation (LDA)                            | ✅ Implemented       | [View Details](25.%20LDA/_25_lda.md) |
 | 26 | Prophet (Time Series Forecasting)                            | ✅ Implemented       | [View Details](26.%20Prophet/_26_prophet.md) |
 | 27 | Learning-to-Rank (LambdaRank)                                | ✅ Implemented       | [View Details](27.%20Learning-to-Rank/_27_learning_to_rank.md) |
-| 28 | Matrix Factorization                                         | 🔜 Coming Soon       | - |
+| 28 | Matrix Factorization (Collaborative Filtering)               | ✅ Implemented       | [View Details](28.%20Matrix%20Factorization/_28_matrix_factorization.md) |
 
 
 ## 🚀 Getting Started
@@ -296,4 +300,4 @@ Understanding the core concepts of machine learning algorithms is essential for 
 
 ---
 
-**Maintained by [@inboxpraveen](https://github.com/inboxpraveen) | Last Updated: December 2025**
+**Maintained by [@inboxpraveen](https://github.com/inboxpraveen) | Last Updated: March 2026**
