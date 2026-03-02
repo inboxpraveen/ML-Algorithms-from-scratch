@@ -58,73 +58,8 @@ ML-Algorithms-from-scratch/
 │   ├── _3_ridge_regression.md       # Comprehensive guide
 │   └── _3_ridge_regression.py       # Implementation
 │
-├── 4. Logistic Regression/
-│   ├── _4_logistic_regression.md    # Comprehensive guide
-│   └── _4_logistic_regression.py    # Implementation
-│
-├── 5. KNN/
-│   ├── _5_knn.md                    # Comprehensive guide
-│   └── _5_knn.py                    # Implementation
-│
-├── 6. Decision Trees/
-│   ├── _6_decision_trees.md         # Comprehensive guide
-│   └── _6_decision_trees.py         # Implementation
-│
-├── 7. Random Forests/
-│   ├── _7_random_forests.md         # Comprehensive guide
-│   └── _7_random_forests.py         # Implementation
-│
-├── 8. SVM/
-│   ├── _8_svm.md                    # Comprehensive guide
-│   └── _8_svm.py                    # Implementation
-│
-├── 9. Naive Bayes/
-│   ├── _9_naive_bayes.md            # Comprehensive guide
-│   └── _9_naive_bayes.py            # Implementation
-│
-├── 10. k-Means Clustering/
-│   ├── _10_kmeans_clustering.md     # Comprehensive guide
-│   └── _10_kmeans_clustering.py     # Implementation
-│
-├── 11. PCA/
-│   ├── _11_pca.md                   # Comprehensive guide
-│   └── _11_pca.py                   # Implementation
-│
-├── 12. Hierarchical Clustering/
-│   ├── _12_hierarchical_clustering.md  # Comprehensive guide
-│   └── _12_hierarchical_clustering.py  # Implementation
-│
-├── 13. Apriori/
-│   ├── _13_apriori.md                  # Comprehensive guide
-│   └── _13_apriori.py                  # Implementation
-│
-├── 14. t-SNE/
-│   ├── _14_tsne.md                     # Comprehensive guide
-│   └── _14_tsne.py                     # Implementation
-│
-├── 15. AdaBoost/
-│   ├── _15_adaboost.md                 # Comprehensive guide
-│   └── _15_adaboost.py                 # Implementation
-│
-├── 16. Gradient Boosting/
-│   ├── _16_gradient_boosting.md        # Comprehensive guide
-│   └── _16_gradient_boosting.py        # Implementation
-│
-├── 17. XGBoost/
-│   ├── _17_xgboost.md                  # Comprehensive guide
-│   └── _17_xgboost.py                  # Implementation
-│
-├── 18. LightGBM/
-│   ├── _18_lightgbm.md                 # Comprehensive guide
-│   └── _18_lightgbm.py                 # Implementation
-│
-├── 19. CatBoost/
-│   ├── _19_catboost.md                 # Comprehensive guide
-│   └── _19_catboost.py                 # Implementation
-│
-├── 20. Isolation Forest/
-│   ├── _20_isolation_forest.md         # Comprehensive guide
-│   └── _20_isolation_forest.py         # Implementation
+...
+...
 │
 ├── 21. Gaussian Mixture Models/
 │   ├── _21_gmm.md                      # Comprehensive guide
@@ -149,6 +84,10 @@ ML-Algorithms-from-scratch/
 ├── 26. Prophet/
 │   ├── _26_prophet.md                  # Comprehensive guide
 │   └── _26_prophet.py                  # Implementation
+│
+├── 27. Learning-to-Rank/
+│   ├── _27_learning_to_rank.md         # Comprehensive guide
+│   └── _27_learning_to_rank.py         # Implementation
 │
 └── README.md                         # You are here!
 ```
@@ -188,7 +127,7 @@ Each algorithm folder contains:
 | 24 | Autoencoders                                                 | ✅ Implemented       | [View Details](24.%20Autoencoders/_24_autoencoders.md) |
 | 25 | Latent Dirichlet Allocation (LDA)                            | ✅ Implemented       | [View Details](25.%20LDA/_25_lda.md) |
 | 26 | Prophet (Time Series Forecasting)                            | ✅ Implemented       | [View Details](26.%20Prophet/_26_prophet.md) |
-| 27 | Learning-to-Rank                                             | 🔜 Coming Soon       | - |
+| 27 | Learning-to-Rank (LambdaRank)                                | ✅ Implemented       | [View Details](27.%20Learning-to-Rank/_27_learning_to_rank.md) |
 | 28 | Matrix Factorization                                         | 🔜 Coming Soon       | - |
 
 
