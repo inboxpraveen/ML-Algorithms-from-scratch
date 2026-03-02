@@ -146,6 +146,10 @@ ML-Algorithms-from-scratch/
 │   ├── _25_lda.md                      # Comprehensive guide
 │   └── _25_lda.py                      # Implementation
 │
+├── 26. Prophet/
+│   ├── _26_prophet.md                  # Comprehensive guide
+│   └── _26_prophet.py                  # Implementation
+│
 └── README.md                         # You are here!
 ```
 
@@ -183,7 +187,7 @@ Each algorithm folder contains:
 | 23 | Hidden Markov Models (HMM)                                   | ✅ Implemented       | [View Details](23.%20Hidden%20Markov%20Models/_23_hmm.md) |
 | 24 | Autoencoders                                                 | ✅ Implemented       | [View Details](24.%20Autoencoders/_24_autoencoders.md) |
 | 25 | Latent Dirichlet Allocation (LDA)                            | ✅ Implemented       | [View Details](25.%20LDA/_25_lda.md) |
-| 26 | Prophet (Time Series Forecasting)                            | 🔜 Coming Soon       | - |
+| 26 | Prophet (Time Series Forecasting)                            | ✅ Implemented       | [View Details](26.%20Prophet/_26_prophet.md) |
 | 27 | Learning-to-Rank                                             | 🔜 Coming Soon       | - |
 | 28 | Matrix Factorization                                         | 🔜 Coming Soon       | - |
 
