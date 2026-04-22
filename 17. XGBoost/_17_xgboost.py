@@ -725,6 +725,11 @@ np.random.seed(42)
 X = np.linspace(-3, 3, 200).reshape(-1, 1)
 y = X.ravel() ** 2 + np.random.randn(200) * 0.5
 
+# Shuffle before splitting so train and test cover the same x range
+# (trees cannot extrapolate: without shuffling, test x > all train x)
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+
 # Split train/test
 X_train, X_test = X[:150], X[150:]
 y_train, y_test = y[:150], y[150:]
@@ -1238,6 +1243,9 @@ if __name__ == "__main__":
 
     X_reg = np.linspace(-3, 3, 200).reshape(-1, 1)
     y_reg = X_reg.ravel() ** 2 + np.random.randn(200) * 0.5
+    # Shuffle so train and test cover the same x range
+    idx_reg = np.random.permutation(200)
+    X_reg, y_reg = X_reg[idx_reg], y_reg[idx_reg]
     X_tr, X_te = X_reg[:150], X_reg[150:]
     y_tr, y_te = y_reg[:150], y_reg[150:]
 
