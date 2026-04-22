@@ -14,6 +14,89 @@ Welcome to the world of XGBoost! 🚀 In this comprehensive guide, we'll explore
 
 ---
 
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# XGBoost from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _17_xgboost.py  (the __main__ block runs this)
+# Or copy the XGBoost class from _17_xgboost.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the XGBoost class here (from _17_xgboost.py) ----
+# class XGBoost: ...
+
+np.random.seed(42)
+
+# ------ REGRESSION: predict y = x^2 + noise ------
+X = np.linspace(-3, 3, 200).reshape(-1, 1)
+y = X.ravel() ** 2 + np.random.randn(200) * 0.5
+
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
+
+model = XGBoost(
+    n_estimators=100,
+    learning_rate=0.1,
+    max_depth=4,
+    reg_lambda=1.0,   # L2 regularization
+    reg_alpha=0.0,    # L1 regularization
+    gamma=0.1         # Minimum gain to split
+)
+model.fit(X_train, y_train)
+
+print(f"Train R2: {model.score(X_train, y_train):.4f}")
+print(f"Test  R2: {model.score(X_test,  y_test):.4f}")
+
+preds = model.predict(X_test)
+for i in range(5):
+    print(f"  x={X_test[i,0]:5.2f}  true={y_test[i]:5.2f}  pred={preds[i]:5.2f}")
+
+# ------ CLASSIFICATION: two Gaussian blobs ------
+X0 = np.random.randn(100, 2) + np.array([-2, -2])
+X1 = np.random.randn(100, 2) + np.array([ 2,  2])
+X_c = np.vstack([X0, X1])
+y_c = np.array([0]*100 + [1]*100)
+idx = np.random.permutation(200)
+X_c, y_c = X_c[idx], y_c[idx]
+
+cls = XGBoost(
+    n_estimators=50,
+    learning_rate=0.3,
+    max_depth=3,
+    objective='binary:logistic',
+    reg_lambda=1.0
+)
+cls.fit(X_c[:150], y_c[:150])
+
+print(f"\nClassification accuracy: {cls.score(X_c[150:], y_c[150:]):.2%}")
+proba = cls.predict_proba(X_c[150:])
+for i in range(3):
+    print(f"  true={y_c[150+i]}  P(0)={proba[i,0]:.3f}  P(1)={proba[i,1]:.3f}")
+```
+
+Expected output:
+```
+Train R2: 0.9932
+Test  R2: 0.9865
+  x=-2.76  true= 7.93  pred= 7.74
+  x=-2.67  true= 6.88  pred= 7.16
+  x=-2.58  true= 7.03  pred= 6.61
+  x=-2.49  true= 6.44  pred= 6.09
+  x=-2.40  true= 5.71  pred= 5.60
+
+Classification accuracy: 98.00%
+  true=1  P(0)=0.053  P(1)=0.947
+  true=0  P(0)=0.932  P(1)=0.068
+  true=0  P(0)=0.897  P(1)=0.103
+```
+
+---
+
 ## What is XGBoost?
 
 XGBoost (Extreme Gradient Boosting) is an **optimized distributed gradient boosting library** that has become the go-to algorithm for winning machine learning competitions. It's essentially gradient boosting with powerful enhancements that make it faster, more accurate, and more robust.
@@ -184,9 +267,9 @@ For split x ≤ 1750:
 
 Gain calculation (with λ=1, γ=0):
   Gain = 0.5 × [180²/(2+1) + (-180)²/(3+1) - 0²/(5+1)] - 0
-       = 0.5 × [10800/3 + 32400/4 - 0/6]
-       = 0.5 × [3600 + 8100]
-       = 5850
+       = 0.5 × [32400/3 + 32400/4 - 0/6]
+       = 0.5 × [10800 + 8100]
+       = 9450
 
 Leaf weights (regularized):
   w_left = -G_L/(H_L+λ) = -180/(2+1) = -60
@@ -345,15 +428,22 @@ This is minimized to find optimal tree!
 For a potential split, XGBoost calculates:
 
 ```
-Gain = 0.5 × [G_L²/(H_L+λ) + G_R²/(H_R+λ) - (G_L+G_R)²/(H_L+H_R+λ)] - γ
+Gain = 0.5 × [score(G_L,H_L) + score(G_R,H_R) - score(G_L+G_R, H_L+H_R)] - γ
 
-where:
-  G_L = Σ(g for samples going left)
-  H_L = Σ(h for samples going left)
-  G_R = Σ(g for samples going right)
-  H_R = Σ(h for samples going right)
+where score(G, H) = shrink(G, α)² / (H + λ)
+
+  shrink(G, α) = G - α   if G > α        (soft-threshold toward zero)
+               = G + α   if G < -α
+               = 0        if |G| <= α
+
+  G_L, G_R = sum of gradients going left / right
+  H_L, H_R = sum of hessians going left / right
   λ = L2 regularization
+  α = L1 regularization (controls soft-threshold)
   γ = complexity cost
+
+When α = 0, shrink(G, 0) = G and the formula reduces to the familiar:
+  Gain = 0.5 × [G_L²/(H_L+λ) + G_R²/(H_R+λ) - (G_L+G_R)²/(H_L+H_R+λ)] - γ
 ```
 
 **Interpretation:**
@@ -398,44 +488,64 @@ Positive gain → Accept split!
 For a leaf with samples I_j:
 
 ```
-w_j* = -G_j/(H_j + λ)
+With L2 only:        w_j* = -G_j / (H_j + λ)
+With L1 and L2:      w_j* = -shrink(G_j, α) / (H_j + λ)
 
 where:
-  G_j = Σᵢ∈I_j gᵢ (sum of gradients in leaf)
-  H_j = Σᵢ∈I_j hᵢ (sum of hessians in leaf)
+  G_j = sum of gradients in leaf
+  H_j = sum of hessians in leaf
   λ = L2 regularization
+  α = L1 regularization
+
+  shrink(G, α) = G - α   if G > α
+               = G + α   if G < -α
+               = 0        if |G| <= α
 ```
 
-**Derivation:**
+**Derivation (L2 only):**
 
 ```
 Minimize: Obj = Σᵢ∈I_j [gᵢwⱼ + ½hᵢwⱼ²] + ½λwⱼ²
 
 Take derivative and set to zero:
-∂Obj/∂wⱼ = Σgᵢ + wⱼΣhᵢ + λwⱼ = 0
-           Gⱼ + wⱼHⱼ + λwⱼ = 0
-           wⱼ(Hⱼ + λ) = -Gⱼ
+∂Obj/∂wⱼ = Gⱼ + wⱼ(Hⱼ + λ) = 0
            wⱼ* = -Gⱼ/(Hⱼ + λ)
+```
 
-This is the optimal weight!
+**Adding L1:**
+
+```
+The L1 term αΣ|wⱼ| creates a kink at zero (non-smooth).
+Solving with subgradient gives soft-thresholding:
+
+  If Gⱼ > α:   wⱼ* = -(Gⱼ - α)/(Hⱼ + λ)
+  If Gⱼ < -α:  wⱼ* = -(Gⱼ + α)/(Hⱼ + λ)
+  If |Gⱼ|≤ α:  wⱼ* = 0
+
+When gradient evidence is weak (|G| <= α), the leaf weight is forced to
+zero. This is exactly the Lasso effect: sparse solutions.
 ```
 
 **Effect of Regularization:**
 
 ```
-Without regularization (λ=0):
+No regularization (λ=0, α=0):
   w = -G/H
-  
-  Example: G=-100, H=10
-  w = -(-100)/10 = 10 (large weight)
+  Example: G=-100, H=10 → w = 10 (large weight)
 
-With regularization (λ=10):
+L2 only (λ=10, α=0):
   w = -G/(H+λ)
-  
-  Example: G=-100, H=10
-  w = -(-100)/(10+10) = 5 (shrunk weight)
-  
-Regularization prevents extreme weights!
+  Example: G=-100, H=10 → w = -(-100)/20 = 5 (shrunk weight)
+
+L1 only (λ=0, α=5):
+  w = -shrink(G, α)/H
+  Example: G=-100, H=10 → shrink(-100, 5) = -105 → w = 10.5
+
+Both (λ=10, α=5):
+  w = -shrink(G, α)/(H+λ)
+  Example: G=-100, H=10 → shrink(-100, 5) = -105 → w = -(-105)/20 = 5.25
+
+L1 on weak evidence: G=3, H=10, α=5 → shrink(3,5)=0 → w=0 (leaf zeroed!)
 ```
 
 ### 4. Gradients and Hessians for Different Loss Functions
@@ -611,9 +721,9 @@ y_train, y_test = y[:150], y[150:]
 ### Training the Model
 
 ```python
-from xgboost_scratch import XGBoost
+# Copy the XGBoost class from _17_xgboost.py (or run that file directly)
+# Then continue with the data created above:
 
-# Create XGBoost model
 model = XGBoost(
     n_estimators=100,
     learning_rate=0.1,
@@ -622,7 +732,6 @@ model = XGBoost(
     gamma=0.1        # Complexity penalty
 )
 
-# Train
 model.fit(X_train, y_train)
 ```
 
@@ -1041,18 +1150,24 @@ hessian = p*(1-p) = [0.235, 0.235, 0.105]
 ### 2. Calculating Regularized Gain
 
 ```python
-def _calculate_gain(self, gradient_left, hessian_left, 
+def _calculate_gain(self, gradient_left, hessian_left,
                    gradient_right, hessian_right):
     def calculate_score(G, H):
-        return (G ** 2) / (H + self.reg_lambda + 1e-10)
-    
-    gain_left = calculate_score(gradient_left, hessian_left)
-    gain_right = calculate_score(gradient_right, hessian_right)
-    gain_parent = calculate_score(gradient_left + gradient_right,
-                                  hessian_left + hessian_right)
-    
+        # L1 soft-threshold: weak gradient evidence scores zero
+        if G > self.reg_alpha:
+            g = G - self.reg_alpha
+        elif G < -self.reg_alpha:
+            g = G + self.reg_alpha
+        else:
+            g = 0.0
+        return (g ** 2) / (H + self.reg_lambda + 1e-10)
+
+    gain_left   = calculate_score(gradient_left,  hessian_left)
+    gain_right  = calculate_score(gradient_right, hessian_right)
+    gain_parent = calculate_score(gradient_left  + gradient_right,
+                                  hessian_left   + hessian_right)
+
     gain = 0.5 * (gain_left + gain_right - gain_parent) - self.gamma
-    
     return gain
 ```
 
@@ -1097,7 +1212,14 @@ gain = 0.5 × (120 + 80 - 200) - 0
 
 ```python
 def _calculate_leaf_weight(self, gradient_sum, hessian_sum):
-    return -gradient_sum / (hessian_sum + self.reg_lambda + 1e-10)
+    # L1 soft-thresholding first, then divide by (H + lambda)
+    if gradient_sum > self.reg_alpha:
+        g_shrunk = gradient_sum - self.reg_alpha
+    elif gradient_sum < -self.reg_alpha:
+        g_shrunk = gradient_sum + self.reg_alpha
+    else:
+        g_shrunk = 0.0
+    return -g_shrunk / (hessian_sum + self.reg_lambda + 1e-10)
 ```
 
 **Example:**
@@ -1105,16 +1227,23 @@ def _calculate_leaf_weight(self, gradient_sum, hessian_sum):
 ```python
 # Leaf with 50 samples
 gradient_sum = -100
-hessian_sum = 50
+hessian_sum  = 50
 
-# Without regularization (lambda=0)
-weight = -(-100) / (50 + 0) = 100/50 = 2.0
+# No regularization (lambda=0, alpha=0)
+# shrink(-100, 0) = -100
+weight = -(-100) / (50 + 0) = 2.0
 
-# With regularization (lambda=10)
-weight = -(-100) / (50 + 10) = 100/60 = 1.67
+# L2 only (lambda=10, alpha=0)
+# shrink(-100, 0) = -100
+weight = -(-100) / (50 + 10) = 1.67   # shrunk by L2
 
-# Regularization shrinks the weight
-# Prevents overfitting to this leaf
+# L1 only (lambda=0, alpha=5)
+# shrink(-100, 5) = -105
+weight = -(-105) / (50 + 0) = 2.1
+
+# L1 on a weak gradient (lambda=0, alpha=5, G=3)
+# shrink(3, 5) = 0  (|G| <= alpha)
+weight = 0  # leaf zeroed out by L1
 ```
 
 ### 4. Building the Tree

@@ -17,13 +17,19 @@ class XGBoost:
     - Feature Selection: Identifying important variables
     
     Key Improvements over Standard Gradient Boosting:
-        Regularization: L1 (Lasso) and L2 (Ridge) regularization to prevent overfitting
-        Tree Pruning: Max depth pruning with backward pruning for efficiency
-        Handling Missing Values: Learns optimal default direction for missing values
+        Second-Order Optimization: Uses both gradient (g) and hessian (h) for better step sizes
+        Regularization: L1 (alpha) and L2 (lambda) regularization with L1 soft-thresholding
+        Gamma Pruning: Only split when gain exceeds gamma (complexity cost)
         Column Subsampling: Random feature selection per tree (like Random Forest)
-        Weighted Quantile Sketch: Efficient split finding algorithm
-        Sparsity Awareness: Optimized for sparse data
-        Built-in Cross-Validation: Early stopping to prevent overfitting
+        Row Subsampling: Stochastic boosting to reduce overfitting
+        Early Stopping: Halt training when validation score stops improving
+    
+    L1 Soft-Thresholding:
+        Leaf weights and gain scores use shrink(G, alpha) instead of G directly.
+        shrink(G, alpha) = G - alpha  if G > alpha
+                         = G + alpha  if G < -alpha
+                         = 0          if |G| <= alpha
+        This makes leaf weights exactly zero when gradient evidence is weak.
     """
     
     def __init__(self, n_estimators=100, learning_rate=0.3, max_depth=6, 
@@ -161,11 +167,12 @@ class XGBoost:
         """
         Calculate optimal leaf weight using XGBoost's formula
         
-        XGBoost formula: w* = -G / (H + lambda)
-        where G = sum of gradients, H = sum of hessians
+        With L2 only:  w* = -G / (H + lambda)
+        With L1 + L2:  w* = -shrink(G, alpha) / (H + lambda)
         
-        This is the optimal weight that minimizes the loss function
-        with L2 regularization
+        The L1 term introduces soft-thresholding on the gradient sum.
+        When alpha > 0, gradients smaller than alpha are zeroed out,
+        producing sparser leaf weights.
         
         Parameters:
         -----------
@@ -179,20 +186,33 @@ class XGBoost:
         weight : float
             Optimal leaf weight
         """
-        # Add small epsilon to avoid division by zero
-        return -gradient_sum / (hessian_sum + self.reg_lambda + 1e-10)
+        # L1 soft-thresholding: shrink gradient toward zero by reg_alpha
+        if gradient_sum > self.reg_alpha:
+            g_shrunk = gradient_sum - self.reg_alpha
+        elif gradient_sum < -self.reg_alpha:
+            g_shrunk = gradient_sum + self.reg_alpha
+        else:
+            g_shrunk = 0.0
+        return -g_shrunk / (hessian_sum + self.reg_lambda + 1e-10)
     
     def _calculate_gain(self, gradient_left, hessian_left, gradient_right, hessian_right):
         """
         Calculate the gain from a split using XGBoost's gain formula
         
-        Gain = 0.5 * [G_L²/(H_L+λ) + G_R²/(H_R+λ) - (G_L+G_R)²/(H_L+H_R+λ)] - γ
+        Gain = 0.5 * [score(G_L,H_L) + score(G_R,H_R) - score(G_L+G_R, H_L+H_R)] - gamma
+        
+        where score(G, H) = shrink(G, alpha)^2 / (H + lambda)
+        and shrink(G, alpha) is the L1 soft-threshold of G.
+        
+        When reg_alpha = 0 this reduces to the standard formula:
+        Gain = 0.5 * [G_L^2/(H_L+lambda) + G_R^2/(H_R+lambda) - (G_L+G_R)^2/(H_L+H_R+lambda)] - gamma
         
         Where:
         - G_L, G_R: Sum of gradients in left/right child
         - H_L, H_R: Sum of hessians in left/right child
-        - λ (lambda): L2 regularization
-        - γ (gamma): Minimum loss reduction (complexity cost)
+        - lambda: L2 regularization
+        - alpha: L1 regularization (soft-threshold on G)
+        - gamma: Minimum loss reduction (complexity cost)
         
         Parameters:
         -----------
@@ -210,9 +230,15 @@ class XGBoost:
         gain : float
             Gain from the split (higher is better)
         """
-        # Calculate scores for left and right
         def calculate_score(G, H):
-            return (G ** 2) / (H + self.reg_lambda + 1e-10)
+            # L1 soft-thresholding on gradient before squaring
+            if G > self.reg_alpha:
+                g = G - self.reg_alpha
+            elif G < -self.reg_alpha:
+                g = G + self.reg_alpha
+            else:
+                g = 0.0
+            return (g ** 2) / (H + self.reg_lambda + 1e-10)
         
         gain_left = calculate_score(gradient_left, hessian_left)
         gain_right = calculate_score(gradient_right, hessian_right)
@@ -747,8 +773,8 @@ X = X[indices]
 y = y[indices]
 
 # Split
-X_train, X_test = X[:150], X[50:]
-y_train, y_test = y[:150], y[50:]
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
 
 # Train XGBoost classifier
 model = XGBoost(
@@ -873,8 +899,8 @@ np.random.seed(42)
 X = np.random.randn(200, 15)
 y = 2 * X[:, 0] - X[:, 1] + 0.5 * X[:, 2] + np.random.randn(200) * 0.8
 
-X_train, X_test = X[:150], X[50:]
-y_train, y_test = y[:150], y[50:]
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
 
 # Test different regularization settings
 configs = [
@@ -920,8 +946,8 @@ y = (X[:, 0] ** 2 + X[:, 1] ** 2 +
      np.sin(X[:, 2]) * X[:, 3] + 
      np.random.randn(300) * 0.5)
 
-X_train, X_test = X[:200], X[100:]
-y_train, y_test = y[:200], y[100:]
+X_train, X_test = X[:200], X[200:]
+y_train, y_test = y[:200], y[200:]
 
 # Test different depths
 depths = [2, 3, 4, 6, 8]
@@ -959,8 +985,8 @@ X = np.random.randn(200, 20)
 y = (2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] - 
      0.5 * X[:, 3] + X[:, 4] + np.random.randn(200) * 0.5)
 
-X_train, X_test = X[:150], X[50:]
-y_train, y_test = y[:150], y[50:]
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
 
 # Test different colsample_bytree values
 colsample_values = [0.3, 0.5, 0.7, 1.0]
@@ -1196,3 +1222,69 @@ print("\nNew House Price Predictions:")
 for i, pred in enumerate(predicted_prices):
     print(f"House {i+1}: ${pred:.2f}k")
 """
+
+
+if __name__ == "__main__":
+    # ----------------------------------------------------------------
+    # Plug-and-Play Demo: run this file directly with
+    #   python _17_xgboost.py
+    # ----------------------------------------------------------------
+    np.random.seed(42)
+
+    # --- Regression demo: predict y = x^2 + noise ---
+    print("=" * 55)
+    print("DEMO 1 - Regression: y = x^2 + noise")
+    print("=" * 55)
+
+    X_reg = np.linspace(-3, 3, 200).reshape(-1, 1)
+    y_reg = X_reg.ravel() ** 2 + np.random.randn(200) * 0.5
+    X_tr, X_te = X_reg[:150], X_reg[150:]
+    y_tr, y_te = y_reg[:150], y_reg[150:]
+
+    reg_model = XGBoost(
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=4,
+        reg_lambda=1.0,
+        gamma=0.1
+    )
+    reg_model.fit(X_tr, y_tr)
+
+    preds = reg_model.predict(X_te)
+    print(f"Train R2 : {reg_model.score(X_tr, y_tr):.4f}")
+    print(f"Test  R2 : {reg_model.score(X_te, y_te):.4f}")
+    print("\nSample predictions (x, true, predicted):")
+    for i in range(5):
+        print(f"  x={X_te[i, 0]:5.2f}  true={y_te[i]:5.2f}  pred={preds[i]:5.2f}")
+
+    # --- Classification demo: two Gaussian blobs ---
+    print("\n" + "=" * 55)
+    print("DEMO 2 - Binary Classification: two Gaussian blobs")
+    print("=" * 55)
+
+    X0 = np.random.randn(100, 2) + np.array([-2, -2])
+    X1 = np.random.randn(100, 2) + np.array([2, 2])
+    X_cls = np.vstack([X0, X1])
+    y_cls = np.array([0] * 100 + [1] * 100)
+    idx = np.random.permutation(200)
+    X_cls, y_cls = X_cls[idx], y_cls[idx]
+    X_tr2, X_te2 = X_cls[:150], X_cls[150:]
+    y_tr2, y_te2 = y_cls[:150], y_cls[150:]
+
+    cls_model = XGBoost(
+        n_estimators=50,
+        learning_rate=0.3,
+        max_depth=3,
+        objective='binary:logistic',
+        reg_lambda=1.0
+    )
+    cls_model.fit(X_tr2, y_tr2)
+
+    print(f"Train Accuracy : {cls_model.score(X_tr2, y_tr2):.2%}")
+    print(f"Test  Accuracy : {cls_model.score(X_te2, y_te2):.2%}")
+    probas = cls_model.predict_proba(X_te2)
+    print("\nSample predictions (true, P(0), P(1)):")
+    for i in range(5):
+        print(f"  true={int(y_te2[i])}  "
+              f"P(class=0)={probas[i, 0]:.3f}  "
+              f"P(class=1)={probas[i, 1]:.3f}")
