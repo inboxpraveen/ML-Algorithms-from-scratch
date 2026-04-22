@@ -36,6 +36,11 @@ np.random.seed(42)
 X = np.linspace(-3, 3, 200).reshape(-1, 1)
 y = X.ravel() ** 2 + np.random.randn(200) * 0.5
 
+# Shuffle before splitting: trees cannot extrapolate beyond training range.
+# Without shuffling the last 50 x-values would all be > training max.
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+
 X_train, X_test = X[:150], X[150:]
 y_train, y_test = y[:150], y[150:]
 
