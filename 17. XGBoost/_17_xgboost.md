@@ -86,18 +86,18 @@ for i in range(3):
 
 Expected output:
 ```
-Train R2: 0.9932
-Test  R2: 0.9865
-  x=-2.76  true= 7.93  pred= 7.74
-  x=-2.67  true= 6.88  pred= 7.16
-  x=-2.58  true= 7.03  pred= 6.61
-  x=-2.49  true= 6.44  pred= 6.09
-  x=-2.40  true= 5.71  pred= 5.60
+Train R2: 0.9832
+Test  R2: 0.9535
+  x=-2.88  true= 8.17  pred= 8.30
+  x= 0.23  true= 0.14  pred= 0.15
+  x= 2.55  true= 6.38  pred= 6.76
+  x=-1.43  true= 1.71  pred= 2.22
+  x= 2.34  true= 6.19  pred= 5.44
 
-Classification accuracy: 98.00%
-  true=1  P(0)=0.053  P(1)=0.947
-  true=0  P(0)=0.932  P(1)=0.068
-  true=0  P(0)=0.897  P(1)=0.103
+Classification accuracy: 100.00%
+  true=1  P(0)=0.007  P(1)=0.993
+  true=0  P(0)=0.898  P(1)=0.102
+  true=1  P(0)=0.007  P(1)=0.993
 ```
 
 ---
