@@ -832,13 +832,13 @@ for i in range(5):
 
 **Output:**
 ```
-Test R²: 0.9891
+Test R²: 0.9535
 
-x: -2.70, True:  7.21, Predicted:  7.18
-x: -2.40, True:  5.98, Predicted:  5.95
-x: -2.10, True:  4.61, Predicted:  4.58
-x: -1.80, True:  3.09, Predicted:  3.12
-x: -1.50, True:  2.45, Predicted:  2.43
+x: -2.88, True:  8.17, Predicted:  8.30
+x:  0.23, True:  0.14, Predicted:  0.15
+x:  2.55, True:  6.38, Predicted:  6.76
+x: -1.43, True:  1.71, Predicted:  2.22
+x:  2.34, True:  6.19, Predicted:  5.44
 ```
 
 ### Early Stopping Example
