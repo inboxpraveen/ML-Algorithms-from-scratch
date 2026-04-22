@@ -713,10 +713,14 @@ Let's walk through a complete example of **regression with XGBoost**:
 ```python
 import numpy as np
 
-# Create non-linear data: y = x² + noise
+# Create non-linear data: y = x^2 + noise
 np.random.seed(42)
 X = np.linspace(-3, 3, 200).reshape(-1, 1)
 y = X.ravel() ** 2 + np.random.randn(200) * 0.5
+
+# Shuffle first: trees cannot extrapolate, so train/test must overlap in range
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
 
 # Split train/test
 X_train, X_test = X[:150], X[150:]
