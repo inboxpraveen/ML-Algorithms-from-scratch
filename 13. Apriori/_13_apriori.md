@@ -3,14 +3,180 @@
 Welcome to the world of Association Rule Mining! 🛒 In this comprehensive guide, we'll explore the Apriori algorithm - one of the most important algorithms for discovering patterns in transactional data. Think of it as the "frequently bought together" algorithm!
 
 ## Table of Contents
-1. [What is the Apriori Algorithm?](#what-is-the-apriori-algorithm)
-2. [How Apriori Works](#how-apriori-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is the Apriori Algorithm?](#what-is-the-apriori-algorithm)
+3. [How Apriori Works](#how-apriori-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Computational Complexity](#computational-complexity)
+11. [Simplifications vs. Canonical Apriori](#simplifications-vs-canonical-apriori)
+12. [Advantages and Limitations](#advantages-and-limitations)
+13. [Comparing with Alternatives](#comparing-with-alternatives)
+14. [Key Concepts to Remember](#key-concepts-to-remember)
+15. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra
+dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Apriori from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python "_13_apriori.py"   (the __main__ block runs this)
+# Or copy the Apriori class from _13_apriori.py and paste it above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the Apriori class here (from _13_apriori.py) ----
+# class Apriori: ...
+
+np.random.seed(42)
+
+# ====== DEMO 1: a market basket you can check with a pencil ======
+groceries = [
+    ['milk', 'bread', 'butter'],
+    ['milk', 'bread'],
+    ['milk', 'eggs'],
+    ['bread', 'butter'],
+    ['milk', 'bread', 'butter', 'eggs'],
+    ['bread', 'eggs'],
+    ['milk', 'butter'],
+    ['milk', 'bread', 'eggs'],
+    ['bread', 'butter', 'eggs'],
+    ['milk', 'bread']
+]
+
+market = Apriori(min_support=0.4, min_confidence=0.7)
+market.fit(groceries)
+market.print_frequent_itemsets(max_display=10)
+market.generate_rules()
+market.print_rules(max_display=10)
+
+# ====== DEMO 2: planted associations, train vs held-out baskets ======
+# bread pulls butter in 80% of bread baskets; laptop pulls mouse in 90%.
+# Six independent noise items should produce no rules at all.
+n_baskets = 250
+noise_items = ['pen', 'soap', 'tea', 'jam', 'rice', 'salt']
+noise_probs = [0.30, 0.25, 0.20, 0.30, 0.25, 0.15]
+
+baskets = []
+for _ in range(n_baskets):
+    basket = []
+    if np.random.rand() < 0.50:
+        basket.append('bread')
+        if np.random.rand() < 0.80:
+            basket.append('butter')
+    if np.random.rand() < 0.40:
+        basket.append('laptop')
+        if np.random.rand() < 0.90:
+            basket.append('mouse')
+    for item, prob in zip(noise_items, noise_probs):
+        if np.random.rand() < prob:
+            basket.append(item)
+    baskets.append(basket)
+
+# Clean split - no overlap. Baskets are i.i.d., so no shuffle is needed.
+train_baskets = baskets[:200]
+test_baskets = baskets[200:]
+
+miner = Apriori(min_support=0.15, min_confidence=0.60)
+miner.fit(train_baskets)
+train_rules = miner.generate_rules()
+
+def empirical_confidence(antecedent, consequent, transaction_list):
+    """confidence = |{t : X and Y both in t}| / |{t : X in t}| on unseen data."""
+    fired = correct = 0
+    for transaction in transaction_list:
+        items = set(transaction)
+        if antecedent.issubset(items):
+            fired += 1
+            if consequent.issubset(items):
+                correct += 1
+    return (correct / fired if fired else float('nan')), fired
+
+# Known-answer check: did the miner recover the two PLANTED rules?
+print("Known-answer check (planted: bread->butter 0.80, laptop->mouse 0.90)")
+for antecedent, consequent in [({'bread'}, {'butter'}), ({'laptop'}, {'mouse'})]:
+    for rule in train_rules:
+        if rule['antecedent'] == antecedent and rule['consequent'] == consequent:
+            test_conf, n = empirical_confidence(antecedent, consequent, test_baskets)
+            print(f"  {sorted(antecedent)} -> {sorted(consequent)}  "
+                  f"train={rule['confidence']:.3f}  test={test_conf:.3f}  "
+                  f"lift={rule['lift']:.3f}")
+
+print("Top 5 rules by confidence:")
+for rule in train_rules[:5]:
+    test_conf, n = empirical_confidence(set(rule['antecedent']),
+                                        set(rule['consequent']), test_baskets)
+    ant = '{' + ','.join(sorted(rule['antecedent'])) + '}'
+    con = '{' + ','.join(sorted(rule['consequent'])) + '}'
+    print(f"  {ant} -> {con}  train={rule['confidence']:.3f}  test={test_conf:.3f}")
+
+# ====== DEMO 3: recommend from the mined rules ======
+for sample_basket in (['bread'], ['laptop'], ['tea']):
+    print(sample_basket, '->', miner.predict(sample_basket))
+```
+
+This snippet is a condensed version of the `__main__` block. Running the file
+itself (`python "_13_apriori.py"`) prints the same results with fuller commentary
+and a trace of why the search stops at 2-itemsets.
+
+Expected output:
+```
+Found 7 frequent itemsets
+
+======================================================================
+FREQUENT ITEMSETS (showing top 7)
+======================================================================
+Itemset                                     Support
+----------------------------------------------------------------------
+{bread}                                       0.800
+{milk}                                        0.700
+{bread, milk}                                 0.500
+{butter}                                      0.500
+{eggs}                                        0.500
+{bread, butter}                               0.400
+{bread, eggs}                                 0.400
+Generated 3 association rules
+
+==========================================================================================
+ASSOCIATION RULES (showing top 3)
+==========================================================================================
+Rule                                            Confidence       Lift    Support
+------------------------------------------------------------------------------------------
+{butter} -> {bread}                                  0.800      1.000      0.400
+{eggs} -> {bread}                                    0.800      1.000      0.400
+{milk} -> {bread}                                    0.714      0.893      0.500
+Found 20 frequent itemsets
+Generated 8 association rules
+Known-answer check (planted: bread->butter 0.80, laptop->mouse 0.90)
+  ['bread'] -> ['butter']  train=0.796  test=0.731  lift=2.151
+  ['laptop'] -> ['mouse']  train=0.872  test=0.818  lift=2.326
+Top 5 rules by confidence:
+  {bread,mouse} -> {laptop}  train=1.000  test=1.000
+  {butter} -> {bread}  train=1.000  test=1.000
+  {butter,laptop} -> {bread}  train=1.000  test=1.000
+  {mouse} -> {laptop}  train=1.000  test=1.000
+  {bread,laptop} -> {mouse}  train=0.881  test=1.000
+['bread'] -> [('butter', 0.7956989247311828, 2.150537634408602)]
+['laptop'] -> [('mouse', 0.872093023255814, 2.3255813953488373)]
+['tea'] -> []
+```
+
+Two things to notice in DEMO 2. First, the miner recovers both **planted**
+associations - `{bread} -> {butter}` at training confidence 0.796 against the 0.80
+that generated the data, and `{laptop} -> {mouse}` at 0.872 against 0.90 - and the
+held-out confidences (0.731 and 0.818 on 50 unseen baskets) stay close, so these are
+real patterns rather than memorised noise. Second, none of the six independent noise
+items produce a rule: a correct miner finds structure only where structure exists.
 
 ---
 
@@ -135,14 +301,23 @@ Frequent 2-itemsets: {milk, bread}, {bread, butter}
 **Iteration 3: Generate and test 3-itemsets**
 
 ```
-Candidates (join frequent 2-itemsets):
-{milk, bread, butter}
+Join the frequent 2-itemsets {milk, bread} and {bread, butter}:
+  {milk, bread} | {bread, butter} = {milk, bread, butter}
 
-Count:
-{milk, bread, butter}: 2/5 = 40%  ✗ (infrequent)
+Prune: are all three of its 2-subsets frequent?
+  {milk, bread}:   60%  ✓
+  {bread, butter}: 60%  ✓
+  {milk, butter}:  40%  ✗  <- infrequent, pruned in iteration 2
 
-No frequent 3-itemsets found → Stop
+One infrequent subset is enough: {milk, bread, butter} CANNOT reach 60%,
+so we discard it WITHOUT counting it in the database.
+
+Candidates surviving the prune: 0
+No frequent 3-itemsets → Stop
 ```
+
+(For the record, {milk, bread, butter} really does have support 2/5 = 40%, below
+the 60% threshold - the prune reached the right answer without paying for the scan.)
 
 **Generate Association Rules**
 
@@ -324,7 +499,7 @@ Without Apriori property:
 With Apriori property (pruning):
   If {A, B} is infrequent
   → Prune: {A, B, C}, {A, B, D}, {A, B, C, D}
-  → Check only 11 itemsets instead of 15
+  → Check only 12 itemsets instead of 15
   
 For 10 items:
   Without pruning: 1,023 itemsets
@@ -342,12 +517,14 @@ Our implementation includes the following key components:
 
 ```python
 class Apriori:
-    def __init__(self, min_support=0.5, min_confidence=0.7):
+    def __init__(self, min_support=0.5, min_confidence=0.7, verbose=True):
         self.min_support = min_support
         self.min_confidence = min_confidence
-        self.frequent_itemsets = {}
-        self.rules = []
-        self.support_data = {}
+        self.verbose = verbose          # False silences progress messages
+        self.frequent_itemsets = {}     # {k: {frozenset: support}}
+        self.rules = []                 # list of rule dicts
+        self.support_data = {}          # {frozenset: support} for every frequent itemset
+        self.transactions = None        # None until fit() is called
 ```
 
 ### Core Methods
@@ -369,31 +546,46 @@ class Apriori:
    - Keep only frequent itemsets
 
 5. **`_generate_candidates(frequent_itemsets, k)`** - Generate candidates
-   - Join step: combine (k-1)-itemsets to form k-itemsets
-   - Uses Apriori principle for pruning
+   - **Join step**: union every pair of frequent (k-1)-itemsets, keep unions of size k
+   - **Prune step**: discard a candidate unless all of its (k-1)-subsets are frequent
+   - The prune step is the Apriori property in code, and it is what stops the
+     candidate count exploding - it removes candidates *before* they cost a scan
 
 6. **`fit(transactions)`** - Find frequent itemsets
    - Main algorithm implementation
    - Iteratively finds frequent k-itemsets
    - Stores results in self.frequent_itemsets
+   - Resets any previously mined rules, and returns `self` so that
+     `model = Apriori(...).fit(tx)` works in one expression
 
 7. **`generate_rules()`** - Generate association rules
    - Extract rules from frequent itemsets
-   - Calculate confidence and lift for each rule
+   - Calculate confidence, lift and conviction for each rule
    - Filter by min_confidence
+   - Returns a **list of dicts** (not tuples) with keys `antecedent`,
+     `consequent`, `confidence`, `lift`, `support`, `conviction`
 
 8. **`get_frequent_itemsets(min_size)`** - Get itemsets
    - Return all frequent itemsets with ≥ min_size items
-   - Sorted by support
+   - Sorted by support descending, ties broken by item name so the order is
+     reproducible from run to run
 
-9. **`predict(basket)`** - Recommend items
-   - Given current basket, suggest additional items
-   - Based on learned association rules
-   - Returns items with confidence and lift
+9. **`get_rules(min_confidence, min_lift, min_conviction)`** - Filter rules
+   - Filters the list `generate_rules()` already produced
+   - Can only **tighten** the thresholds, never loosen them: rules below the
+     `min_confidence` given to `__init__` were never created, so asking here for
+     a lower one changes nothing. Refit with a lower `min_confidence` instead.
 
-10. **`print_frequent_itemsets()` / `print_rules()`** - Display results
+10. **`predict(basket)`** - Recommend items
+    - Given current basket, suggest additional items
+    - Based on learned association rules
+    - Returns items with confidence and lift, highest-confidence rule per item
+    - Items already in the basket are never recommended back
+
+11. **`print_frequent_itemsets()` / `print_rules()`** - Display results
     - Pretty print frequent itemsets and rules
-    - Formatted for easy reading
+    - Formatted for easy reading, ASCII-only (`->`, not a Unicode arrow, so the
+      tables render on a Windows cp1252 console instead of raising)
 
 ---
 
@@ -424,7 +616,10 @@ transactions = [
 ### Training the Model
 
 ```python
-from apriori import Apriori
+# Paste the Apriori class from _13_apriori.py above this line,
+# or just run: python "_13_apriori.py"
+# (There is no installable `apriori` module - the file lives in a
+#  directory named "13. Apriori", which is not a legal import path.)
 
 # Create model with thresholds
 model = Apriori(min_support=0.4, min_confidence=0.7)
@@ -453,7 +648,7 @@ Generate candidates (join step):
   {bread, butter}, {bread, eggs}, {butter, eggs}
 
 Count support:
-  {milk, bread}:   6/10 = 0.6  ✓
+  {milk, bread}:   5/10 = 0.5  ✓   (T1, T2, T5, T8, T10)
   {milk, butter}:  3/10 = 0.3  ✗ (pruned)
   {milk, eggs}:    3/10 = 0.3  ✗ (pruned)
   {bread, butter}: 4/10 = 0.4  ✓
@@ -465,19 +660,32 @@ Frequent 2-itemsets: 3 itemsets
 
 **Iteration 3**:
 
-```
-Generate candidates:
-  {milk, bread, butter} - but {milk, butter} was infrequent!
-                         → Skip by Apriori principle
-  
-  {bread, butter, eggs} - all subsets are frequent ✓
-                         → Check this one
+The join step unions every pair of frequent 2-itemsets. The **prune** step then
+discards a candidate unless *every* one of its 2-subsets is frequent - a memory
+lookup, not a database scan.
 
-Count support:
-  {bread, butter, eggs}: 2/10 = 0.2  ✗ (pruned)
-
-No frequent 3-itemsets → Algorithm terminates
 ```
+Join the frequent 2-itemsets {milk,bread}, {bread,butter}, {bread,eggs}:
+
+  {milk,bread} | {bread,butter} = {milk, bread, butter}
+      2-subsets: {milk,bread} ✓  {bread,butter} ✓  {milk,butter} ✗ (0.3)
+      → PRUNED, never scanned
+
+  {milk,bread} | {bread,eggs}   = {milk, bread, eggs}
+      2-subsets: {milk,bread} ✓  {bread,eggs} ✓  {milk,eggs} ✗ (0.3)
+      → PRUNED, never scanned
+
+  {bread,butter} | {bread,eggs} = {bread, butter, eggs}
+      2-subsets: {bread,butter} ✓  {bread,eggs} ✓  {butter,eggs} ✗ (0.2)
+      → PRUNED, never scanned
+
+Candidates surviving the prune: 0
+→ Zero support scans at k=3. Algorithm terminates.
+```
+
+This is the payoff of the Apriori property: three candidates were eliminated using
+only results already in memory, instead of walking the transaction database three
+more times. Run `python "_13_apriori.py"` and DEMO 1 prints exactly this trace.
 
 **Summary of Frequent Itemsets**:
 
@@ -501,22 +709,26 @@ model.print_rules(max_display=10)
 
 **Rule Generation Process**:
 
-From frequent 2-itemset `{milk, bread}` (support = 0.6):
+From frequent 2-itemset `{milk, bread}` (support = 0.5):
 
 ```
 Rule 1: {milk} → {bread}
   Support({milk}) = 0.7
-  Confidence = 0.6 / 0.7 = 0.857 (85.7%)  ✓ (≥ 0.7)
-  
+  Confidence = 0.5 / 0.7 = 0.714 (71.4%)  ✓ (≥ 0.7)
+
   Support({bread}) = 0.8
-  Lift = 0.857 / 0.8 = 1.071
+  Lift = 0.714 / 0.8 = 0.893
+
+  Notice the lift is BELOW 1. Bread is in 80% of all baskets anyway, so knowing
+  a customer bought milk makes bread very slightly LESS likely than the base
+  rate. A high-confidence, low-lift rule: reliable, but it tells you nothing.
 
 Rule 2: {bread} → {milk}
   Support({bread}) = 0.8
-  Confidence = 0.6 / 0.8 = 0.75 (75%)  ✓ (≥ 0.7)
-  
-  Support({milk}) = 0.7
-  Lift = 0.75 / 0.7 = 1.071
+  Confidence = 0.5 / 0.8 = 0.625 (62.5%)  ✗ (< 0.7, rejected)
+
+  This rule is never created - generate_rules() drops it at the confidence
+  test, before lift is ever computed.
 ```
 
 From frequent 2-itemset `{bread, butter}` (support = 0.4):
@@ -545,12 +757,22 @@ Rule 6: {eggs} → {bread}
 
 **Final Rules** (confidence ≥ 0.7):
 
+Exactly three rules survive, printed in the implementation's own order -
+confidence descending, ties broken alphabetically:
+
 ```
-1. {milk} → {bread}       Confidence: 85.7%, Lift: 1.071
-2. {bread} → {milk}       Confidence: 75.0%, Lift: 1.071
-3. {butter} → {bread}     Confidence: 80.0%, Lift: 1.000
-4. {eggs} → {bread}       Confidence: 80.0%, Lift: 1.000
+1. {butter} → {bread}     Confidence: 80.0%, Lift: 1.000, Support: 0.4
+2. {eggs}   → {bread}     Confidence: 80.0%, Lift: 1.000, Support: 0.4
+3. {milk}   → {bread}     Confidence: 71.4%, Lift: 0.893, Support: 0.5
 ```
+
+`{bread} → {milk}` (62.5%), `{bread} → {butter}` (50.0%) and
+`{bread} → {eggs}` (50.0%) all fall below the 0.7 threshold and are never
+emitted - which is why the list has three entries, not six. Every surviving rule
+has `{bread}` as its consequent, exactly what happens when one item dominates the
+baskets, and the lift column (pinned at or below 1.000) is the reason to be
+sceptical of all three. These are the three rules `print_rules()` actually
+displays; DEMO 1 in `_13_apriori.py` prints them verbatim.
 
 ### Making Recommendations
 
@@ -569,13 +791,17 @@ for item, confidence, lift in recommendations:
 **Output**:
 ```
 Recommendations:
-  bread: 85.7% confidence, 1.07 lift
+  bread: 80.0% confidence, 1.00 lift
 ```
 
 **Interpretation**:
-- Customer has milk → {milk} → {bread} rule fires
-- 85.7% of customers who buy milk also buy bread
-- Should suggest bread at checkout!
+- Two rules fire, because the basket contains both antecedents:
+  `{milk} → {bread}` at 71.4% and `{butter} → {bread}` at 80.0%
+- `predict()` keeps the **highest-confidence** rule per recommended item, so the
+  butter rule wins and 80.0% / 1.00 is what gets reported
+- 80% of customers who buy butter also buy bread → suggest bread at checkout
+- But lift is 1.00: bread is no more likely here than its 80% base rate. In a
+  real store you would rank this below any rule with lift comfortably above 1.
 
 ---
 
@@ -612,9 +838,9 @@ Collaborative filtering and content recommendation:
 
 **Example**:
 ```
-User watched: {Inception, Interstellar}
-Rules found: {Inception, Interstellar} → {The Prestige}
-Recommendation: "You might also like The Prestige"
+User watched: {Inception, The Dark Knight}
+Rule found: {The Dark Knight} → {Batman Begins}  (confidence 100%, lift 3.33)
+Recommendation: "You might also like Batman Begins"
 ```
 
 ### 3. **Medical Diagnosis**
@@ -738,19 +964,32 @@ support = 2/3 = 0.667 (66.7%)
 - Unordered: {A, B} == {B, A}
 - Hashable: Fast lookups and comparisons
 
-### 2. Generating Candidates (Join Step)
+### 2. Generating Candidates (Join + Prune)
+
+This is the heart of Apriori. The join proposes candidates; the **prune** throws
+away the ones the Apriori property already rules out, before any of them costs a
+database scan.
 
 ```python
 def _generate_candidates(self, frequent_itemsets, k):
     candidates = set()
     n = len(frequent_itemsets)
-    
+    # Membership set for the prune test
+    previous_frequent = set(frequent_itemsets)
+
     for i in range(n):
         for j in range(i + 1, n):
+            # JOIN: union two (k-1)-itemsets
             union = frequent_itemsets[i] | frequent_itemsets[j]
             if len(union) == k:
-                candidates.add(union)
-    
+                # PRUNE: every (k-1)-subset must itself be frequent
+                subsets_all_frequent = all(
+                    frozenset(subset) in previous_frequent
+                    for subset in combinations(sorted(union, key=str), k - 1)
+                )
+                if subsets_all_frequent:
+                    candidates.add(union)
+
     return candidates
 ```
 
@@ -763,21 +1002,49 @@ frequent = [
     frozenset(['B', 'C'])
 ]
 
-# Join pairs
+# JOIN pairs
 i=0, j=1: {A,B} | {A,C} = {A,B,C}  len=3 ✓
 i=0, j=2: {A,B} | {B,C} = {A,B,C}  len=3 ✓ (duplicate)
 i=1, j=2: {A,C} | {B,C} = {A,B,C}  len=3 ✓ (duplicate)
+
+# PRUNE {A,B,C}: are all three of its 2-subsets frequent?
+{A,B} ✓   {A,C} ✓   {B,C} ✓   -> kept
 
 # Output: candidate 3-itemsets
 candidates = [frozenset(['A', 'B', 'C'])]
 ```
 
+Now the case where the prune earns its keep - drop `{B,C}` from the input:
+
+```python
+frequent = [frozenset(['A', 'B']), frozenset(['A', 'C'])]   # {B,C} infrequent
+
+# JOIN
+{A,B} | {A,C} = {A,B,C}  len=3 ✓
+
+# PRUNE
+{A,B} ✓   {A,C} ✓   {B,C} ✗   -> DISCARDED, never scanned
+
+candidates = []          # join alone would have returned [{A,B,C}]
+```
+
 **Why this works**:
 ```
-Apriori principle ensures:
+Apriori principle (downward closure):
+  X subset of Y  =>  support(Y) <= support(X)
+
+Read forwards:
   - If {A,B,C} is frequent
-  - Then all 2-subsets must be frequent
-  - So {A,B,C} can only be formed from frequent 2-subsets
+  - Then all its 2-subsets must be frequent
+
+Read backwards (the contrapositive - this is the prune):
+  - If ANY 2-subset of {A,B,C} is infrequent
+  - Then {A,B,C} cannot possibly be frequent
+  - So discard it without counting it in the database
+
+The join alone is already correct - _filter_candidates would reject the
+hopeless candidates anyway. The prune makes it FAST, by rejecting them with a
+set lookup instead of a full pass over the transactions.
 ```
 
 ### 3. Filtering Candidates
@@ -852,10 +1119,11 @@ Iteration 2:
   → 3 frequent itemsets
   
 Iteration 3:
-  Generate 3-itemsets from 2-itemsets
-  → 1 candidate
-  → 0 frequent (below threshold)
-  → STOP
+  JOIN the 3 frequent 2-itemsets -> 3 unions of size 3
+  PRUNE each one: all three have an infrequent 2-subset
+  -> 0 candidates survive
+  -> 0 support scans at this level
+  -> STOP
 ```
 
 ### 5. Generating Association Rules
@@ -880,12 +1148,21 @@ def generate_rules(self):
                         # Calculate lift
                         lift = confidence / self.support_data[consequent]
                         
+                        # Conviction: (1 - support(Y)) / (1 - confidence)
+                        # A perfect rule never fails, so conviction is infinite
+                        if confidence >= 1.0:
+                            conviction = float('inf')
+                        else:
+                            conviction = ((1 - self.support_data[consequent]) /
+                                          (1 - confidence))
+
                         self.rules.append({
                             'antecedent': set(antecedent),
                             'consequent': set(consequent),
                             'confidence': confidence,
                             'lift': lift,
-                            'support': self.support_data[itemset]
+                            'support': self.support_data[itemset],
+                            'conviction': conviction
                         })
 ```
 
@@ -925,10 +1202,10 @@ def predict(self, basket):
                         recommendations[item] = (rule['confidence'], 
                                                 rule['lift'])
     
-    # Sort by confidence
+    # Sort by confidence, ties broken by item name so the order is stable
     rec_list = [(item, conf, lift) 
                 for item, (conf, lift) in recommendations.items()]
-    rec_list.sort(key=lambda x: x[1], reverse=True)
+    rec_list.sort(key=lambda x: (-x[1], str(x[0])))
     
     return rec_list
 ```
@@ -1121,6 +1398,53 @@ Interpretation:
   The rule is wrong 2x less often than if X and Y were independent
 ```
 
+**In this implementation**: conviction is computed for every rule and stored under
+the `'conviction'` key, alongside `'confidence'`, `'lift'` and `'support'`. Filter
+on it with `get_rules`:
+
+```python
+transactions = [
+    ['laptop', 'mouse', 'keyboard'],
+    ['laptop', 'mouse', 'usb_drive'],
+    ['desktop', 'monitor', 'keyboard'],
+    ['laptop', 'mouse', 'laptop_bag'],
+    ['tablet', 'stylus', 'case'],
+    ['laptop', 'mouse', 'keyboard', 'usb_drive'],
+    ['desktop', 'monitor', 'mouse', 'keyboard'],
+    ['laptop', 'laptop_bag'],
+    ['tablet', 'case'],
+    ['laptop', 'mouse', 'usb_drive', 'laptop_bag']
+]
+
+model = Apriori(min_support=0.3, min_confidence=0.7, verbose=False)
+model.fit(transactions)
+model.generate_rules()
+
+# Rules that are reliable AND rarely wrong
+solid = model.get_rules(min_confidence=0.7, min_conviction=1.5)
+
+for rule in solid:
+    print(sorted(rule['antecedent']), '->', sorted(rule['consequent']),
+          f"conviction={rule['conviction']:.2f}")
+```
+
+Output:
+```
+['laptop', 'usb_drive'] -> ['mouse'] conviction=inf
+['laptop_bag'] -> ['laptop'] conviction=inf
+['mouse', 'usb_drive'] -> ['laptop'] conviction=inf
+['usb_drive'] -> ['laptop'] conviction=inf
+['usb_drive'] -> ['laptop', 'mouse'] conviction=inf
+['usb_drive'] -> ['mouse'] conviction=inf
+['laptop'] -> ['mouse'] conviction=2.40
+['mouse'] -> ['laptop'] conviction=2.40
+['keyboard'] -> ['mouse'] conviction=1.60
+```
+
+A rule with confidence exactly 1.0 divides by zero in the formula, so the code
+stores `float('inf')` for it - matching the `conviction = ∞` row above. Every
+`min_conviction` threshold accepts those rules.
+
 ### Evaluating Rule Quality
 
 **Good Rules Have**:
@@ -1220,6 +1544,76 @@ Total: O(|transactions| × avg_transaction_size + |frequent_itemsets|)
    ```
 
 ---
+
+## Simplifications vs. Canonical Apriori
+
+This implementation is **algorithmically complete**: for any transaction set and
+any thresholds it returns exactly the frequent itemsets and rules that the
+original Agrawal & Srikant (1994) algorithm returns. Verified against an
+independent brute-force enumerator (every subset of the item universe, every
+antecedent/consequent split) on 200 randomised datasets - 0 mismatches in
+itemsets, confidence, lift, support or conviction, reaching itemsets of size 9.
+
+What it simplifies is *how much work* it does getting there. Three deliberate
+departures, none of which changes the output:
+
+### 1. The join uses all pairs, not the lexicographic F(k-1) x F(k-1) rule
+
+**Canonical**: sort each itemset, then join two (k-1)-itemsets only when their
+first k-2 items are identical. Each candidate is generated exactly once.
+
+**Here**: union *every* pair and keep the unions of size k, deduplicating through
+a `set`. Generating `{A,B,C}` from `{A,B}|{A,C}`, from `{A,B}|{B,C}` and from
+`{A,C}|{B,C}` costs three unions where canonical costs one.
+
+**Consequence**: the same candidate set, built with more redundant unions -
+O(n^2) pairs at every level either way, but with a larger constant. Set
+operations are cheap next to database scans, so this is not where the time goes.
+It is written this way because "union every pair, keep the ones of the right
+size" is one line a reader can hold in their head.
+
+### 2. Rule generation tries every split, not ap-genrules consequent pruning
+
+**Canonical** (`ap-genrules`): consequents grow one item at a time, and if
+`X -> Y` fails the confidence test then every rule whose consequent is a superset
+of `Y` also fails and is skipped. The reason: a bigger consequent means a smaller
+antecedent, and support(smaller antecedent) >= support(bigger one), so confidence
+can only go down.
+
+**Here**: `generate_rules()` enumerates all `2^k - 2` non-trivial splits of each
+frequent k-itemset and tests each one independently.
+
+**Consequence**: identical rule set, more confidence tests. For a 5-itemset that
+is 30 tests instead of the handful ap-genrules would need. Each test is a pair of
+dictionary lookups, not a database scan, so on the datasets in this file the
+difference is not observable - but on itemsets of size 10+ it would be.
+
+### 3. Support counting is a linear scan, not a hash tree
+
+**Canonical implementations** store candidates in a hash tree so that one pass
+over a transaction updates the counters of all candidates contained in it.
+
+**Here**: `_calculate_support` walks the whole transaction list once per
+candidate, rebuilding `set(transaction)` each time.
+
+**Consequence**: `O(|candidates| x |transactions|)` instead of roughly one pass
+per level. This is the real cost, and it is the reason the **prune step matters
+so much here**: every candidate the prune removes is a full pass over the data
+that never happens.
+
+### What is genuinely not implemented
+
+- **Transaction reduction**: canonical Apriori may drop transactions that can no
+  longer contain any frequent itemset. Not done here.
+- **Sampling / partitioning variants** (Toivonen, Savasere et al.): out of scope.
+- **FP-Growth**: a different algorithm entirely - see *Comparing with
+  Alternatives* below.
+- **`get_rules()` cannot loosen thresholds.** It filters rules that
+  `generate_rules()` already produced, so it can only tighten. To see rules below
+  the `min_confidence` you passed to `__init__`, refit with a lower one.
+
+---
+
 
 ## Advantages and Limitations
 

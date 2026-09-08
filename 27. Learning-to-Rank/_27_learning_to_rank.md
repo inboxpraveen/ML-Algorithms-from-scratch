@@ -1,4 +1,126 @@
-# Learning-to-Rank (LambdaRank)
+# Learning-to-Rank (LambdaRank) from Scratch: A Comprehensive Guide
+
+## Table of Contents
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [Overview](#overview)
+3. [When to Use Learning-to-Rank](#when-to-use-learning-to-rank)
+4. [Mathematical Foundation](#mathematical-foundation)
+5. [Algorithm Steps](#algorithm-steps)
+6. [Implementation Details](#implementation-details)
+7. [Usage Example](#usage-example)
+8. [Hyperparameter Tuning](#hyperparameter-tuning)
+9. [Performance Characteristics](#performance-characteristics)
+10. [Simplification vs. canonical LambdaMART](#simplification-vs-canonical-lambdamart)
+11. [Advanced Topics](#advanced-topics)
+12. [Common Issues and Solutions](#common-issues-and-solutions)
+13. [Further Reading](#further-reading)
+14. [Summary](#summary)
+15. [Implementation Notes](#implementation-notes)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Learning-to-Rank from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _27_learning_to_rank.py  (its __main__ block runs this,
+# plus a small search-engine example and a hyperparameter comparison)
+# Or copy the LearningToRank class from _27_learning_to_rank.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the LearningToRank class here (from _27_learning_to_rank.py) ----
+# class LearningToRank: ...
+
+np.random.seed(42)
+
+# ---- Build a small e-commerce ranking dataset: 12 searches x 8 products ----
+n_queries, n_per_query = 12, 8
+X, y, query_ids = [], [], []
+
+for qid in range(n_queries):
+    for _ in range(n_per_query):
+        price_score = np.random.rand()             # 0=expensive, 1=cheap
+        rating = np.random.uniform(3.0, 5.0)
+        num_reviews = np.random.randint(0, 1000)
+        relevance = np.random.rand()
+        in_stock = np.random.choice([0, 1], p=[0.2, 0.8])
+
+        X.append([price_score, rating / 5.0,
+                  min(num_reviews / 1000, 1.0), relevance, in_stock])
+
+        # Graded label 0-3 derived from a hidden linear utility
+        score = (0.2 * price_score + 0.3 * (rating / 5.0) +
+                 0.2 * min(num_reviews / 1000, 1.0) + 0.3 * relevance)
+        y.append(3 if score > 0.7 else 2 if score > 0.5 else 1 if score > 0.3 else 0)
+        query_ids.append(qid)
+
+X, y, query_ids = np.array(X), np.array(y), np.array(query_ids)
+
+# ---- SPLIT BY QUERY, never by document ----
+# Queries 0-7 train, queries 8-11 are held out completely.
+train = query_ids < 8
+test = ~train
+X_tr, y_tr, q_tr = X[train], y[train], query_ids[train]
+X_te, y_te, q_te = X[test], y[test], query_ids[test]
+
+# ---- Train ----
+# min_samples_split=4 matters: the default of 10 would leave every tree a bare
+# leaf on 8-document queries and the model could not learn anything.
+model = LearningToRank(
+    n_estimators=60,
+    learning_rate=0.15,
+    max_depth=5,
+    min_samples_split=4,
+    subsample=1.0,
+    random_state=42,
+    verbose=0            # 0 silences the per-iteration progress lines
+)
+model.fit(X_tr, y_tr, q_tr)
+
+# ---- Baseline: an untrained model scores every document the same, so its
+# "ranking" is just the input order. That is the number we have to beat. ----
+def input_order_ndcg(y_sub, q_sub):
+    return np.mean([model._compute_ndcg(y_sub[q_sub == q],
+                                        np.zeros(np.sum(q_sub == q)), 5)
+                    for q in np.unique(q_sub)])
+
+print(f"Train NDCG@5: {input_order_ndcg(y_tr, q_tr):.4f} (input order)"
+      f" -> {model.evaluate(X_tr, y_tr, q_tr, k=5)['average']:.4f} (trained)")
+print(f"Test  NDCG@5: {input_order_ndcg(y_te, q_te):.4f} (input order)"
+      f" -> {model.evaluate(X_te, y_te, q_te, k=5)['average']:.4f} (trained)")
+
+# ---- Rank the documents of one HELD-OUT query ----
+# rank() returns GLOBAL row indices into X_te, best first.
+rankings = model.rank(X_te, q_te)
+print("\nRanked products for held-out query 8 (true relevance, best first):")
+print("  ", [int(y_te[i]) for i in rankings[8]])
+
+scores = model.predict(X_te)
+print("Top-3 predicted scores:", np.round(scores[rankings[8][:3]], 4))
+```
+
+Expected output:
+```
+Train NDCG@5: 0.7594 (input order) -> 1.0000 (trained)
+Test  NDCG@5: 0.4803 (input order) -> 0.9151 (trained)
+
+Ranked products for held-out query 8 (true relevance, best first):
+   [3, 2, 1, 1, 2, 2, 1, 1]
+Top-3 predicted scores: [2.0139 1.8452 1.8187]
+```
+
+Read that output carefully, because it is the whole algorithm in three numbers:
+
+- **0.4803 -> 0.9151 on queries the model has never seen.** The four test queries were held out *whole*; not one of their products appeared in training. So this is genuine generalisation, not memorisation.
+- **Train reaches 1.0000, test stops at 0.9151.** That gap is normal for a boosted ranker on 64 training rows - see [Common Issues and Solutions](#common-issues-and-solutions).
+- **The held-out list starts `[3, 2, ...]` and ends `[..., 1, 1]`.** It is not perfect (two relevance-2 products sit below a relevance-1 one), but the highly-relevant product is in position 1, which is exactly what NDCG rewards most.
+
+---
 
 ## Overview
 
@@ -110,45 +232,71 @@ This is where the magic happens! 🎯
 
 **LambdaRank**: Use "lambda" gradients that directly optimize ranking metrics
 
+For a pair (i, j) inside one query where **i is the more relevant document**, with model scores `sᵢ`, `sⱼ`:
+
 ```
-λᵢⱼ = |ΔNDCG| × σ'(Δscore)
+λᵢⱼ = |ΔNDCGᵢⱼ| × σ / (1 + exp(σ × (sᵢ - sⱼ)))
 ```
 
 Where:
-- `|ΔNDCG|` = Change in NDCG if we swap documents i and j
-- `σ'(Δscore)` = Derivative of sigmoid function
-- `Δscore` = Score difference between documents
+- `|ΔNDCGᵢⱼ|` = Change in NDCG if documents i and j exchanged **rank positions**
+- `σ` = Shape parameter of the logistic (this implementation uses σ = 1.0)
+- The second factor is the **logistic** term, not the sigmoid derivative
+
+**How the logistic factor behaves** — this is the part that makes LambdaRank work:
+
+| Situation | `sᵢ - sⱼ` | Weight |
+|---|---|---|
+| Pair badly mis-ordered (relevant doc scored far too low) | very negative | → σ (maximum push) |
+| Pair exactly tied (e.g. round 0, all scores equal) | 0 | σ / 2 |
+| Pair already confidently correct | very positive | → 0 (no push) |
 
 **Key Idea**: 
-- If a higher-relevance document has a lower score (wrong order), push it up
-- Weight the push by how much swapping them would improve NDCG
-- Larger NDCG improvement → stronger push!
+- Every pair with *different* labels gets a gradient — there is **no** "only if the order is wrong" test
+- The logistic factor already fades a correctly-ordered pair out to zero on its own
+- Weight the push by how much exchanging their positions would change NDCG
+- Larger NDCG change → stronger push
+
+> **Why no ordering guard?** It is tempting to write `if relevance[i] > relevance[j] and score[i] < score[j]`. That version cannot learn. Boosting starts every document at the *same* constant base score, so on round 0 no pair is strictly mis-ordered, every lambda is 0, the first tree is a bare leaf of value 0, the scores never move — and the model stays frozen at its initialisation forever. The logistic factor is what makes the guard unnecessary *and* harmful.
+
+> **Why the logistic, not `σ'`?** The sigmoid derivative `σ'(x) = σ(x)(1 - σ(x))` **peaks at a tie** and decays toward 0 as a pair becomes more badly mis-ordered — precisely backwards. At a score gap of 5.0 it gives 0.0066 where the canonical logistic gives 0.9933. Burges (2010) uses the logistic form.
 
 ### 5. The LambdaRank Algorithm
 
-For each query, for each pair of documents (i, j):
+For each query, first record each document's current **rank position** `r` (1 = highest score), then for each pair of documents (i, j):
 
 ```python
-# 1. Check if order is wrong
-if relevance[i] > relevance[j] and score[i] < score[j]:
+# 0. Once per query: rank positions under the current scores, and the normaliser
+order = argsort(-scores)                      # stable sort, best score first
+rank[order] = arange(1, n_docs + 1)           # rank[d] = position of document d
+IDCG = DCG(sorted(relevances, descending))
     
-    # 2. Compute NDCG improvement from swapping
-    current_NDCG = compute_NDCG(relevances, scores)
-    swapped_NDCG = compute_NDCG(relevances, swap(scores, i, j))
-    delta_NDCG = |swapped_NDCG - current_NDCG|
+for i in range(n_docs):
+    for j in range(i + 1, n_docs):
     
-    # 3. Compute sigmoid derivative
-    score_diff = score[j] - score[i]
-    sigmoid = 1 / (1 + exp(-score_diff))
-    sigmoid_derivative = sigmoid × (1 - sigmoid)
+        # 1. Only skip pairs that carry no ranking information
+        if relevance[i] == relevance[j]:
+            continue
     
-    # 4. Compute lambda gradient
-    lambda_ij = delta_NDCG × sigmoid_derivative
+        # 2. Orient the pair: hi = the MORE relevant document
+        hi, lo = (i, j) if relevance[i] > relevance[j] else (j, i)
     
-    # 5. Update gradients
-    gradient[i] += lambda_ij   # Push i up
-    gradient[j] -= lambda_ij   # Push j down
+        # 3. |delta NDCG| from exchanging their POSITIONS - closed form, no re-sorting
+        delta_NDCG = abs((2**relevance[hi] - 2**relevance[lo]) *
+                         (1/log2(1 + rank[hi]) - 1/log2(1 + rank[lo]))) / IDCG
+
+        # 4. Logistic weight (sigma = 1.0)
+        weight = sigma / (1 + exp(sigma * (score[hi] - score[lo])))
+
+        # 5. Compute lambda gradient
+        lambda_ij = delta_NDCG * weight
+
+        # 6. Update gradients
+        gradient[hi] += lambda_ij   # Push the more relevant document up
+        gradient[lo] -= lambda_ij   # Push the less relevant document down
 ```
+
+This is exactly what `_compute_lambda_gradients` in `_27_learning_to_rank.py` does, line for line. Note step 3 in particular: `|ΔNDCG|` comes from the closed form over rank **positions**. Computing it by swapping the two *scores* and re-evaluating NDCG looks equivalent but is not — when the two scores are equal (as they all are on round 0) swapping them leaves the array byte-identical and `|ΔNDCG|` is identically zero.
 
 ### 6. Gradient Boosting Framework
 
@@ -212,14 +360,22 @@ for query_id in unique_queries:
     # For each pair of documents
     for i in range(len(query_docs)):
         for j in range(i+1, len(query_docs)):
-            # If wrong order
-            if relevance[i] > relevance[j] and score[i] < score[j]:
-                # Compute lambda gradient
-                lambda_ij = compute_lambda(i, j, relevances, scores)
+            # Skip ONLY equal-relevance pairs: exchanging two documents with the
+            # same label cannot change NDCG, so they carry no gradient.
+            # There is deliberately no "and score[i] < score[j]" test here -
+            # see "Why no ordering guard?" above.
+            if relevance[i] == relevance[j]:
+                continue
                 
-                # Update gradients
-                gradients[i] += lambda_ij
-                gradients[j] -= lambda_ij
+            # Orient the pair so hi is the more relevant document
+            hi, lo = (i, j) if relevance[i] > relevance[j] else (j, i)
+
+            # Compute lambda gradient (|delta NDCG| x logistic weight)
+            lambda_ij = compute_lambda(hi, lo, relevances, scores, ranks)
+
+            # Update gradients
+            gradients[hi] += lambda_ij
+            gradients[lo] -= lambda_ij
 ```
 
 #### 3b. Build Regression Tree
@@ -299,6 +455,9 @@ Good features are crucial for LTR! Common feature types:
 LTR naturally handles varying list lengths:
 
 ```python
+# Illustrative slicing only - X is the stacked feature matrix of every query's
+# documents, built as in Step 1 above; this fragment is not a runnable program.
+
 # Query 1: 10 documents
 query_1_features = X[0:10]    # Documents 0-9
 query_1_ids = [1] * 10
@@ -319,9 +478,21 @@ Gradients are computed independently per query, so different list lengths are fi
 train_queries = [1, 2, 3, 4, 5]
 test_queries = [6, 7]
 
+# In practice, with query ids 0..11 and a boolean mask:
+train = query_ids < 8          # queries 0-7
+test = ~train                  # queries 8-11
+X_tr, y_tr, q_tr = X[train], y[train], query_ids[train]
+X_te, y_te, q_te = X[test], y[test], query_ids[test]
+
 # WRONG: Random split of documents
 # This leaks information (test documents from training queries)
 ```
+
+This is not just advice — it is what the Quick Start above and Examples 2 and 3 in
+`_27_learning_to_rank.py` actually do. The difference is large and visible: on the
+e-commerce data the model reaches **NDCG@5 = 1.0000 on its training queries** but
+**0.9151 on the four queries it has never seen**. A document-level split would have
+reported something in between and called it a test score.
 
 ### Relevance Label Guidelines
 
@@ -349,7 +520,10 @@ Common schemes:
 
 ```python
 import numpy as np
-from learning_to_rank import LearningToRank
+# Paste the LearningToRank class from _27_learning_to_rank.py above,
+# or run that file directly. There is no importable `learning_to_rank` module:
+# the file is named `_27_learning_to_rank.py` inside a folder with spaces and a
+# dot in its name, so `import` cannot reach it.
 
 # ============================================================
 # 1. Prepare Training Data
@@ -384,14 +558,21 @@ query_ids = np.concatenate([qid_q1, qid_q2])
 # 2. Train Model
 # ============================================================
 
+# Only 7 rows here, so min_samples_split must drop below the row count
+# (and subsample must not shrink it further) or every tree stays a bare leaf.
 ltr = LearningToRank(
-    n_estimators=100,
+    n_estimators=60,
     learning_rate=0.1,
-    max_depth=6,
-    random_state=42
+    max_depth=4,
+    min_samples_split=4,
+    subsample=1.0,
+    random_state=42,
+    verbose=0            # 0 silences the per-iteration progress lines
 )
 
 ltr.fit(X, y, query_ids)
+
+print(f"Training NDCG@3: {ltr.evaluate(X, y, query_ids, k=3)['average']:.4f}")
 
 # ============================================================
 # 3. Rank New Documents
@@ -405,10 +586,10 @@ X_new = np.array([
 ])
 query_ids_new = np.array([3, 3, 3])
 
-# Get rankings
+# Get rankings. rank() returns GLOBAL row indices into X_new, best first.
 rankings = ltr.rank(X_new, query_ids_new)
 print("Ranked documents for query 3:", rankings[3])
-# Output: [1, 0, 2]  (B is best, then A, then C)
+print("Raw scores:", np.round(ltr.predict(X_new), 4))
 
 # ============================================================
 # 4. Evaluate Performance
@@ -417,8 +598,23 @@ print("Ranked documents for query 3:", rankings[3])
 # Compute NDCG
 y_test = np.array([2, 3, 1])  # True relevances
 ndcg_scores = ltr.evaluate(X_new, y_test, query_ids_new, k=3)
-print(f"NDCG@3: {ndcg_scores['average']:.4f}")
+print(f"NDCG@3 on the new query: {ndcg_scores['average']:.4f}")
 ```
+
+Expected output:
+```
+Training NDCG@3: 1.0000
+Ranked documents for query 3: [1 0 2]
+Raw scores: [1.4267 2.6406 1.4267]
+NDCG@3 on the new query: 1.0000
+```
+
+Candidate B is ranked first, then A, then C — which is the right order, since B dominates
+A and C on every feature. Note that A and C receive the *same* score (1.4267): the trained
+trees route both of them to the same leaf, and `rank()` breaks the tie by input order.
+Identical scores for distinct documents are normal for a small tree ensemble, and they are
+also why `_compute_ndcg` uses a **stable** sort — so a tie is resolved reproducibly rather
+than arbitrarily.
 
 ## Hyperparameter Tuning
 
@@ -461,6 +657,29 @@ print(f"NDCG@3: {ndcg_scores['average']:.4f}")
 - **Tuning**:
   - Less than 1.0: Stochastic gradient boosting (more robust)
   - 1.0: Use all data (faster but may overfit)
+- **Watch out**: `subsample` and `min_samples_split` interact. A tree is built on
+  `int(subsample × n_samples)` rows; if that is below `min_samples_split` the tree is a
+  bare leaf and the round is wasted. With the defaults (`0.7` and `10`) any dataset under
+  15 rows learns *nothing*, which is why every small example in these files passes
+  `min_samples_split=4, subsample=1.0`.
+
+#### 6. `verbose`
+- **What it does**: Prints `Iteration t/T, Avg NDCG` every `verbose` rounds
+- **Default**: 20
+- **Tuning**: set `verbose=0` inside loops, grid searches and scripts; the training NDCG
+  it prints is a useful convergence check when exploring interactively
+- **Which NDCG**: the line reports the metric at the `ndcg_k` cutoff — the full list by
+  default, or `Avg NDCG@k` when `ndcg_k=k` is set — so the number you watch converging is
+  the objective the gradients are actually optimising
+
+#### 7. `ndcg_k`
+- **What it does**: Truncates the `|ΔNDCG|` used in the gradients at position k
+- **Default**: `None` (optimise the full result list)
+- **Tuning**: set it to the same k you report (`ndcg_k=5` alongside `evaluate(..., k=5)`)
+  so training and evaluation optimise the same objective. On the Quick Start data this
+  lifts held-out NDCG@5 from 0.9151 to 0.9472 — `None` is the backward-compatible default,
+  not the best one. The exception is a very small k on a very long result list, where
+  pairs that both sit below position k stop contributing any gradient
 
 ### Tuning Strategy
 
@@ -512,7 +731,9 @@ for n_est in param_grid['n_estimators']:
             model = LearningToRank(
                 n_estimators=n_est,
                 learning_rate=lr,
-                max_depth=depth
+                max_depth=depth,
+                random_state=42,
+                verbose=0     # essential: without it this loop prints ~450 lines
             )
             model.fit(X_train, y_train, query_ids_train)
             
@@ -529,38 +750,57 @@ print(f"Best NDCG@10: {best_ndcg:.4f}")
 
 ### Time Complexity
 
-**Training**:
-- Per iteration: O(n × d × k²)
-  - n = number of samples
-  - d = number of features
-  - k = average documents per query
+**Training**, per boosting round, has two separate costs:
+- Lambda gradients: O(Q × k²) where Q = number of queries and k = documents per query
+  (every pair inside every query), plus one O(k log k) sort per query
+- Tree building: O(n × d × 10 × max_depth), since the split search scores at most
+  10 candidate thresholds per feature per node
+- Total: O(T × (Q × k² + n × d × max_depth)) with T = n_estimators
 
-- Total: O(T × n × d × k²)
-  - T = n_estimators
+**The real scaling limit is k, the number of documents per query, not n.** The pair
+loop is quadratic in k, so 200 queries of 10 documents is far cheaper than 20 queries
+of 100 documents even though both are 2,000 rows.
 
 **Prediction**:
-- O(T × d × log(max_depth))
-  - Very fast! Linear in number of trees
+- O(T × max_depth) per query-document pair — one root-to-leaf walk per tree.
+  It does **not** depend on the number of features, and it is not logarithmic in the depth.
 
-**Space Complexity**: O(T × max_depth × d)
+**Space Complexity**: O(T × 2^max_depth) in the worst case (a full binary tree of that depth).
 
 ### Scalability
 
-**Small datasets** (< 1,000 samples):
+Measured on the Quick Start e-commerce data above (`np.random.seed(42)`, 8 documents per
+query, `learning_rate=0.15`, `max_depth=5`, `min_samples_split=4`, `subsample=1.0`),
+median of 5 `fit()` calls, Python 3.13 / numpy 2.3:
+
+| Rows | Trees | Wall clock |
+|---|---|---|
+| 40 (queries 0-4) | 60 | 0.56 s |
+| 64 (queries 0-7) | 60 | 0.82 s |
+| 64 (queries 0-7) | 150 | 2.29 s |
+
+Read these as a shape, not a benchmark: wall clock varies by machine, and the label
+distribution matters as much as the row count: the pair loop visits every pair, but only
+pairs with *different* labels do any work inside it — the utility-derived labels above
+leave fewer such pairs than uniform random labels would.
+
+The whole `__main__` demo — three examples and 400 boosting rounds in total — runs in
+about 5 seconds.
+
+**Small datasets** (< 1,000 rows):
 - Works great, fast training (seconds)
 - May need regularization
 
-**Medium datasets** (1,000 - 100,000 samples):
-- Sweet spot for this implementation
-- Training time: minutes
-- Good performance
+**Medium datasets** (1,000 - 100,000 rows):
+- Usable, but only while documents-per-query stays small (roughly k ≤ 20).
+- Expect minutes at the low end of that range and much worse at the high end;
+  this is pure-Python nested loops, not a compiled library.
 
-**Large datasets** (> 100,000 samples):
-- This implementation may be slow
-- Consider:
-  - Reducing n_estimators
-  - Using subsample < 1.0
-  - Production libraries (XGBoost, LightGBM with LTR objective)
+**Large datasets** (> 100,000 rows):
+- This implementation is too slow. Use:
+  - Fewer n_estimators, `subsample < 1.0`
+  - Fewer documents per query (sample candidates before training)
+  - Production libraries (XGBoost `rank:ndcg`, LightGBM `lambdarank`)
 
 ### Comparison with Other Methods
 
@@ -578,6 +818,89 @@ print(f"Best NDCG@10: {best_ndcg:.4f}")
 - ✓ Listwise: Most direct optimization
 - ✓ LambdaRank: Good balance of quality and speed
 - − Listwise: More complex, slower
+
+## Simplification vs. canonical LambdaMART
+
+The gradient in this implementation is the real LambdaRank gradient. What sits *around*
+it is deliberately simplified for teaching. Here is exactly what differs, and what it costs.
+
+### 1. Leaf values are a mean, not a Newton step
+
+**Canonical (Burges 2010, the LambdaMART section):** LambdaMART fits a regression tree to the lambdas and then
+*overwrites* each leaf value with a Newton step,
+
+```
+value(leaf) = sum_{i in leaf} lambda_i / sum_{i in leaf} w_i
+```
+
+where `w_i = ∂²C/∂s_i²` is the second derivative of the pairwise cost
+`C = Σ_pairs |ΔNDCG_ij| · log(1 + exp(-σ(s_i - s_j)))`, accumulated per pair as
+`w_ij = σ² · |ΔNDCG_ij| · ρ_ij · (1 - ρ_ij)` with `ρ_ij = 1/(1 + exp(σ(s_i - s_j)))`.
+
+**Mind the sign convention.** The `λ` of sections 4-5 is the *ascent* direction `-∂C/∂s_i`
+(positive λ = push this document up), so `w_i = -∂λ_i/∂s_i`, **not** `+∂λ_i/∂s_i`. Writing
+it the other way round flips the sign of every non-zero `w_i` — central-differencing the code's own
+`_compute_lambda_gradients` on `relevances = [3, 1]` gives `∂λ_hi/∂s_hi = -0.072548` at a
+tie against `w_ij = +0.072548` — and the Newton step `Σλ / Σw` would then push documents
+the wrong way. Presentations that define `λ = +∂C/∂s` can write `w = +∂λ/∂s`; this file's
+`λ` is the negative of that, so the minus sign has to be carried over with it.
+
+**Here:** `_build_tree` returns `{'leaf': True, 'value': np.mean(gradients)}`.
+
+**Why omitted:** it requires threading a second per-document accumulator through the pair
+loop, the tree builder and both leaf sites — and, more importantly, it would hide the one
+idea the file exists to show, that a *ranking metric* can be turned into a gradient at all.
+
+**Consequence:** the step size per leaf is not curvature-corrected, so convergence is slower
+and more sensitive to `learning_rate`. It does not change what the model converges *to*.
+This is the same relationship as plain gradient boosting versus XGBoost — compare
+`_17_xgboost.py`'s `_compute_gradient_hessian`, which does compute both.
+
+### 2. The split search looks at 10 thresholds per feature
+
+**Canonical:** exact greedy split finding evaluates every midpoint between consecutive
+distinct feature values (or a weighted quantile sketch approximates them).
+
+**Here:** if a feature has more than 10 candidate midpoints, 10 evenly spaced ones are taken:
+`thresholds[np.linspace(0, len(thresholds) - 1, 10).astype(int)]`.
+
+**Consequence:** split points are quantised. Note the *evenly spaced* part matters — an
+earlier version of this file used `thresholds[:10]`, the 10 **smallest** midpoints, so the
+upper part of every feature's range was never considered and trees could only split near a
+feature's minimum.
+
+### 3. dNDCG is not truncated by default
+
+**Canonical:** LambdaMART truncates the discount at the target cutoff k, so training
+optimises the same NDCG@k that you report.
+
+**Here:** truncation *is* implemented — positions below the cutoff get a zero discount —
+but `ndcg_k=None` is the default, which optimises the full result list. Pass `ndcg_k=5`
+to match `evaluate(..., k=5)`.
+
+**Consequence:** by default, training and reporting optimise slightly different things.
+Measured on the Quick Start's e-commerce data, aligning them helps at every ensemble size:
+
+| Trees | `ndcg_k=None` test NDCG@5 | `ndcg_k=5` test NDCG@5 |
+|---|---|---|
+| 5 | 0.8786 | 0.9354 |
+| 10 | 0.8892 | 0.9516 |
+| 20 | 0.8725 | 0.9557 |
+| 40 | 0.9283 | 0.9472 |
+| 60 | 0.9151 | 0.9472 |
+
+So `None` is the *backward-compatible* default, not the recommended one. The one situation
+where truncation hurts is a very small k on a very long result list: pairs whose documents
+both sit below position k contribute no gradient at all, so the signal thins out.
+
+### 4. No query-level normalisation or listwise extensions
+
+No per-query gradient normalisation, no position-bias / propensity correction, no
+sparsity-aware missing-value handling, and no early stopping on a validation set.
+NaN feature values are silently routed right at every node (because `NaN <= threshold`
+is `False`).
+
+---
 
 ## Advanced Topics
 
@@ -680,12 +1003,17 @@ def online_update(model, X_new, y_new, query_ids_new, n_new_trees=10):
     # Get current predictions
     current_predictions = model.predict(X_new)
     
-    # Train new trees on residuals
+    # Train new trees on the lambda gradients
     for i in range(n_new_trees):
-        # Compute gradients based on current predictions
-        gradients = model._compute_all_gradients(
-            X_new, y_new, query_ids_new, current_predictions
-        )
+        # Compute gradients based on current predictions.
+        # There is no single _compute_all_gradients method; fit() loops over the
+        # queries itself, and so do we:
+        gradients = np.zeros(len(y_new))
+        for query_id in np.unique(query_ids_new):
+            mask = query_ids_new == query_id
+            gradients[mask] = model._compute_lambda_gradients(
+                y_new[mask], current_predictions[mask]
+            )
         
         # Build tree
         tree = model._build_tree(X_new, gradients)

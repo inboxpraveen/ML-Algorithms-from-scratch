@@ -3,14 +3,134 @@
 Welcome to the world of dimensionality reduction and visualization! In this comprehensive guide, we'll explore t-SNE (t-Distributed Stochastic Neighbor Embedding) - one of the most powerful algorithms for visualizing high-dimensional data in 2D or 3D space.
 
 ## Table of Contents
-1. [What is t-SNE?](#what-is-t-sne)
-2. [How t-SNE Works](#how-t-sne-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is t-SNE?](#what-is-t-sne)
+3. [How t-SNE Works](#how-t-sne-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Comparing with Other Methods](#comparing-with-other-methods)
+11. [Computational Complexity](#computational-complexity)
+12. [Simplifications vs. Canonical t-SNE](#simplifications-vs-canonical-t-sne)
+13. [Advantages and Limitations](#advantages-and-limitations)
+14. [Key Concepts to Remember](#key-concepts-to-remember)
+15. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra
+dependencies beyond NumPy, and it finishes in about two seconds.
+
+t-SNE is **unsupervised** and has no `predict()`, so there is no train/test split to
+report. The honest quality measure is **neighbour preservation**: what fraction of each
+point's nearest neighbours in the original space are still its nearest neighbours in the
+embedding. The script computes that with plain NumPy, and compares it against a random
+2-D layout so the number means something.
+
+```python
+# ---------------------------------------------------------------
+# t-SNE from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _14_tsne.py   (the __main__ block runs this)
+# Or copy the TSNE class from _14_tsne.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the TSNE class here (from _14_tsne.py) ----
+# class TSNE: ...
+
+np.random.seed(42)
+
+def make_blobs(n_per_cluster=50, n_features=10, separation=6.0):
+    """Three well-separated Gaussian blobs in n_features dimensions."""
+    direction = np.random.randn(n_features)
+    direction = direction / np.linalg.norm(direction)
+    offsets = [0.0, separation, -separation]
+
+    chunks, labels = [], []
+    for cluster_id, offset in enumerate(offsets):
+        center = offset * direction
+        chunks.append(center + np.random.randn(n_per_cluster, n_features))
+        labels.extend([cluster_id] * n_per_cluster)
+    return np.vstack(chunks), np.array(labels)
+
+def neighbor_preservation(X_high, Y_low, k=10):
+    """Share of each point's k nearest neighbours that survive the projection."""
+    def nearest(Z):
+        sq = np.sum(np.square(Z), axis=1)
+        D = sq[:, np.newaxis] + sq[np.newaxis, :] - 2 * np.dot(Z, Z.T)
+        np.fill_diagonal(D, np.inf)
+        return np.argsort(D, axis=1)[:, :k]
+
+    high_nn, low_nn = nearest(X_high), nearest(Y_low)
+    shared = [len(set(high_nn[i]) & set(low_nn[i])) for i in range(len(X_high))]
+    return float(np.mean(shared)) / k
+
+X, labels = make_blobs()
+
+# ------ Fit ------
+model = TSNE(n_components=2, perplexity=15, learning_rate=200,
+             n_iter=500, random_state=42)
+Y = model.fit_transform(X)
+
+print(f"Embedding shape   : {Y.shape}")
+print(f"Final KL(P||Q)    : {model.kl_divergence_:.4f}")
+print(f"kNN(10) preserved : {neighbor_preservation(X, Y, k=10):.3f}")
+
+# ------ Did the planted clusters survive? ------
+for cluster_id in np.unique(labels):
+    pts = Y[labels == cluster_id]
+    centroid = pts.mean(axis=0)
+    spread = np.mean(np.sqrt(np.sum((pts - centroid) ** 2, axis=1)))
+    print(f"  cluster {cluster_id}: centroid=({centroid[0]:7.2f},{centroid[1]:7.2f})"
+          f"  spread={spread:5.2f}")
+
+# ------ What perplexity actually does ------
+print("\n  perplexity    final KL    kNN(10) preserved")
+for perplexity in [5, 15, 30]:
+    sweep = TSNE(n_components=2, perplexity=perplexity, learning_rate=200,
+                 n_iter=400, random_state=42)
+    Y_sweep = sweep.fit_transform(X)
+    print(f"     {perplexity:5.1f}       {sweep.kl_divergence_:7.4f}"
+          f"           {neighbor_preservation(X, Y_sweep, k=10):.3f}")
+```
+
+Expected output:
+```
+Embedding shape   : (150, 2)
+Final KL(P||Q)    : 0.9288
+kNN(10) preserved : 0.463
+  cluster 0: centroid=(  12.17,  -3.10)  spread= 8.25
+  cluster 1: centroid=( -15.47, -30.82)  spread= 8.94
+  cluster 2: centroid=(   3.30,  33.92)  spread=10.28
+
+  perplexity    final KL    kNN(10) preserved
+       5.0        2.0721           0.329
+      15.0        1.4188           0.368
+      30.0        0.5203           0.487
+```
+
+**How to read those numbers:**
+
+- The cluster centroids are 38 to 67 units apart while each cluster's internal spread is
+  only 8-10 units. Separation swamps spread, so the three planted blobs stayed three
+  blobs. That is the property t-SNE promises.
+- `kNN(10) preserved = 0.463` sounds low until you see that a *random* 2-D layout of the
+  same points scores about `0.055` (the `__main__` block in `_14_tsne.py` prints this
+  baseline for you). The blobs are isotropic 10-D Gaussians, so their internal
+  neighbour ordering genuinely cannot all fit into two dimensions - no method could reach
+  1.0 here. Beating random by 8x is the local structure t-SNE actually kept.
+- In the sweep, KL **falls** as perplexity rises. That is not a universal law: on these
+  blobs a large perplexity spreads `P` smoothly over the whole cluster, which is an easy
+  target for 2-D, while a tiny perplexity insists on the exact ordering of five nearest
+  neighbours, which 2-D cannot honour. On data with real fine sub-structure the trade-off
+  reverses. **Never compare KL across datasets or across perplexities as if it were an
+  accuracy.**
 
 ---
 
@@ -338,6 +458,41 @@ The gradient with respect to low-dimensional coordinates:
 ∂(KL(P||Q))/∂yi = 4 Σj (pij - qij)(yi - yj)(1 + ||yi - yj||²)⁻¹
 ```
 
+**Where the 4 and the (1 + d²)⁻¹ come from** (the two "magic" pieces):
+
+Write `d²ij = ||yi - yj||²` and `zij = (1 + d²ij)⁻¹`, so `qij = zij / Z` with
+`Z = Σ(k≠l) zkl`. The cost is `C = Σij pij log pij - Σij pij log qij`; only the second
+term depends on `Y`.
+
+1. **Chain rule through the distance.** `yi` enters `C` through every `d²ij`, so
+   `∂C/∂yi = Σj (∂C/∂d²ij) · (∂d²ij/∂yi)`. The inner derivative is the easy half:
+   `∂d²ij/∂yi = 2(yi - yj)`. **That is the first factor of 2.**
+
+2. **Each pair is counted twice.** `yi` appears in the pair `(i, j)` *and* in the pair
+   `(j, i)`, and the matrices are symmetric (`pij = pji`, `qij = qji`), so the two
+   contributions are identical and add. **That is the second factor of 2.** Two times
+   two gives the **4**.
+
+3. **The heavy tail leaves its fingerprint.** Differentiating
+   `-Σ pij log(zij / Z)` with respect to `d²ij` gives `-(pij - qij) · (1/zij) · ∂zij/∂d²ij`.
+   Since `zij = (1 + d²ij)⁻¹`, we get `∂zij/∂d²ij = -(1 + d²ij)⁻² = -z²ij`, and the ratio
+   `z²ij / zij` collapses to exactly `zij = (1 + d²ij)⁻¹`. So
+   `∂C/∂d²ij = (pij - qij) · (1 + d²ij)⁻¹`.
+
+Putting the three together reproduces the boxed formula. The surviving
+`(1 + d²ij)⁻¹` is the **same Student-t kernel used to build q**: the heavy tail that fixes
+crowding in the forward pass also damps the force between far-apart points in the
+backward pass, which is why t-SNE does not explode when two points drift far away.
+
+In the code this is one line, and the comment above it repeats the formula verbatim:
+
+```python
+gradient = 4 * np.sum((PQ_diff[:, :, np.newaxis] *      # (p_ij - q_ij)
+                       Y_diff *                          # (y_i - y_j)
+                       inv_distances[:, :, np.newaxis]), # (1 + d^2)^-1
+                      axis=1)                            # sum over j
+```
+
 **Physical Interpretation:**
 
 ```
@@ -379,12 +534,30 @@ Gradient tells A to move toward B (negative direction toward [1,1])
 To speed up convergence and avoid local minima:
 
 ```
-Yt+1 = Yt + α × ΔYt + momentum × (Yt - Yt-1)
+Y(t+1) = Y(t) - α × ∂C/∂Y(t) + momentum × (Y(t) - Y(t-1))
 ```
+
+Note the **minus** sign in front of the gradient: this is gradient *descent*, we move
+against the gradient. (The original van der Maaten & Hinton paper prints this update with
+a **plus** sign — both where it introduces the momentum term and again in the t-SNE
+pseudocode of Algorithm 1, it reads
+`Y(t) = Y(t-1) + η ∂C/∂Y + α(t)(Y(t-1) - Y(t-2))` — and it defines no separate
+negative-gradient symbol, so as printed it is gradient *ascent*. Do not copy the paper's
+sign: van der Maaten's own reference `tsne.py` descends,
+`iY = momentum * iY - eta * (gains * dY)`. The code follows the minus-sign convention
+above:
+
+```python
+Y_velocity = momentum * Y_velocity - self.learning_rate * gradient
+Y = Y + Y_velocity
+```
+
+which is the same rule written with the velocity accumulated in a variable.)
 
 **Parameters:**
 - `α`: Learning rate (how far to move)
-- `momentum`: Fraction of previous velocity to keep (typically 0.5 → 0.8)
+- `momentum`: Fraction of previous velocity to keep (0.5 during early exaggeration,
+  then 0.8; both phases switch at `early_exaggeration_iter`)
 
 **Effect:**
 ```
@@ -417,10 +590,14 @@ Without early exaggeration:
   - Clusters may overlap from start
   - Harder to untangle later
   
-Timeline:
-  Iterations 0-250: P × 12 (tight clusters form)
-  Iterations 250+:  P × 1  (clusters adjust and spread)
+Timeline (the switch point is early_exaggeration_iter, default 250):
+  Iterations 0-250: P × 12, momentum 0.5 (tight clusters form)
+  Iterations 250+:  P × 1,  momentum 0.8 (clusters adjust and spread)
 ```
+
+Both the exaggeration and the momentum schedule key off the **same**
+`early_exaggeration_iter`, so shortening the exaggeration phase shortens the
+gentle-momentum phase with it.
 
 ---
 
@@ -456,28 +633,47 @@ class TSNE:
    - Compute Gaussian similarities
    - Symmetrize the probability matrix
 
-4. **`_compute_low_dim_affinities(Y)`** - Low-D similarities
+4. **`_compute_low_dim_affinities(Y, return_num=False)`** - Low-D similarities
    - Compute distances in embedded space
    - Apply Student t-distribution
    - Normalize to probabilities
+   - With `return_num=True` it also hands back the un-normalized numerator
+     `(1 + ||yi - yj||²)⁻¹`, which is exactly what the gradient needs
 
-5. **`_compute_gradient(P, Q, Y)`** - Gradient calculation
+5. **`_compute_gradient(P, Q, Y, inv_distances=None)`** - Gradient calculation
    - Compute attractive and repulsive forces
    - Return gradient for all points
+   - `inv_distances` accepts the numerator from step 4 so the O(n²d) distance
+     matrix is built once per iteration rather than twice; leave it `None` and
+     the method computes it itself
 
 6. **`_compute_kl_divergence(P, Q)`** - Cost function
    - Measure how well Q matches P
    - Lower is better
 
 7. **`fit_transform(X)`** - Main algorithm
+   - Accepts a 2-D array, a 1-D array, or a plain list of lists
+   - Validates the request: raises `ValueError` if `perplexity >= n_samples`,
+     because the largest entropy reachable with n-1 neighbours is log₂(n-1)
    - Compute high-D probabilities
-   - Initialize embedding
+   - Initialize embedding from a **private** `np.random.RandomState(random_state)`,
+     so seeding t-SNE never disturbs your own global NumPy random stream
    - Run gradient descent optimization
    - Return final embedding
 
 8. **`fit(X)`** - Fit interface
    - Calls fit_transform
    - Stores embedding in self.embedding_
+
+### Fitted Attributes
+
+After `fit` or `fit_transform`:
+
+| Attribute | Meaning |
+|-----------|---------|
+| `embedding_` | The `(n_samples, n_components)` result, same array `fit_transform` returns |
+| `kl_divergence_` | KL(P‖Q) recomputed from the **returned** embedding, using the un-exaggerated P |
+| `n_iter_` | Iterations actually run (fewer than `n_iter` if the gradient-norm threshold tripped) |
 
 ---
 
@@ -493,8 +689,13 @@ import numpy as np
 
 # Load digits dataset
 digits = load_digits()
-X = digits.data   # 1797 samples, 64 features (8×8 pixel images)
-y = digits.target # Labels (0-9)
+
+# This implementation is the EXACT O(n²) t-SNE - every iteration touches all
+# n×n pairs - so all 1797 digits take about 3.2 minutes (190 s, timed end to
+# end). Use the first 400 rows, which already contain all ten classes, and it
+# runs in 9.6 seconds.
+X = digits.data[:400]   # 400 samples, 64 features (8×8 pixel images)
+y = digits.target[:400] # Labels (0-9)
 
 # Each sample is an 8×8 grayscale image flattened to 64 features
 # Sample: [0, 0, 5, 13, 9, ..., 0, 0] represents pixel intensities
@@ -503,7 +704,10 @@ y = digits.target # Labels (0-9)
 ### Applying t-SNE
 
 ```python
-from tsne import TSNE
+# There is no module named `tsne`. Either run the file directly
+# (`python _14_tsne.py`), import it by its real name from this folder, or
+# paste the TSNE class from _14_tsne.py above this snippet.
+from _14_tsne import TSNE
 
 # Create t-SNE model
 tsne = TSNE(
@@ -512,53 +716,56 @@ tsne = TSNE(
     learning_rate=200,   # Step size for optimization
     n_iter=1000,         # 1000 gradient descent iterations
     random_state=42,     # For reproducibility
-    verbose=1            # Show progress
+    verbose=2            # Show progress plus the perplexity actually achieved
 )
 
 # Fit and transform
 X_embedded = tsne.fit_transform(X)
-# Output: (1797, 2) - 2D coordinates for each digit
+# Output: (400, 2) - 2D coordinates for each digit
 ```
 
-**What happens internally:**
+**What happens internally** (this is real, captured output - run it and you will see
+exactly these numbers, because `random_state=42` seeds a private RNG):
 
-**Iteration 0-50:**
 ```
 [t-SNE] Computing pairwise distances...
-  - Calculate 1797×1797 distance matrix
-  - Takes a moment for large datasets
-
 [t-SNE] Computing P-values...
-  - For each of 1797 points:
-    - Binary search for σi (50 iterations max)
-    - Target perplexity = 30
-  - Symmetrize probabilities
-  - Result: 1797×1797 probability matrix
-
-[t-SNE] Starting optimization...
-Iteration 50/1000, KL divergence: 2.3456, Gradient norm: 15.234
-  - Early exaggeration phase (P × 12)
-  - Tight clusters forming
-```
-
-**Iteration 250-500:**
-```
-Iteration 250/1000, KL divergence: 1.8723, Gradient norm: 8.456
-  - Early exaggeration ends
-  - Clusters adjusting positions
-  - KL divergence decreasing
-
-Iteration 500/1000, KL divergence: 1.2341, Gradient norm: 2.123
-  - Refinement phase
-  - Fine-tuning cluster boundaries
-```
-
-**Iteration 750-1000:**
-```
-Iteration 1000/1000, KL divergence: 0.9876, Gradient norm: 0.523
+[t-SNE] Achieved perplexity: mean=30.000, min=30.000, max=30.000 (requested 30)
+[t-SNE] Mean sigma from bandwidth search: 11.4085
+[t-SNE] Starting optimization with 1000 iterations...
+[t-SNE] Iteration 50/1000, KL divergence: 3.0771, Gradient norm: 0.447133
+[t-SNE] Iteration 100/1000, KL divergence: 3.1243, Gradient norm: 0.383796
+[t-SNE] Iteration 200/1000, KL divergence: 2.9707, Gradient norm: 0.408276
+[t-SNE] Iteration 250/1000, KL divergence: 2.8710, Gradient norm: 0.444089
+[t-SNE] Iteration 300/1000, KL divergence: 3.2030, Gradient norm: 0.003457
+[t-SNE] Iteration 500/1000, KL divergence: 1.6507, Gradient norm: 0.003205
+[t-SNE] Iteration 700/1000, KL divergence: 0.4709, Gradient norm: 0.001904
+[t-SNE] Iteration 1000/1000, KL divergence: 0.3584, Gradient norm: 0.000267
 [t-SNE] Optimization finished!
-[t-SNE] Final KL divergence: 0.9876
+[t-SNE] Final KL divergence: 0.3584
 ```
+(abridged - the real run prints a line every 50 iterations)
+
+**Reading the trace - four things worth noticing:**
+
+1. **The perplexity line is a proof, not decoration.** `verbose=2` reports the perplexity
+   the bandwidth search actually reached. It reads 30.000 because the target entropy is
+   `log₂(30)` and the entropy is measured in bits. If those two used different logarithm
+   bases, a request for 30 would quietly become `2^ln(30) = 10.56` and every neighbourhood
+   in the map would be three times too small.
+
+2. **KL barely moves - and even rises - for the first 250 iterations.** That is early
+   exaggeration doing its job. The optimizer is descending on `12 × P`, but the number
+   printed is the KL against the *true* `P`, so the two disagree on purpose. Do not read
+   this phase as "not converging".
+
+3. **The gradient norm collapses by two orders of magnitude at iteration 300.** That is
+   the instant early exaggeration switches off (iteration 250) and the forces fall back to
+   their un-inflated scale. Momentum rises from 0.5 to 0.8 at the same moment.
+
+4. **The real descent happens in the second half**: 2.87 → 1.65 → 0.47 → 0.358. Cutting
+   `n_iter` to 500 here would stop at KL 1.65 with the ten digit clusters still tangled.
+   "Minimum 250 iterations" is enough to finish exaggeration, not enough to finish the map.
 
 ### Visualizing Results
 
@@ -610,7 +817,7 @@ Visual Result:
 
 **Perplexity Comparison:**
 
-```python
+```
 perplexities = [5, 30, 50]
 
 Perplexity = 5 (very local):
@@ -823,8 +1030,8 @@ def _compute_pairwise_distances(self, X):
     return D
 ```
 
-**How it works:**
-```python
+**How it works** (worked arithmetic, not runnable code):
+```
 # Efficient computation of ||xi - xj||²
 # Expansion: ||xi - xj||² = ||xi||² + ||xj||² - 2xi·xj
 
@@ -855,7 +1062,8 @@ Distance from point 1 to 2: √8 ≈ 2.83
 **Why this trick?**
 - Avoid explicit loops over all pairs
 - Uses optimized BLAS operations
-- O(n²d) instead of O(n²d) with loops (same complexity but much faster)
+- Same O(n²d) complexity as an explicit double loop, but the BLAS matmul runs it
+  orders of magnitude faster
 
 ### 2. Computing Joint Probabilities (Perplexity)
 
@@ -863,82 +1071,119 @@ Distance from point 1 to 2: √8 ≈ 2.83
 def _compute_joint_probabilities(self, distances, target_perplexity):
     n = distances.shape[0]
     P = np.zeros((n, n))
-    target_entropy = np.log(target_perplexity)
-    
+
+    # Perplexity = 2^H, so the target entropy is log2(perplexity).
+    # The entropy below is measured in BITS, so the target must be too.
+    target_entropy = np.log2(target_perplexity)
+
     for i in range(n):
-        # Binary search for optimal beta (precision)
+        # Binary search for optimal beta (precision), beta = 1/(2*sigma^2)
         beta_min = -np.inf
         beta_max = np.inf
         beta = 1.0
-        
-        Di = distances[i, ...]  # Distances from point i
-        
+
+        # Every j EXCEPT i. p(i|i) is not part of the definition, and since
+        # distances[i, i] = 0 we would get exp(0) = 1, the largest term in
+        # the row - each point would become its own nearest neighbour.
+        idx = np.concatenate([np.arange(0, i), np.arange(i + 1, n)])
+        Di = distances[i, idx]
+
         for _ in range(50):
             P_i = np.exp(-Di * beta)
             sum_P_i = np.sum(P_i)
             P_i = P_i / sum_P_i
-            
-            entropy = -np.sum(P_i * np.log2(P_i + 1e-8))
+
+            entropy = -np.sum(P_i * np.log2(np.maximum(P_i, 1e-12)))
             entropy_diff = entropy - target_entropy
-            
+
             if abs(entropy_diff) < 1e-5:
                 break
-            
+
             # Adjust beta
             if entropy_diff > 0:
+                # Too much entropy: sharpen the Gaussian (raise beta)
                 beta_min = beta
                 beta = beta * 2 if beta_max == np.inf else (beta + beta_max) / 2
             else:
+                # Too little entropy: widen the Gaussian (lower beta)
                 beta_max = beta
                 beta = beta / 2 if beta_min == -np.inf else (beta + beta_min) / 2
-        
-        P[i, :] = P_i
-    
+
+        P[i, idx] = P_i   # write back to the same off-diagonal slots
+
     # Symmetrize
     P = (P + P.T) / (2 * n)
     return P
 ```
 
-**Step-by-step example:**
-```python
+> **The single most important line here is `np.log2`.** The loop measures entropy in bits
+> with `np.log2`, so the target it is chasing must also be in bits. Writing
+> `target_entropy = np.log(target_perplexity)` compiles, runs, produces a perfectly
+> plausible-looking embedding - and silently solves for a perplexity of
+> `2^ln(p)` instead of `p`. A request for 30 becomes 10.56, for 50 becomes 15.05, for 5
+> becomes 3.05. Nothing warns you. Run with `verbose=2` and confirm the printed
+> "Achieved perplexity" is the number you asked for.
+
+**Step-by-step example** (worked arithmetic, re-measured and verified):
+```
 Point i, distances to 4 others: [1.0, 2.0, 3.0, 10.0]
 Target perplexity: 3.0
-Target entropy: log(3.0) = 1.585
+Target entropy: log2(3.0) = 1.585 bits   <- log2, NOT ln (ln 3 = 1.099)
 
 Iteration 1: beta = 1.0
   P_i = exp(-[1, 2, 3, 10] * 1.0) = [0.368, 0.135, 0.050, 0.000]
-  Normalize: [0.665, 0.244, 0.090, 0.001]
-  Entropy: -sum(p × log2(p)) = 1.234
-  Too low! Need higher entropy → decrease beta
-  
+  Normalize: [0.665, 0.245, 0.090, 0.000]
+  Entropy: -sum(p × log2(p)) = 1.202   (perplexity 2.30)
+  Too low! Need higher entropy → decrease beta (widen the Gaussian)
+  beta_max = 1.0, beta_min still -inf, so halve: beta = 0.5
+
 Iteration 2: beta = 0.5
   P_i = exp(-[1, 2, 3, 10] * 0.5) = [0.607, 0.368, 0.223, 0.007]
-  Normalize: [0.503, 0.305, 0.185, 0.006]
-  Entropy: 1.502
-  Still too low → decrease beta more
-  
+  Normalize: [0.504, 0.305, 0.185, 0.006]
+  Entropy: 1.513   (perplexity 2.86)
+  Still too low → halve again: beta = 0.25
+
 Iteration 3: beta = 0.25
-  ...
-  Entropy: 1.580 ≈ 1.585 ✓
-  
-This beta gives perplexity ≈ 3.0
+  Normalize: [0.401, 0.313, 0.244, 0.042]
+  Entropy: 1.742   (perplexity 3.35)
+  OVERSHOT. Now both bounds are finite (beta_min = 0.25, beta_max = 0.5),
+  so from here the search bisects instead of halving: beta = 0.375
+
+Iterations 4-8: 0.375 → 0.4375 → 0.40625 → 0.390625 → 0.398438
+  Entropies:   1.612 → 1.560  → 1.585   → 1.598    → 1.591
+
+Converges at beta ~= 0.4061  ->  entropy 1.5850 bits  ->  perplexity 3.0000
+(sigma = sqrt(1 / (2 * beta)) = 1.11)
 ```
+
+Notice the shape of the search: the entropy is **monotonically decreasing in beta**
+(a sharper Gaussian concentrates probability on fewer neighbours, which is lower
+entropy), so plain bisection is guaranteed to converge. The doubling/halving in the
+first few steps exists only to *bracket* the answer before a finite `beta_min` and
+`beta_max` are both known.
 
 ### 3. Computing Low-Dimensional Affinities
 
 ```python
-def _compute_low_dim_affinities(self, Y):
+def _compute_low_dim_affinities(self, Y, return_num=False):
     distances = self._compute_pairwise_distances(Y)
-    Q = 1 / (1 + distances)
-    np.fill_diagonal(Q, 0)
-    sum_Q = np.sum(Q)
-    Q = Q / sum_Q
+    num = 1 / (1 + distances)     # the Student-t kernel, un-normalized
+    np.fill_diagonal(num, 0)
+    sum_Q = np.sum(num)
+    Q = num / sum_Q
     Q = np.maximum(Q, 1e-12)
+
+    if return_num:
+        return Q, num             # the gradient needs `num` too
     return Q
 ```
 
+`num` is exactly the `(1 + ||yi - yj||²)⁻¹` matrix that appears in the gradient formula.
+Handing it back costs nothing and saves `_compute_gradient` from rebuilding the whole
+distance matrix a second time in the same iteration.
+
 **Example:**
-```python
+```
 Y = [[0, 0],     # Point 1
      [1, 1],     # Point 2
      [5, 5]]     # Point 3
@@ -971,22 +1216,30 @@ Low Q (0.026) for distant points (1-3)
 ### 4. Computing Gradient
 
 ```python
-def _compute_gradient(self, P, Q, Y):
+def _compute_gradient(self, P, Q, Y, inv_distances=None):
     n = Y.shape[0]
     Y_diff = Y[:, np.newaxis, :] - Y[np.newaxis, :, :]
-    distances = self._compute_pairwise_distances(Y)
-    inv_distances = 1 / (1 + distances)
-    np.fill_diagonal(inv_distances, 0)
-    
+
+    if inv_distances is None:
+        # Only needed when the caller did not already have it
+        distances = self._compute_pairwise_distances(Y)
+        inv_distances = 1 / (1 + distances)
+        np.fill_diagonal(inv_distances, 0)
+
     PQ_diff = P - Q
-    gradient = 4 * np.sum((PQ_diff[:, :, np.newaxis] * 
-                           Y_diff * 
-                           inv_distances[:, :, np.newaxis]), axis=1)
+    gradient = 4 * np.sum((PQ_diff[:, :, np.newaxis] *      # (p_ij - q_ij)
+                           Y_diff *                          # (y_i - y_j)
+                           inv_distances[:, :, np.newaxis]), # (1 + d^2)^-1
+                          axis=1)                            # sum over j
     return gradient
 ```
 
+Line for line this is the formula from the Mathematical Foundation:
+`∂C/∂yi = 4 Σj (pij - qij)(yi - yj)(1 + ||yi - yj||²)⁻¹`. The `4` is the literal `4`,
+the three broadcast factors are the three bracketed terms, and `axis=1` is the `Σj`.
+
 **Example:**
-```python
+```
 3 points in 2D:
 Y = [[0, 0],    P = [[0,   0.4, 0.1],    Q = [[0,   0.3, 0.05],
      [1, 0],         [0.4, 0,   0.2],         [0.3, 0,   0.15],
@@ -1009,21 +1262,49 @@ For point 0:
   
   Total gradient[0] = [-0.2, -0.1]
   
-Update: Y[0] = Y[0] - learning_rate × gradient[0]
-             = [0,0] - 200 × [-0.2, -0.1]
-             = [40, 20]  (moves toward 1 and 2)
+Now the actual update the code performs (all three lines):
+
+  1. velocity = momentum × velocity - learning_rate × gradient[0]
+     First iteration, velocity starts at [0, 0] and momentum is 0.5.
+     With an illustrative learning_rate = 1.0 (see the warning below):
+     velocity = 0.5 × [0,0] - 1.0 × [-0.2,-0.1] = [0.2, 0.1]
+
+  2. Y[0] = Y[0] + velocity = [0,0] + [0.2,0.1] = [0.2, 0.1]
+     (moves toward points 1 and 2, as the attractive forces asked)
+
+  3. Y = Y - mean(Y, axis=0)
+     The whole cloud is recentred on the origin every iteration. KL depends
+     only on relative positions, so this drift removal is free.
 ```
+
+> **Why `learning_rate = 1.0` in that arithmetic and not the default 200?** With
+> `learning_rate = 200` this single step would be `200 × [-0.2, -0.1] = [40, 20]` - a
+> 40-unit jump from a configuration whose points are 1 unit apart. That is not a bug in
+> t-SNE; it is what the *first* steps genuinely look like. The embedding is initialised at
+> a scale of `1e-4`, so gradients start enormous relative to the layout and the map
+> expands violently before settling. The illustrative small rate above is only so the
+> arithmetic stays readable.
 
 ### 5. Main Optimization Loop
 
 ```python
 def fit_transform(self, X):
     # Setup
+    X = np.asarray(X, dtype=float)          # accept lists / 1-D input
+    if self.perplexity >= n_samples:        # unreachable entropy target
+        raise ValueError(...)
+
     distances = self._compute_pairwise_distances(X)
     P = self._compute_joint_probabilities(distances, self.perplexity)
-    Y = np.random.randn(n_samples, self.n_components) * 1e-4
+
+    rng = np.random.RandomState(self.random_state)   # private, not global
+    Y = rng.randn(n_samples, self.n_components) * 1e-4
     Y_velocity = np.zeros_like(Y)
-    
+
+    # Bound before the loop so n_iter=0 returns the initialization
+    # instead of raising UnboundLocalError on the n_iter_ line below
+    iteration = -1
+
     # Optimization
     for iteration in range(self.n_iter):
         # Early exaggeration
@@ -1031,51 +1312,58 @@ def fit_transform(self, X):
             P_effective = P * self.early_exaggeration
         else:
             P_effective = P
-        
-        # Compute Q and gradient
-        Q = self._compute_low_dim_affinities(Y)
-        gradient = self._compute_gradient(P_effective, Q, Y)
-        
+
+        # Compute Q and gradient (reusing `num` for the gradient)
+        Q, num = self._compute_low_dim_affinities(Y, return_num=True)
+        gradient = self._compute_gradient(P_effective, Q, Y, inv_distances=num)
+
         # Check convergence
         if np.linalg.norm(gradient) < self.min_grad_norm:
             break
-        
-        # Momentum update
-        momentum = 0.5 if iteration < 250 else 0.8
+
+        # Momentum update - same switch point as early exaggeration
+        momentum = 0.5 if iteration < self.early_exaggeration_iter else 0.8
         Y_velocity = momentum * Y_velocity - self.learning_rate * gradient
         Y = Y + Y_velocity
-        
+
         # Recenter
         Y = Y - np.mean(Y, axis=0)
-    
+
+    # Report the cost of the embedding we are actually returning, against the
+    # un-exaggerated P. The Q left in the loop belongs to the previous Y.
+    self.embedding_ = Y
+    Q = self._compute_low_dim_affinities(Y)
+    self.kl_divergence_ = self._compute_kl_divergence(P, Q)
+    self.n_iter_ = iteration + 1
+
     return Y
 ```
 
-**Optimization trace:**
+**Optimization trace** (numbers are the real 400-digit run from the Step-by-Step Example):
 ```
 Iteration 0:
   P: High-D similarities (fixed)
   Y: Random [-0.0001, 0.0001] (initialization)
   Q: Almost uniform (random positions)
   Gradient: Large (big mismatch between P and Q)
-  
+
 Iteration 50 (early exaggeration):
-  P_effective: P × 12 (exaggerated)
+  P_effective: P × 12 (exaggerated), momentum 0.5
   Y: Points moving into rough clusters
-  Q: Starting to match P
-  Gradient: Still large but decreasing
-  
-Iteration 250 (exaggeration ends):
+  Gradient norm: 0.447  KL vs true P: 3.0771
+
+Iteration 250 (exaggeration ends, momentum -> 0.8):
   P_effective: P × 1 (normal)
   Y: Clusters formed, need refinement
-  Q: Better match to P
-  Gradient: Moderate
-  
+  Gradient norm: 0.444  KL vs true P: 2.8710
+  (at iteration 300 the gradient norm has already fallen to 0.0035 -
+   the forces were 12x inflated before the switch)
+
 Iteration 1000 (final):
   Y: Well-separated clusters
   Q: Close match to P
-  Gradient: Small (converged)
-  KL divergence: ~1.0 (good)
+  Gradient norm: 0.000267 (converged)
+  KL divergence: 0.3584
 ```
 
 ---
@@ -1120,6 +1408,21 @@ For different dataset sizes:
 
 When in doubt: Start with 30
 ```
+
+**Hard limit, enforced by the code:** `perplexity` must be strictly less than
+`n_samples`, otherwise `fit_transform` raises `ValueError`. The reason is exact rather
+than stylistic: a point has only `n - 1` neighbours to spread probability over, so the
+largest achievable entropy is `log₂(n - 1)` bits, i.e. a perplexity of `n - 1`. Asking
+for more is asking the binary search to solve an equation with no solution - it would
+run its 50 iterations, drive beta toward zero, and hand back a uniform `P` with no
+warning. So `perplexity=100` is fine on 400 points and an error on 90.
+
+**The bottom end has no guard, and it needs one more than you would think.** At
+`perplexity=1` the target entropy is `log₂(1) = 0` bits, which no point whose two nearest
+neighbours are nearly equidistant can ever reach; the search pushes beta up until
+`exp(-d²·beta)` underflows to zero for that entire row, and the row of `P` collapses to
+zeros. Measured on the Quick Start blobs, `P.sum()` is then `0.88` instead of `1.0`
+(18 of 150 rows gone), and nothing warns you. Stay in the documented 5-50 range.
 
 #### 2. Learning Rate
 
@@ -1180,14 +1483,30 @@ Convergence indicators:
 ```
 KL(P||Q) = Σij Pij log(Pij / Qij)
 
-Interpretation:
-  KL = 0.5-1.0:  Excellent match
-  KL = 1.0-2.0:  Good match
-  KL = 2.0-3.0:  Acceptable
-  KL > 3.0:      Poor, increase iterations
-  
-Note: KL values not comparable across different datasets!
+The ONLY two things KL is good for:
+
+  1. Comparing runs on the SAME data with the SAME perplexity.
+     Different random seeds -> pick the run with the lowest KL.
+
+  2. Checking convergence within one run.
+     Print it every 50 iterations; when it stops falling, you are done.
 ```
+
+**What KL is not.** There are no universal "good" and "bad" KL values, and any table that
+claims otherwise is wrong. KL scales with the number of points, the intrinsic
+dimensionality, and the perplexity. Three measurements from this repository make the point:
+
+| Run | Points | Perplexity | Final KL |
+|-----|--------|------------|----------|
+| Quick Start blobs | 150 | 5 | 2.0721 |
+| Quick Start blobs | 150 | 30 | 0.5203 |
+| 400 handwritten digits | 400 | 30 | 0.3584 |
+
+The digits map has the *lowest* KL of the three and is by far the hardest problem. The same
+blobs score 2.07 or 0.52 depending only on the perplexity you asked for. **Never read KL as
+an accuracy, and never compare it across datasets or across perplexities.** For a number
+that does mean something on its own, use neighbour preservation (see below) or a
+silhouette score against known labels.
 
 #### 2. Visual Inspection
 
@@ -1223,6 +1542,34 @@ Score interpretation:
 
 Note: This only makes sense if data truly has clusters!
 ```
+
+#### 4. Neighbour Preservation (label-free, NumPy only)
+
+Silhouette needs labels. Neighbour preservation does not, and it asks the only question
+t-SNE ever promised to answer: *did local neighbourhoods survive the projection?*
+
+```python
+def neighbor_preservation(X_high, Y_low, k=10):
+    """Share of each point's k nearest neighbours that survive the projection."""
+    def nearest(Z):
+        sq = np.sum(np.square(Z), axis=1)
+        D = sq[:, np.newaxis] + sq[np.newaxis, :] - 2 * np.dot(Z, Z.T)
+        np.fill_diagonal(D, np.inf)          # a point is not its own neighbour
+        return np.argsort(D, axis=1)[:, :k]
+
+    high_nn, low_nn = nearest(X_high), nearest(Y_low)
+    shared = [len(set(high_nn[i]) & set(low_nn[i])) for i in range(len(X_high))]
+    return float(np.mean(shared)) / k
+```
+
+This is the same trick as `_compute_pairwise_distances`, applied twice and intersected.
+It is essentially a simplified *trustworthiness*, the standard t-SNE quality measure.
+
+**Always report it against a baseline.** On the Quick Start data it returns `0.463`, which
+looks poor until you score a *random* 2-D layout of the same points: `0.055`. There is also
+a ceiling well below 1.0, because those blobs are isotropic 10-D Gaussians whose internal
+neighbour ordering simply cannot fit into two dimensions. A bare `0.463` is
+uninterpretable; `0.463 against a floor of 0.055` is a result.
 
 ### Common Issues and Solutions
 
@@ -1438,15 +1785,18 @@ For n=100,000:
 1. **PCA Preprocessing**
 ```python
 # Reduce to ~50 dimensions first
+from sklearn.decomposition import PCA
 pca = PCA(n_components=50)
 X_reduced = pca.fit_transform(X)
+
+tsne = TSNE(n_components=2, perplexity=30, random_state=42)
 X_embedded = tsne.fit_transform(X_reduced)
+```
 
 Benefits:
-  - Faster distance computation
+  - Faster distance computation (d drops from e.g. 784 to 50)
   - Removes noise
   - Often improves results
-```
 
 2. **Barnes-Hut Approximation**
 ```
@@ -1470,6 +1820,133 @@ X_sample_embedded = tsne.fit_transform(X_sample)
 
 # Then embed remaining points (out of scope for this implementation)
 ```
+
+---
+
+## Simplifications vs. Canonical t-SNE
+
+This implementation is faithful to van der Maaten & Hinton (2008) on every point that
+defines the *cost function*: the same conditional Gaussians, the same binary search on
+`H(P_i) = log₂(perplexity)`, the same symmetrization `(p(j|i) + p(i|j)) / 2n`, the same
+Student-t `q_ij`, the same KL cost, the same 4-factor gradient.
+
+The *optimizer schedule*, however, follows **sklearn**, not the paper — worth knowing
+before you cite this file:
+
+| schedule constant | this code | vdM & Hinton 2008 | vdM's reference `tsne.py` | sklearn 1.7.2 |
+|---|---|---|---|---|
+| exaggeration factor | 12 | 4 | 4 | 12 |
+| exaggeration ends at iteration | 250 | 50 | 100 | 250 |
+| momentum 0.5 → 0.8 at iteration | 250 | 250 | 20 | 250 |
+
+Of the three references, only sklearn ties the two phases to a single constant
+(`_EXPLORATION_MAX_ITER = 250` sets both), which is what `early_exaggeration_iter` does
+here. The paper flips momentum at 250 but stops exaggerating at 50; `tsne.py` flips at
+20 and stops exaggerating at 100. This is a schedule choice, not a change to the model:
+the cost being minimized is identical either way.
+
+Verified against `sklearn 1.7.2` on 150 standard normal points in 20-D, the joint `P`
+matrix agrees with `sklearn.manifold._utils._binary_search_perplexity` to
+`max|ΔP| = 1.0e-08`, and the achieved perplexity is `30.000` for a request of `30.0`.
+
+Four things are deliberately left out. Each is listed with what canonical t-SNE does, why
+it is omitted, and what it costs you.
+
+### 1. Adaptive per-parameter gains
+
+**Canonical:** the reference implementation keeps a per-coordinate gain array and nudges
+it every step, so coordinates whose gradient keeps flipping sign are slowed down:
+
+```
+gains = (gains + 0.2) * ((grad > 0) != (velocity > 0)) +
+        (gains * 0.8) * ((grad > 0) == (velocity > 0))
+gains = np.maximum(gains, 0.01)          # min_gain
+velocity = momentum * velocity - learning_rate * (gains * grad)
+```
+
+**Here:** plain momentum, `velocity = momentum * velocity - learning_rate * grad`.
+
+**Why:** it is an optimizer heuristic, not part of the model, and the extra state array
+obscures the one line that matters. The repo's rule is clarity over cleverness.
+
+**Consequence:** measured to be none on well-conditioned data. The benchmark, written out
+so you can re-run it: `X, y = make_blobs(n_samples=200, centers=4, n_features=10,
+cluster_std=1.0, random_state=42)` from `sklearn.datasets`, both solvers at perplexity 30,
+learning rate 200, random init, 1000 iterations, `random_state=42`. This implementation
+reaches **KL 0.2309 / trustworthiness 0.9718 / silhouette 0.9467**;
+`sklearn.manifold.TSNE(method='exact', init='random')` - spelling the iteration count
+`max_iter=1000`, because sklearn 1.7.2 no longer accepts `n_iter` - reaches
+**KL 0.2363 / 0.9706 / 0.9485**. (Trustworthiness with `n_neighbors=5`, silhouette
+of the embedding against the planted labels, and both KLs recomputed from this file's own
+`P` so the two are scored identically.) Neither gap is real: over seeds 42, 0 and 7 this
+code spans KL 0.2307-0.2362 and sklearn spans 0.2345-0.2384, so the run-to-run spread is
+wider than the difference between the solvers. On badly-scaled or very high-dimensional
+input, gains would converge in fewer iterations.
+
+### 2. Barnes-Hut / FFT approximation
+
+**Canonical:** modern t-SNE (and sklearn's default `method='barnes_hut'`) approximates the
+repulsive forces with a quadtree, reducing each iteration from `O(n²)` to `O(n log n)` and
+making 50,000+ points practical.
+
+**Here:** the exact `O(n²)` computation, which is what the mathematics literally says.
+
+**Why:** the quadtree is several hundred lines of tree-building and traversal that teach
+data structures rather than t-SNE. This is well past the point where added machinery stops
+explaining the algorithm.
+
+**Consequence:** the real one. Every iteration touches all `n²` pairs, and the
+`(n, n, n_components)` difference tensor also makes memory grow as `n²`. 9.6 seconds for
+400 points × 1000 iterations, and 190 seconds (3.2 minutes) for all 1797 digits - both
+complete runs timed end to end on the machine this guide was written on, not
+extrapolations from a shorter run. The cost grows as n², so expect your own constant.
+Beyond a few thousand points, use `sklearn.manifold.TSNE`. This is why every USAGE EXAMPLE
+in `_14_tsne.py` subsamples.
+
+### 3. PCA initialization
+
+**Canonical:** sklearn now defaults to `init='pca'`, which starts the embedding from the
+first two principal components. This makes runs reproducible without a seed and preserves
+noticeably more global structure.
+
+**Here:** `init` is always random: `rng.randn(n, n_components) * 1e-4`, which is the
+scale sklearn uses (`1e-4 * standard_normal(...)`). The paper's Algorithm 1 samples
+`Y(0)` from `N(0, 10⁻⁴ I)` — a *variance* of `10⁻⁴`, i.e. a standard deviation of `10⁻²`,
+a hundred times wider. Measured on the Quick Start blobs, that hundredfold change moves
+the final KL from `0.9288` to `0.8209` and neighbour preservation from `0.463` to
+`0.486`: a different random map of the same quality, because early exaggeration blows the
+layout up by orders of magnitude within the first few dozen iterations either way.
+
+**Why:** PCA-init would require a full PCA inside a t-SNE file, duplicating algorithm #11.
+
+**Consequence:** results vary with `random_state`, and the *relative arrangement of
+clusters* is less stable between runs than sklearn's default would give. Within-cluster
+structure is unaffected. Set `random_state` and, for anything important, run 3-5 seeds and
+keep the lowest KL (see "Multiple Runs" above).
+
+### 4. No `transform()` for new points
+
+**Canonical:** there is none either. `sklearn.manifold.TSNE` has no `transform` method.
+t-SNE optimizes point *positions*, not a mapping function, so there is nothing to apply to
+a new sample.
+
+**Consequence:** to embed new data you must refit everything. If you need a reusable
+mapping, use PCA, an autoencoder, or parametric t-SNE. This is discussed again under
+"Cannot Embed New Points" below.
+
+### What is NOT a simplification
+
+- The distance computation uses the `||x||² + ||y||² - 2x·y` expansion. That is an
+  algebraic identity, exact up to floating point, not an approximation.
+- `P` is clipped at `1e-12` and the entropy uses `np.log2(np.maximum(P_i, 1e-12))`. Both
+  are numerical guards against `log(0)`; they change no result you can measure.
+- The gradient-norm early stop (`min_grad_norm`) is an *addition*, not an omission, and it
+  comes from sklearn (`min_grad_norm=1e-7`, the same default, checked as
+  `if grad_norm <= min_grad_norm: break` inside `_gradient_descent`). Van der Maaten's
+  reference `tsne.py` has no `break` at all and always runs the full `max_iter`. At
+  `1e-7` the gradient's contribution to the step it cuts short is
+  `learning_rate × 1e-7 = 2e-5`, so it cannot change a result you can see; it only saves
+  iterations after the embedding has settled.
 
 ---
 

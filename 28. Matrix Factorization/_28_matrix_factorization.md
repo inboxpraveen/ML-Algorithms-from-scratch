@@ -3,14 +3,151 @@
 Welcome to the world of Matrix Factorization! 🎬 In this comprehensive guide, we'll explore one of the most powerful techniques for collaborative filtering and recommender systems. Matrix Factorization powers recommendation engines at Netflix, Amazon, Spotify, and countless other platforms!
 
 ## Table of Contents
-1. [What is Matrix Factorization?](#what-is-matrix-factorization)
-2. [How Matrix Factorization Works](#how-matrix-factorization-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is Matrix Factorization?](#what-is-matrix-factorization)
+3. [How Matrix Factorization Works](#how-matrix-factorization-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Simplification vs. Canonical Matrix Factorization](#simplification-vs-canonical-matrix-factorization)
+11. [Advantages and Limitations](#advantages-and-limitations)
+12. [Summary](#summary)
+13. [Further Reading](#further-reading)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Matrix Factorization from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _28_matrix_factorization.py  (the __main__ block runs this)
+# Or copy the MatrixFactorization class from _28_matrix_factorization.py above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the MatrixFactorization class here ----
+# class MatrixFactorization: ...
+
+np.random.seed(42)
+
+# ------ DEMO 1: recover a planted low-rank matrix (known-answer test) ------
+n_users, n_items = 40, 30
+P_true = np.random.rand(n_users, 3)          # true rank = 3
+Q_true = np.random.rand(n_items, 3)
+R_true = P_true @ Q_true.T
+R_true = 1.0 + 4.0 * (R_true - R_true.min()) / (R_true.max() - R_true.min())
+
+# Flatten to (user, item, rating) triples and hide 40% of the cells
+uu, ii = np.meshgrid(np.arange(n_users), np.arange(n_items), indexing="ij")
+uu, ii, rr = uu.ravel(), ii.ravel(), R_true.ravel()
+seen = np.random.rand(uu.size) < 0.60
+uu, ii, rr = uu[seen], ii[seen], rr[seen]
+
+# Shuffle BEFORE slicing, or the test set gets only the highest user ids
+perm = np.random.permutation(uu.size)
+cut = int(0.75 * uu.size)
+tr, te = perm[:cut], perm[cut:]
+
+mf = MatrixFactorization(
+    n_factors=3,          # match the true rank
+    learning_rate=0.02,
+    regularization=0.02,
+    n_epochs=150,
+    min_rating=1, max_rating=5,   # the real range of THIS data
+    random_state=42               # private RNG - your global seed is untouched
+)
+mf.fit(uu[tr], ii[tr], rr[tr])
+
+baseline = np.sqrt(np.mean((rr[te] - rr[tr].mean()) ** 2))
+print(f"Train RMSE                  : {mf.score(uu[tr], ii[tr], rr[tr]):.4f}")
+print(f"Test  RMSE                  : {mf.score(uu[te], ii[te], rr[te]):.4f}")
+print(f"Global-mean baseline (test) : {baseline:.4f}   <- must beat this")
+
+# reconstruct_matrix(clip=False) returns the raw mu + b_u + b_i + U V^T
+recon = mf.reconstruct_matrix(clip=False)
+print(f"Reconstruction RMSE vs true R: {np.sqrt(np.mean((recon - R_true)**2)):.4f}")
+
+preds = mf.predict(uu[te], ii[te])
+for j in range(3):
+    print(f"  user={uu[te][j]:3d} item={ii[te][j]:3d}  "
+          f"true={rr[te][j]:5.2f}  pred={preds[j]:5.2f}")
+
+# ------ DEMO 2: recommendations with string IDs ------
+action = ["Die Hard", "Mad Max", "John Wick", "Top Gun"]
+romance = ["Notting Hill", "The Notebook", "Love Actually", "Titanic"]
+quality = {"Die Hard": 0.4, "Mad Max": 0.0, "John Wick": 0.2, "Top Gun": -0.4,
+           "Notting Hill": -0.3, "The Notebook": 0.3, "Love Actually": 0.0,
+           "Titanic": 0.4}
+
+users, movies, ratings = [], [], []
+for fans, loved, disliked in [(["Alice", "Bob", "Carol", "Dan"], action, romance),
+                              (["Eve", "Frank", "Grace", "Heidi"], romance, action)]:
+    for person in fans:
+        for t in loved:
+            users.append(person); movies.append(t)
+            ratings.append(round(min(5.0, 4.6 + quality[t]), 1))
+        for t in disliked:
+            users.append(person); movies.append(t)
+            ratings.append(round(max(1.0, 1.8 + quality[t]), 1))
+
+# Hold out three ratings so there is something left to recommend
+for who, what in [("Alice", "John Wick"), ("Alice", "Top Gun"), ("Eve", "Titanic")]:
+    j = [x for x in range(len(users)) if users[x] == who and movies[x] == what][0]
+    users.pop(j); movies.pop(j); ratings.pop(j)
+
+mf2 = MatrixFactorization(n_factors=2, learning_rate=0.02, regularization=0.05,
+                          n_epochs=300, random_state=42)
+mf2.fit(users, movies, ratings)
+print(f"\nTrain RMSE: {mf2.score(users, movies, ratings):.4f}")
+
+# exclude_rated=True is the DEFAULT and uses the items seen during fit()
+for title, pred in mf2.recommend("Alice", n_recommendations=3):
+    print(f"  recommend Alice -> {title:12s} {pred:.2f} stars")
+
+for title, sim in mf2.get_similar_items("Die Hard", n_similar=3):
+    print(f"  similar to Die Hard: {title:12s} {sim:+.3f}")
+
+print(f"\nAlice vs 'John Wick' (held out, true 4.8): "
+      f"{mf2.predict(['Alice'], ['John Wick'])[0]:.2f}")
+print(f"NewUser vs 'Die Hard' (cold start)       : "
+      f"{mf2.predict(['NewUser'], ['Die Hard'])[0]:.2f}  (global mean)")
+```
+
+Expected output:
+```
+Train RMSE                  : 0.0466
+Test  RMSE                  : 0.0964
+Global-mean baseline (test) : 0.6487   <- must beat this
+Reconstruction RMSE vs true R: 0.0784
+  user= 33 item= 15  true= 1.32  pred= 1.33
+  user=  2 item= 29  true= 1.16  pred= 1.33
+  user=  8 item= 26  true= 3.12  pred= 3.14
+
+Train RMSE: 0.0510
+  recommend Alice -> John Wick    4.71 stars
+  recommend Alice -> Top Gun      4.14 stars
+  similar to Die Hard: John Wick    +1.000
+  similar to Die Hard: Mad Max      +1.000
+  similar to Die Hard: Top Gun      +1.000
+
+Alice vs 'John Wick' (held out, true 4.8): 4.71
+NewUser vs 'Die Hard' (cold start)       : 3.21  (global mean)
+```
+
+**How to read those numbers**
+
+- **Test RMSE 0.0964 against a global-mean baseline of 0.6487.** The baseline is what you get by predicting the training average for every pair. Beating it by ~6.7x is the whole claim of the algorithm; a recommender that does *not* beat it has learned nothing, no matter how low its training error.
+- **Reconstruction RMSE 0.0784 over all 1200 cells**, 490 of which the model never saw. That is the low-rank assumption paying off: three latent factors carry enough structure to fill in the holes. Run the same fit on *every* cell with `regularization=0.0` and the reconstruction error drops to about `2e-07` -- the planted matrix is recovered essentially exactly.
+- **`recommend("Alice", n_recommendations=3)` returns only two movies.** `exclude_rated=True` is the default and drops the six titles Alice rated during `fit()`, leaving just the two that were held out. Always print `len(recommendations)`, not the number you asked for.
+- **Cosine +1.000 between all four action titles** is not a bug. Their *taste direction* is identical; what separates them (Die Hard is a better film than Top Gun in this toy world) lives in the item bias `b_i`, not in the factor direction. Cosine similarity measures taste, not quality.
+- **`NewUser` gets 3.21, the global mean.** That is the cold-start fallback: with no ratings there is no `p_u` to dot with, so the model can only offer the average.
 
 ---
 
@@ -169,11 +306,15 @@ Example:
 **3. Regularization**
 Prevents overfitting by penalizing large factor values:
 ```
-Loss = Σ(actual - predicted)² + λ × (||U||² + ||V||²)
+Loss = Σ over observed ratings of [ (actual - predicted)² + λ × (||U_u||² + ||V_i||²) ]
 
 - λ = 0: No regularization (may overfit)
 - λ > 0: Penalty for large values (smoother, generalizes better)
 ```
+
+(Simplified: the biases carry the same penalty and are written out in
+[Problem Formulation](#problem-formulation). Note that the penalty is *inside*
+the sum — each rating pays for the two rows it touches.)
 
 ---
 
@@ -184,14 +325,40 @@ Loss = Σ(actual - predicted)² + λ × (||U||² + ||V||²)
 **Objective**: Minimize the reconstruction error with regularization
 
 ```
-Loss = Σ(r_ui - r̂_ui)² + λ(||U||² + ||V||²)
+Loss = Σ_{(u,i)∈K} [ (r_ui - r̂_ui)² + λ(||p_u||² + ||q_i||² + b_u² + b_i²) ]
 
 where:
+- K = the set of observed (user, item) pairs
 - r_ui = actual rating from user u for item i
 - r̂_ui = predicted rating
+- p_u, q_i = the factor rows of U and V for this user and this item
 - λ = regularization parameter
 - ||·||² = sum of squared values (L2 norm)
 ```
+
+This is Eq. (5) of Koren, Bell & Volinsky (2009), and the penalty sits **inside**
+the sum deliberately. `fit` applies `-λ·p_u` on *every* rating user u left, so a
+user rated `n_u` times is shrunk `n_u` times. Writing the penalty outside the sum
+as `λ(||U||² + ||V||² + ||b_u||² + ||b_i||²)` — one Frobenius norm per matrix —
+shrinks each row exactly once and is therefore a **different** objective, not a
+tidier way to write this one. (Measured on 600 ratings from 20 users and 15
+items, mean `n_u = 30`, `n_factors=4`, `learning_rate=0.005`, λ = 0.2, 4000
+epochs — long enough to converge: the largest gradient component of the
+inside-the-sum loss is 0.023 against a data-term scale of 3.65, while the
+outside-the-sum loss still shows 3.53 — 97% of the data scale, nowhere near
+stationary. And the ratio 3.53/3.65 = 0.968 is the value the algebra predicts:
+with the inside-the-sum gradient at zero, the outside-the-sum one is left holding
+(n_u - 1)/n_u = 29/30 = 0.967 of the data term.)
+
+The two **bias norms** belong in the penalty because the code shrinks the biases
+with the same `-λ·b` term it applies to the factors (`user_bias_ += α(e - λ·b_u)`
+in `fit`). A guide that lists only `||U||² + ||V||²` here is describing a
+slightly different model from the one the code fits.
+
+The Frobenius form does appear in one place in the code: the number stored in
+`training_loss_`, which sums each squared norm once per epoch. That is a
+reporting convention — see [Training curves](#training-curves-training_loss_-and-training_rmse_)
+— so read it as a monitoring curve rather than as the objective above.
 
 ### Prediction Formula
 
@@ -247,6 +414,47 @@ Clipped to [1, 5] → 5.0 stars ⭐⭐⭐⭐⭐
 where α = learning rate
 ```
 
+**Where did the factor of 2 go?**
+Step 2 lists gradients that all start with `-2e`, but step 3 updates with `+α × e`,
+not `+2α × e`. Both are correct, and the code (`_28_matrix_factorization.py`,
+inside `fit`) implements step 3 exactly as written. The reconciliation: define the
+loss with a leading one-half,
+
+```
+L_ui = ½ (r_ui - r̂_ui)² + (λ/2)(||U_u||² + ||V_i||² + b_u² + b_i²)
+       └─ the loss of THIS one rating; summing it over the observed
+          ratings K gives the objective in Problem Formulation above,
+          penalty and all, which is why the penalty is inside that sum
+
+∂L_ui/∂U_u = -e × V_i + λ × U_u        (no 2 anywhere)
+U_u ← U_u - α × ∂L_ui/∂U_u = U_u + α × (e × V_i - λ × U_u)
+```
+
+and the 2s cancel exactly. If you prefer the loss without the ½, every gradient
+carries a 2 and that constant is absorbed into α alone -- halve the learning rate
+and you get an identical update, with **λ unchanged**, because the 2 multiplies
+the data term and the penalty equally. What you must **not** do is take the
+`-2e` gradients from step 2 and plug them into step 3, because that doubles your
+effective learning rate.
+
+**One more thing step 3 hides: the order of the two factor updates.**
+`V_i ← V_i + α(e × U_u - λ × V_i)` needs the **pre-update** `U_u`. The code keeps
+a copy for exactly this reason:
+
+```python
+user_factor = self.user_factors_[u].copy()   # snapshot BEFORE U changes
+
+self.user_factors_[u] += self.learning_rate * (
+    error * self.item_factors_[i] - self.regularization * self.user_factors_[u])
+
+self.item_factors_[i] += self.learning_rate * (
+    error * user_factor - self.regularization * self.item_factors_[i])
+#                ^^^^^^^^^^^ the snapshot, not the freshly updated value
+```
+
+Drop the `.copy()` and you are doing a half-Gauss-Seidel step instead of the
+simultaneous SGD update the equations describe.
+
 ### Matrix Form (for understanding)
 
 ```
@@ -268,10 +476,19 @@ Savings: significant when k << min(m,n)
 ```
 Total Loss = Reconstruction Error + Regularization Term
 
-L = Σ_{(u,i)∈K} (r_ui - r̂_ui)² + λ × (||U||² + ||V||² + ||b_u||² + ||b_i||²)
+L = Σ_{(u,i)∈K} [ (r_ui - r̂_ui)²  +  λ × (||p_u||² + ||q_i||² + b_u² + b_i²) ]
+                  └── fit term ──┘     └──────── shrinkage term ────────┘
 
-where K = set of known ratings
+where K = set of known ratings, p_u = U[u], q_i = V[i]
 ```
+
+Both terms live under the same Σ. Each observed rating contributes its own
+squared error *and* its own shrinkage, so a user rated `n_u` times is shrunk
+`n_u` times: setting the gradient to zero gives an effective ridge coefficient of
+`n_u·λ` on `p_u`, growing in step with that user's data. The alternative,
+`λ(||U||² + ||V||² + ...)` outside the Σ, charges each row exactly once and so
+leans relatively harder on sparsely-rated users. That is a legitimate objective —
+it is just not the one these updates descend.
 
 ### Why It Works
 
@@ -357,17 +574,76 @@ V = np.random.normal(mean=0, std=0.1, size=(n_items, n_factors))
 # - Breaks symmetry
 ```
 
-**3. Prediction Clipping**
+**3. Prediction Clipping — a presentation step, never a training step**
 ```python
-# Ensure predictions are in valid range
-prediction = np.clip(prediction, min_rating, max_rating)
+def _predict_pair(self, user_idx, item_idx, clip=True):
+    pred = (self.global_bias_ + self.user_bias_[user_idx]
+            + self.item_bias_[item_idx]
+            + np.dot(self.user_factors_[user_idx], self.item_factors_[item_idx]))
+    if not clip:
+        return pred                                     # raw score, for the gradient
+    return np.clip(pred, self.min_rating, self.max_rating)   # what a user sees
 
 # Example: For 1-5 star ratings
 # If prediction = 5.7 → clip to 5.0
 # If prediction = 0.3 → clip to 1.0
 ```
 
-**4. Handling Unknown Users/Items**
+**Why the `clip` switch matters.** The SGD loop calls `self._predict_pair(u, i, clip=False)`.
+That is deliberate and it is the single most important line in the file:
+
+```
+e_ui = r_ui - clip(r̂_ui)      ← WRONG.  d(clip)/d(r̂) = 0 outside the window,
+                                 so the error signal saturates at a constant
+                                 and the coupled updates
+                                     p ← p + α(e·q - λp),  q ← q + α(e·p - λq)
+                                 with a constant e have a positive eigenvalue.
+                                 The factors diverge.
+
+e_ui = r_ui - r̂_ui            ← RIGHT. Koren et al. (2009) clip only when a
+                                 prediction is shown to a user.
+```
+
+Measured on this implementation. 80 random 0/1 "implicit feedback" ratings over
+10 users and 8 items, `n_factors=5`, `learning_rate=0.02`, `regularization=0.02`,
+left at the defaults `min_rating=1, max_rating=5`. With a clipped residual there
+is no single number to quote, only a growth rate — `max|U|` reaches `1.6e+03`
+after 100 epochs, `5.1e+07` after 200 and `1.6e+12` after 300 (`training_loss_`
+`1.0e+22`), silently, with no exception; train longer and it gets larger. With
+the unclipped residual the same three fits settle at `max|U|` of 0.65, 0.85 and
+0.89 and a train RMSE of 0.31, 0.29, 0.29.
+
+**Clipping the output hides this, which is what makes it dangerous.** Take a
+planted rank-3 40×30 matrix rescaled to `[0, 10]`, every cell observed,
+`n_factors=3`, `learning_rate=0.02`, `regularization=0`, 200 epochs, fitted with
+the default `[1, 5]` window:
+
+| residual | largest abs. factor value | `reconstruct_matrix()` RMSE | `reconstruct_matrix(clip=False)` RMSE |
+|----------|---------------------------|-----------------------------|---------------------------------------|
+| clipped (wrong) | 2.5e+27 | 1.7496 | 9.5e+53 |
+| unclipped (this code) | 1.13 | 0.5573 | **1.06e-15** |
+
+The clipped-residual run has *already blown up* — the visible `1.7496` is only
+what survives `np.clip`. The unclipped run recovers the planted matrix to machine
+precision, and its `0.5573` is not model error at all: `clip(R, 1, 5)` differs
+from `R` by exactly 0.5573 RMSE, so that is the floor the window imposes on any
+model whatever. The clipping window is not a safety net — it is a claim about
+your data. Set `min_rating` and `max_rating` to the true range of your ratings.
+
+**4. Reconstructing the full matrix**
+```python
+R_hat = mf.reconstruct_matrix()            # clipped to [min_rating, max_rating]
+R_raw = mf.reconstruct_matrix(clip=False)  # raw  μ + b_u + b_i + U·Vᵀ
+```
+`reconstruct_matrix()` returns an `(n_users_, n_items_)` array with rows in
+`user_id_reverse_` order and columns in `item_id_reverse_` order. Use the default
+`clip=True` when the numbers will be shown as star ratings. Use `clip=False` for
+**missing-value imputation, feature extraction, or any data whose real range is
+not `[min_rating, max_rating]`** — clipping there flattens the very structure you
+are trying to inspect. (On a matrix scaled to `[-0.46, 1.00]` fitted with the
+default window, the clipped reconstruction is the constant 1.0 in every cell.)
+
+**5. Handling Unknown Users/Items**
 ```python
 # Cold start problem
 if user_id not in user_id_map:
@@ -510,7 +786,27 @@ Global mean μ = (5+3+4+2+1+5+4)/7 = 3.43
    [0.2, 0.1] += 0.01 × ([0.153,0.306] - [0.004,0.002])
    [0.2, 0.1] += [0.00149, 0.00304]
    → [0.201, 0.103]
+
+   b_Alice  (the code updates the biases too - don't skip these):
+   0 += 0.01 × (1.53 - 0.02×0) = 0 + 0.0153
+   → 0.0153
+
+   b_Movie1:
+   0 += 0.01 × (1.53 - 0.02×0) = 0 + 0.0153
+   → 0.0153
 ```
+
+> **Note on the V update**: it uses the *pre-update* `U_Alice = [0.1, 0.2]`, not the
+> `[0.103, 0.201]` we just computed. That is why `fit` snapshots `user_factor =
+> self.user_factors_[u].copy()` before touching `U`. Hand-simulating with the new
+> value would slowly drift away from what the code does.
+
+> **Note on the biases**: both start at 0, so the `-λ×b` shrinkage contributes
+> nothing on the very first step and each bias moves by exactly `α×e = 0.0153`.
+> Because every rating by Alice pushes `b_Alice` in the direction of her average
+> error, the biases converge much faster than the factors and end up absorbing
+> "Alice is a generous rater" and "Movie1 is a good film" — leaving the factors
+> free to model *taste*, which is the whole point of the `μ + b_u + b_i` split.
 
 **After processing all ratings in this epoch:**
 ```
@@ -626,12 +922,17 @@ mf = MatrixFactorization(
     learning_rate=0.005,
     regularization=0.05,
     n_epochs=20,  # Many ratings, converges fast
+    min_rating=1, max_rating=5,  # state your real rating range
+    random_state=42,             # reproducible runs
     verbose=1
 )
 
 mf.fit(users, movies, ratings)
 
-# Recommend movies for a user
+# Recommend movies for a user.
+# rated_items is optional: exclude_rated=True already drops everything this
+# user rated during fit(). Pass it when the watch history is larger than the
+# training split (e.g. titles watched since the last retrain).
 user_id = 12345
 user_watched = [101, 203, 405, ...]  # Movies already watched
 
@@ -645,7 +946,8 @@ recommendations = mf.recommend(
 print(f"Top 10 movies for User {user_id}:")
 for movie_id, predicted_rating in recommendations:
     movie_title = get_movie_title(movie_id)
-    print(f"{movie_title}: {predicted_rating:.1f}⭐")
+    print(f"{movie_title}: {predicted_rating:.1f} stars")  # ASCII: cp1252 consoles
+                                                           # cannot encode a star glyph
 ```
 
 **Real Impact:**
@@ -908,10 +1210,13 @@ def _create_mappings(self, user_ids, item_ids):
 
 **Why this matters:**
 ```
-Input IDs can be anything:
+Input IDs can be anything, as long as ONE array uses ONE type:
 - Strings: ['Alice', 'Bob', 'Carol']
-- Non-sequential: [1001, 2050, 3017]
-- Mixed types: ['User_1', 'User_2', ...]
+- Non-sequential ints: [1001, 2050, 3017]
+- Prefixed strings: ['User_1', 'User_2', ...]
+- NOT mixed: np.unique([5, 5, 'bob']) casts to a common dtype, so every ID
+  becomes a string; predict([5], ...) then returns the global mean and
+  recommend(5) returns [] with a "not found" warning
 
 Internal representation uses sequential indices:
 - Allows efficient NumPy array indexing
@@ -921,8 +1226,8 @@ Internal representation uses sequential indices:
 ### 3. **Factor Initialization**
 
 ```python
-def _initialize_factors(self):
-    self.user_factors_ = np.random.normal(
+def _initialize_factors(self, rng):
+    self.user_factors_ = rng.normal(
         self.init_mean,  # Usually 0
         self.init_std,   # Usually 0.1
         (self.n_users_, self.n_factors)
@@ -936,6 +1241,15 @@ def _initialize_factors(self):
 3. Normal distribution: Centered at 0, most values close to 0
 ```
 
+**Why `rng` and not `np.random`?** `fit` creates one private generator,
+`rng = np.random.RandomState(self.random_state)`, and hands it to
+`_initialize_factors` and to the per-epoch shuffle. Calling the module-level
+`np.random.seed(...)` inside `fit` instead would reset the **caller's** global
+random state as a side effect of training — so every random number the
+surrounding script drew afterwards would change just because a model was fitted.
+`random_state=42` still gives you byte-identical reproducibility; it just keeps
+that reproducibility inside the model.
+
 ### 4. **Training Loop (SGD)**
 
 ```python
@@ -943,16 +1257,16 @@ def fit(self, user_ids, item_ids, ratings):
     # ... setup ...
     
     for epoch in range(self.n_epochs):
-        # Shuffle data
-        shuffle_idx = np.random.permutation(n_samples)
+        # Shuffle data (rng is the model's private RandomState)
+        shuffle_idx = rng.permutation(n_samples)
         
         for idx in shuffle_idx:
             u = user_indices[idx]
             i = item_indices[idx]
             r = ratings[idx]
             
-            # Predict
-            pred = self._predict_pair(u, i)
+            # Predict - UNCLIPPED, so the gradient never saturates
+            pred = self._predict_pair(u, i, clip=False)
             
             # Calculate error
             error = r - pred
@@ -978,18 +1292,43 @@ def fit(self, user_ids, item_ids, ratings):
 3. Copy user_factor: Need original value for item update
 4. Learning rate: Controls step size
 5. Regularization: Prevents overfitting
+6. clip=False: The residual is taken against the RAW score
 ```
+
+**Two loss curves, not one.** Each epoch appends to both:
+
+```python
+self.training_loss_.append(epoch_loss / n_samples)     # SSE + L2 penalty
+self.training_rmse_.append(np.sqrt(sse / n_samples))   # SSE only
+```
+
+Use `training_rmse_` to judge fit quality and `training_loss_` to see the penalty
+term move as well. Reporting `sqrt(objective)` as "RMSE" — the penalty folded
+into the number — makes two models with identical fit quality look different
+purely because their λ differs, which is exactly how a λ sweep gets misread.
+
+Two honest caveats about `training_loss_`. It is not the exact function the
+updates descend: it charges each parameter's penalty once (Frobenius norms),
+while the SGD step charges it once per observation, so the objective in
+[Problem Formulation](#problem-formulation) is the one being minimised and this
+is a monitoring curve alongside it. And neither curve is monotone — SGD is noisy
+and both are accumulated *while* the parameters change, so on 600 noisy ratings
+(`n_factors=6`, `learning_rate=0.01`, 300 epochs) each one still rises on 74 of
+the 299 steps at λ = 0.02, and on 145 at λ = 0.5, even though the run as a whole
+descends. Read the trend, not the step.
 
 ### 5. **Prediction**
 
 ```python
-def _predict_pair(self, user_idx, item_idx):
+def _predict_pair(self, user_idx, item_idx, clip=True):
     pred = (
         self.global_bias_ +
         self.user_bias_[user_idx] +
         self.item_bias_[item_idx] +
         np.dot(self.user_factors_[user_idx], self.item_factors_[item_idx])
     )
+    if not clip:
+        return pred
     return np.clip(pred, self.min_rating, self.max_rating)
 ```
 
@@ -999,8 +1338,26 @@ def _predict_pair(self, user_idx, item_idx):
 2. user_bias_: User's tendency (e.g., +0.3 for generous rater)
 3. item_bias_: Item's quality (e.g., +0.8 for great movie)
 4. dot product: Personalized preference
-5. clip: Ensure valid range (e.g., 1-5 stars)
+5. clip: Ensure valid range (e.g., 1-5 stars) - PRESENTATION ONLY
 ```
+
+This is the line-for-line implementation of the prediction formula from
+[The Mathematical Foundation](#the-mathematical-foundation):
+`r̂_ui = μ + b_u + b_i + U_u · V_iᵀ`. The public `predict()` wraps it and always
+clips; `fit` calls it with `clip=False`. See
+[Prediction Clipping](#key-implementation-decisions) for why that split is not optional.
+
+**`predict()` broadcasts.** Either argument may be a single ID:
+
+```python
+mf.predict('Alice', all_movie_titles)   # one user vs. the whole catalogue
+mf.predict(all_users, 'Titanic')        # everyone vs. one movie
+mf.predict(users, items)                # elementwise, equal lengths
+```
+
+Internally it calls `np.broadcast_arrays` before zipping. Plain `zip()` would
+silently truncate to the shorter sequence — `predict(0, [0,1,2,3,4])` would hand
+back a single number instead of five, with no error.
 
 ### 6. **Recommendations**
 
@@ -1010,20 +1367,25 @@ def recommend(self, user_id, n_recommendations=10, exclude_rated=True, rated_ite
     all_items = list(self.item_id_map_.keys())
     
     # Exclude already rated
-    if exclude_rated and rated_items is not None:
-        all_items = [item for item in all_items if item not in rated_items]
+    if exclude_rated:
+        if rated_items is not None:
+            rated_items_set = set(rated_items)
+        else:
+            rated_items_set = self.user_rated_items_.get(user_id, set())
+        all_items = [item for item in all_items if item not in rated_items_set]
     
-    # Predict for all items
+    # Predict for all items: rank on the raw score, display the clipped one
     predictions = []
     for item_id in all_items:
         item_idx = self._get_item_idx(item_id)
-        pred = self._predict_pair(user_idx, item_idx)
-        predictions.append((item_id, pred))
+        raw = self._predict_pair(user_idx, item_idx, clip=False)
+        shown = np.clip(raw, self.min_rating, self.max_rating)
+        predictions.append((item_id, shown, raw))
     
-    # Sort by predicted rating
-    predictions.sort(key=lambda x: x[1], reverse=True)
+    # Sort by the raw predicted rating
+    predictions.sort(key=lambda x: x[2], reverse=True)
     
-    return predictions[:n_recommendations]
+    return [(i, s) for i, s, _ in predictions[:n_recommendations]]
 ```
 
 **Process:**
@@ -1033,6 +1395,25 @@ def recommend(self, user_id, n_recommendations=10, exclude_rated=True, rated_ite
 3. Sort by predicted rating (highest first)
 4. Return top N
 ```
+
+**Three details worth pausing on:**
+
+1. **`rated_items_set` is a `set`.** The membership test runs once per item in the
+   catalogue; `in` on a list is O(n) and on a set is O(1). With a million items
+   that is the difference between a page load and a timeout.
+
+2. **`exclude_rated=True` works without `rated_items`.** `fit` records
+   `self.user_rated_items_[user_id]` for every training rating, so the default
+   really does return a feed of things the user has not seen. (Pass `rated_items`
+   explicitly when the user's history lives *outside* the training split.) A
+   version that only excludes when `rated_items is not None` advertises a default
+   it does not honour, and cheerfully recommends the movie you rated yesterday.
+
+3. **Ranking uses the raw score, display uses the clipped one.** Once several
+   items all predict above `max_rating`, their *clipped* values are all exactly
+   5.0 and sorting on them puts the top of your feed in arbitrary order. Sorting
+   on the unclipped score preserves the model's real preference ordering. This is
+   the general rule for recommenders: **rank on the score, show the rating.**
 
 ### 7. **Similarity Computation**
 
@@ -1045,9 +1426,14 @@ def get_similar_items(self, item_id, n_similar=10):
         
         # Cosine similarity
         similarity = np.dot(item_vector, other_vector) / (
-            np.linalg.norm(item_vector) * np.linalg.norm(other_vector)
+            np.linalg.norm(item_vector) * np.linalg.norm(other_vector) + 1e-10
         )
 ```
+
+The `+ 1e-10` is not cosmetic. A **cold item** — one nobody rated, or one whose
+factors were regularized to zero — has `||V|| = 0`, and without the epsilon the
+division raises a `RuntimeWarning` and returns `nan`, which then sorts
+unpredictably. With it, the similarity is a harmless `0.0`.
 
 **Cosine Similarity:**
 ```
@@ -1063,12 +1449,30 @@ Range: [-1, 1]
 Example:
 A = [0.9, 0.1] (action movie)
 B = [0.8, 0.2] (another action movie)
-sim(A,B) = 0.98 (very similar!)
+A · B  = 0.9×0.8 + 0.1×0.2 = 0.74
+||A||  = sqrt(0.81 + 0.01) = 0.9055
+||B||  = sqrt(0.64 + 0.04) = 0.8246
+sim(A,B) = 0.74 / (0.9055 × 0.8246) = 0.99 (very similar!)
 
 A = [0.9, 0.1] (action movie)
 C = [0.1, 0.9] (romance movie)
-sim(A,C) = 0.18 (not similar)
+A · C  = 0.9×0.1 + 0.1×0.9 = 0.18
+||A||  = ||C|| = 0.9055
+sim(A,C) = 0.18 / (0.9055 × 0.9055) = 0.22 (not similar)
 ```
+
+Note that `sim(A,C)` is **0.22**, not 0.18. The `0.18` is the dot product on its
+own — the numerator — and forgetting to divide by the norms is the single most
+common cosine bug. Always carry the denominator through.
+
+**Reading a negative similarity.** `get_similar_items` returns the list sorted
+descending, so the *last* entries can be strongly negative. That is a real
+signal, not noise: `-1.0` means the two items sit at opposite ends of the same
+latent axis (action vs. romance), and users who love one reliably dislike the
+other. It is only meaningless when the factors themselves are meaningless — a
+handful of ratings spread over many items leaves the vectors barely distinguishable
+from their random initialisation. Before trusting any similarity, check that the
+model beats a global-mean baseline on held-out ratings.
 
 ---
 
@@ -1097,6 +1501,65 @@ For 1-5 star ratings:
 
 Lower is better!
 ```
+
+> **`score()` returns RMSE, not R².** Every other regressor in this repository
+> returns R² from `score()`, where *higher* is better and 1.0 is perfect. Here
+> the convention of the recommender-systems literature wins: `score()` is an
+> **error**, so lower is better and 0.0 is perfect. Do not compare the two.
+
+**Always quote RMSE next to a baseline.** An absolute RMSE means nothing on its own —
+it depends entirely on the spread of your ratings. The cheapest honest reference
+point is "predict the training mean for every pair":
+
+```python
+baseline = np.sqrt(np.mean((test_ratings - train_ratings.mean()) ** 2))
+print(f"Model    RMSE: {mf.score(test_users, test_items, test_ratings):.4f}")
+print(f"Baseline RMSE: {baseline:.4f}")
+```
+
+If the model does not beat the baseline, it has learned nothing — and with
+uniformly random ratings it never will, because there is nothing to learn. The
+baseline is what catches that.
+
+### Training curves: `training_loss_` and `training_rmse_`
+
+`fit` records two lists, one entry per epoch, and resets both at the start of
+every call (so refitting the same object does not append to the previous run):
+
+| Attribute | What it holds | Use it for |
+|-----------|---------------|------------|
+| `training_rmse_` | `sqrt(SSE / n_samples)` — plain RMSE, no penalty | Judging fit quality; comparable across different λ |
+| `training_loss_` | `(SSE + λ·(‖U‖²+‖V‖²+‖b_u‖²+‖b_i‖²)) / n_samples` | Watching the penalty term move alongside the fit |
+
+```python
+mf = MatrixFactorization(n_factors=10, n_epochs=100, random_state=42, verbose=1)
+mf.fit(train_users, train_items, train_ratings)
+
+print(mf.training_rmse_[0], "->", mf.training_rmse_[-1])   # should fall overall
+print(mf.training_loss_[0], "->", mf.training_loss_[-1])   # should fall overall too
+```
+
+**`training_loss_` is not the objective, and neither curve is monotone.** The
+Frobenius norms in that formula charge each parameter once, while the SGD step
+charges λ once *per observation* — so the function actually minimised is the one
+in [Problem Formulation](#problem-formulation), and this is a companion diagnostic,
+not the objective itself. It is a *good* companion — measured over 200 epochs
+(600 ratings, `n_factors=6`, `learning_rate=0.01`) the two track each other at
+correlation 0.999 for λ = 0.02, 0.83 for λ = 0.2 and 0.96 for λ = 0.5, and both
+fall end to end — so use it, just do not call it the objective. Both lists are
+also accumulated *during* an epoch while the parameters are still moving, so
+individual steps go up: on 600 noisy ratings
+(`n_factors=6`, `learning_rate=0.01`, 300 epochs) each curve rises on 74 of the
+299 steps at λ = 0.02 and on 145 at λ = 0.5, while still falling from end to end
+(0.9127 → 0.6247 in the first case). Compare the first entry with the last, not
+neighbouring pairs.
+
+**A falling training curve is not evidence of learning.** With enough factors a
+model will drive `training_rmse_` toward zero on *any* data, including pure noise.
+The only curve that can tell you something generalised is a held-out one, measured
+by refitting for a growing number of epochs and scoring the test set each time
+(see USAGE EXAMPLE 7 in the `.py`). What you are looking for is the epoch where
+train keeps falling but test turns back up — that is where you stop.
 
 **2. MAE (Mean Absolute Error)**
 ```python
@@ -1222,7 +1685,8 @@ def k_fold_cross_validation(users, items, ratings, k=5):
         train_idx = np.concatenate([indices[:test_start], indices[test_end:]])
         
         # Train model
-        mf = MatrixFactorization(n_factors=10, n_epochs=100, verbose=0)
+        mf = MatrixFactorization(n_factors=10, n_epochs=100,
+                                 random_state=42, verbose=0)
         mf.fit(users[train_idx], items[train_idx], ratings[train_idx])
         
         # Evaluate
@@ -1230,7 +1694,7 @@ def k_fold_cross_validation(users, items, ratings, k=5):
         scores.append(rmse)
         print(f"Fold {fold+1}: RMSE = {rmse:.4f}")
     
-    print(f"\nMean RMSE: {np.mean(scores):.4f} ± {np.std(scores):.4f}")
+    print(f"\nMean RMSE: {np.mean(scores):.4f} +/- {np.std(scores):.4f}")
     return scores
 
 # Usage
@@ -1248,15 +1712,23 @@ def grid_search(users, items, ratings):
         'regularization': [0.01, 0.05, 0.1]
     }
     
-    # Split data
-    train_size = int(0.8 * len(ratings))
-    train_users = users[:train_size]
-    train_items = items[:train_size]
-    train_ratings = ratings[:train_size]
+    # Split data with a SHUFFLED permutation (Strategy 1 above).
+    # Slicing users[:train_size] straight off the array is a trap: rating files
+    # are conventionally sorted by user id, so every validation user would be
+    # unseen, predict() would return the global mean for all of them, and every
+    # configuration would score identically.
+    n = len(ratings)
+    train_size = int(0.8 * n)
+    idx = np.random.permutation(n)
+    train_idx, val_idx = idx[:train_size], idx[train_size:]
     
-    val_users = users[train_size:]
-    val_items = items[train_size:]
-    val_ratings = ratings[train_size:]
+    train_users, train_items, train_ratings = users[train_idx], items[train_idx], ratings[train_idx]
+    val_users, val_items, val_ratings = users[val_idx], items[val_idx], ratings[val_idx]
+    
+    # Always score a baseline first: predict the training mean for everything.
+    # A configuration that cannot beat it has learned nothing.
+    baseline = np.sqrt(np.mean((val_ratings - train_ratings.mean()) ** 2))
+    print(f"Global-mean baseline RMSE: {baseline:.4f}")
     
     best_score = float('inf')
     best_params = None
@@ -1270,6 +1742,7 @@ def grid_search(users, items, ratings):
                     learning_rate=lr,
                     regularization=reg,
                     n_epochs=50,
+                    random_state=42,   # same init for every configuration
                     verbose=0
                 )
                 
@@ -1350,6 +1823,31 @@ Solutions:
 - Use specialized libraries: Implicit, LightFM
 ```
 
+**What ALS actually is** (named as the scalable alternative above, so here is the
+one paragraph it deserves). The objective
+`Σ(r_ui - p_u·q_i)² + λ(‖P‖² + ‖Q‖²)` is *not* convex in `P` and `Q` jointly —
+that is why SGD only finds a local optimum. But **hold `Q` fixed and it becomes an
+ordinary ridge regression in `P`**, with a closed-form solution, and vice versa.
+ALS alternates: solve all users given the items, then all items given the users,
+repeat. For one user `u` who rated the item set `I_u`:
+
+```
+p_u = (Q_{I_u}ᵀ Q_{I_u} + λI)⁻¹ Q_{I_u}ᵀ r_u        (a k×k solve, k = n_factors)
+```
+
+(The `λI` goes with the `λ(‖P‖² + ‖Q‖²)` written just above. The penalty this
+file's SGD actually applies sits inside the sum, and its ridge coefficient is
+`n_u·λ` — see [Simplification vs. Canonical Matrix Factorization](#simplification-vs-canonical-matrix-factorization).)
+
+Two consequences. First, every user's solve is **independent of every other
+user's**, so the whole sweep is embarrassingly parallel — this is why Spark's MLlib
+recommender is ALS and not SGD. Second, there is no learning rate to tune and each
+sweep is guaranteed not to increase the loss. The costs: a `k×k` inverse per user
+per sweep is heavier than an SGD step when the data is sparse, and ALS needs a value
+for *every* cell, which is why the implicit-feedback formulation (Hu et al., 2008)
+pairs it with confidence weights over the full matrix. **This implementation uses
+SGD only** — see [Simplification vs. Canonical Matrix Factorization](#simplification-vs-canonical-matrix-factorization).
+
 **5. Data Sparsity**
 ```
 Problem:
@@ -1363,19 +1861,49 @@ Solutions:
 - Focus on users/items with some data
 ```
 
+**6. Ratings That Are Not 1-5 Stars**
+```
+Problem:
+- Your data is 0/1 clicks, 0-10 scores, log play-counts, or z-scores
+- The DEFAULT min_rating=1, max_rating=5 is a claim about YOUR data
+
+Symptoms:
+- Every prediction comes back pinned at 1.0 or 5.0
+- reconstruct_matrix() returns a nearly constant array
+- Similarities look plausible but predictions are useless
+
+Solution:
+- Pass the real range: MatrixFactorization(min_rating=0, max_rating=1)
+- For unbounded data (z-scores), use min_rating=-np.inf, max_rating=np.inf
+- Inspect the raw model with reconstruct_matrix(clip=False)
+```
+Because clipping in this implementation applies to *output only*, a wrong window
+no longer destabilises training — but it does squash everything you read back out
+of the model. Measured: a planted matrix rescaled to `[-0.46, 1.00]` and fitted
+with the default `[1, 5]` window returns a **constant 1.0** from
+`reconstruct_matrix()`, while `reconstruct_matrix(clip=False)` on the same fitted
+model recovers the structure. Set the window correctly, or read the raw output.
+
 ### Model Improvements
 
 **1. Implicit Feedback**
 ```python
-# For binary data (clicked/not clicked)
+# For binary data (clicked/not clicked).
+# NOTE the min_rating/max_rating override - binary data is NOT 1-5 stars,
+# and leaving the defaults would clip every prediction into [1, 5].
 class ImplicitMF(MatrixFactorization):
     def __init__(self, confidence_weight=40, **kwargs):
+        kwargs.setdefault('min_rating', 0)
+        kwargs.setdefault('max_rating', 1)
         super().__init__(**kwargs)
         self.confidence_weight = confidence_weight
     
     # Modify loss to weight positive examples more
     # Use Alternating Least Squares (ALS) instead of SGD
 ```
+> These three subclasses are **sketches of directions to extend the model**, not
+> working code — each one still needs its `fit` overridden. They are here to show
+> what the extension points look like.
 
 **2. Temporal Dynamics**
 ```python
@@ -1403,28 +1931,34 @@ class SocialMF(MatrixFactorization):
 
 ### Performance Tips
 
+> **These three blocks are pseudocode sketches**, not methods of the class in
+> `_28_matrix_factorization.py`. `_train_epoch`, `_save_model` and `_load_model`
+> do **not** exist in this implementation, and `score()` takes three arrays
+> (`score(user_ids, item_ids, ratings)`), not a single unpacked tuple. A runnable
+> version of early stopping, written against the real API, follows underneath.
+
 ```python
-# 1. Use early stopping
+# 1. Early stopping - SKETCH (uses helpers this class does not have)
 def fit_with_early_stopping(self, X_train, X_val, patience=5):
     best_val_loss = float('inf')
     patience_counter = 0
     
     for epoch in range(self.n_epochs):
         # Train
-        self._train_epoch(X_train)
+        self._train_epoch(X_train)      # not implemented here
         
         # Validate
-        val_loss = self.score(*X_val)
+        val_loss = self.score(*X_val)   # real signature: score(u, i, r)
         
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            self._save_model()
+            self._save_model()          # not implemented here
         else:
             patience_counter += 1
             if patience_counter >= patience:
                 print(f"Early stopping at epoch {epoch}")
-                self._load_model()
+                self._load_model()      # not implemented here
                 break
 
 # 2. Learning rate scheduling
@@ -1437,6 +1971,154 @@ def get_regularization(self, n_user_ratings):
     # Less regularization for users with many ratings
     return self.regularization / np.sqrt(n_user_ratings + 1)
 ```
+
+**Early stopping with the API that actually exists.** `fit` is reproducible for a
+given `random_state`, so refitting for a growing number of epochs traces the same
+trajectory a single run would, and you can score the validation set at each stop:
+
+```python
+def fit_with_early_stopping(train, val, patience=3, step=20, max_epochs=400, **kwargs):
+    """train and val are (user_ids, item_ids, ratings) tuples."""
+    best_score, best_model, waited = float('inf'), None, 0
+
+    for n_epochs in range(step, max_epochs + 1, step):
+        mf = MatrixFactorization(n_epochs=n_epochs, random_state=42, **kwargs)
+        mf.fit(*train)
+        val_rmse = mf.score(*val)               # score(user_ids, item_ids, ratings)
+        print(f"{n_epochs:4d} epochs  train {mf.training_rmse_[-1]:.4f}  "
+              f"val {val_rmse:.4f}")
+
+        if val_rmse < best_score:
+            best_score, best_model, waited = val_rmse, mf, 0
+        else:
+            waited += 1
+            if waited >= patience:
+                print(f"Early stopping: no improvement for {patience} checks")
+                break
+
+    return best_model, best_score
+```
+
+This costs more compute than resuming a single fit would, but it needs no new
+methods and it is exact. If you want the cheap version, snapshot the arrays
+yourself — `user_factors_`, `item_factors_`, `user_bias_`, `item_bias_` and
+`global_bias_` are the entire model state, so `_save_model` is four `.copy()`
+calls and a float.
+
+---
+
+## Simplification vs. Canonical Matrix Factorization
+
+What this implementation *does* implement is the biased matrix-factorization
+model of **Koren, Bell & Volinsky (2009)**, "Matrix Factorization Techniques for
+Recommender Systems", trained by stochastic gradient descent:
+
+```
+r̂_ui = μ + b_u + b_i + p_u · q_i
+
+minimise  Σ_{(u,i)∈K} [ (r_ui - r̂_ui)² + λ(||p_u||² + ||q_i||² + b_u² + b_i²) ]
+                        ^ penalty inside the Σ, exactly as in Eq. (5)
+```
+
+with the exact SGD updates of Eq. (6) of that paper. That much is faithful. The
+following pieces of the canonical literature are **deliberately not implemented**,
+so that the file stays readable as a teaching implementation.
+
+### 1. Alternating Least Squares (ALS)
+
+**What canonical does.** Instead of taking gradient steps, ALS alternates two
+closed-form ridge solves — all users given the items, then all items given the
+users:
+
+```
+p_u = (Q_{I_u}ᵀ Q_{I_u} + λI)⁻¹ Q_{I_u}ᵀ r_u        (I_u = items user u rated)
+```
+
+Mind the regularization convention here: that plain `λI` is the ridge solve for a
+penalty written *outside* the Σ — the form Hu et al. (2008) and most ALS
+write-ups quote. Take the derivative of the objective above, where
+the penalty sits inside, and you get `(Q_{I_u}ᵀ Q_{I_u} + n_u·λI)⁻¹` instead —
+`n_u = |I_u|`. That `n_u·λ` version is Zhou et al.'s (2008) ALS-WR, and it is the
+closed form that corresponds to what this file's SGD does. The two give visibly
+different vectors, not a rescaling of one another.
+
+**Why this file omits it.** SGD is the shorter and more transparent path from the
+loss function to code: one residual, four `+=` lines, no linear algebra to hide
+behind. ALS would add a per-user `k×k` solve and obscure the connection to the
+gradients printed in [The Mathematical Foundation](#the-mathematical-foundation).
+
+**Practical consequence.** Training does not parallelise across users, so this
+implementation is the wrong tool above roughly a million ratings. It also cannot
+express the implicit-feedback objective of Hu et al. (2008), which sums over
+*every* cell with confidence weights `c_ui = 1 + α·r_ui` — a sum ALS handles in
+closed form and SGD cannot enumerate.
+
+### 2. SVD++ (implicit feedback as a second user representation)
+
+**What canonical does.** SVD++ augments the user vector with the set `N(u)` of
+items the user *interacted with* at all, rated or not:
+
+```
+r̂_ui = μ + b_u + b_i + q_i · ( p_u + |N(u)|^(-1/2) × Σ_{j∈N(u)} y_j )
+```
+
+**Why this file omits it.** It needs a second `n_items × k` parameter block `y`
+and a gradient that touches every item in `N(u)` on every step — roughly a
+doubling of the code in `fit` for a model the reader cannot check by hand.
+
+**Practical consequence.** The fact that a user *chose to rate* an item carries
+signal here that goes unused. On the Netflix data this cost Koren et al. about
+0.01 RMSE, which mattered a great deal for a $1M prize and matters much less for
+learning the technique.
+
+### 3. Temporal dynamics (timeSVD++)
+
+**What canonical does.** Lets the biases and the user vector drift with time:
+`b_u(t)`, `b_i(t)`, `p_u(t)`, since a user's standards and an item's popularity
+both move over months.
+
+**Why this file omits it.** `fit(user_ids, item_ids, ratings)` has no timestamp
+argument, and adding time bins would change the public API.
+
+**Practical consequence.** All ratings are treated as simultaneous. On a dataset
+spanning years, the model will average over a genuine drift instead of tracking it.
+
+### 4. Per-user / per-item adaptive regularization
+
+**What canonical does.** Scales λ by the number of observations, so users with
+three ratings are shrunk harder than users with three hundred.
+
+**Why this file omits it.** A single scalar `regularization` keeps the objective
+in the docstring identical to the objective in the code.
+
+**Practical consequence.** With a single λ tuned for the average user, the
+long tail of sparsely-rated users is under-regularized and overfits. The sketch
+in [Performance Tips](#performance-tips) (`get_regularization`) shows the shape
+of the fix.
+
+### 5. Early stopping inside `fit`
+
+**What canonical does.** Monitors a validation RMSE each epoch and halts when it
+stops improving.
+
+**Why this file omits it.** `fit` would need a validation split in its signature.
+
+**Practical consequence.** You must choose `n_epochs` yourself. See the runnable
+`fit_with_early_stopping` in [Performance Tips](#performance-tips), and USAGE
+EXAMPLE 7 in the `.py` for how to find the turning point empirically.
+
+### What is *not* a simplification
+
+Two things that look like shortcuts but are the canonical behaviour:
+
+- **Clipping is applied to output only.** `fit` calls
+  `_predict_pair(u, i, clip=False)`. This matches Koren et al., where clipping to
+  the rating scale is a post-processing step. Clipping inside the residual is not
+  a "safer" variant — it zeroes the gradient outside the window and lets factors
+  diverge without bound.
+- **The `-2` in the printed gradients versus the `+α·e` in the update.** Both are
+  right; the factor of 2 cancels against the ½ in the loss. See
+  [Gradient Descent Update Rules](#gradient-descent-update-rules).
 
 ---
 

@@ -3,14 +3,133 @@
 Welcome to CatBoost! 🚀 In this comprehensive guide, we'll explore CatBoost (Categorical Boosting) - a powerful gradient boosting framework developed by Yandex that excels at handling categorical features and uses symmetric trees for better generalization. Think of it as the "smart handler" of gradient boosting!
 
 ## Table of Contents
-1. [What is CatBoost?](#what-is-catboost)
-2. [How CatBoost Works](#how-catboost-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is CatBoost?](#what-is-catboost)
+3. [How CatBoost Works](#how-catboost-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [CatBoost vs XGBoost vs LightGBM](#catboost-vs-xgboost-vs-lightgbm)
+11. [Advantages & Limitations](#advantages--limitations)
+12. [Summary](#summary)
+13. [References and Further Learning](#references-and-further-learning)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy. (Running `python _19_catboost.py` directly executes the same three demos from its `__main__` block.)
+
+```python
+# ---------------------------------------------------------------
+# CatBoost from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _19_catboost.py  (the __main__ block runs this)
+# Or copy the CatBoost class from _19_catboost.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the CatBoost class here (from _19_catboost.py) ----
+# class CatBoost: ...
+
+np.random.seed(42)
+
+# ------ REGRESSION: predict y = x^2 + noise ------
+X = np.linspace(-3, 3, 200).reshape(-1, 1)
+y = X.ravel() ** 2 + np.random.randn(200) * 0.5
+
+# Shuffle before splitting: trees cannot extrapolate beyond the training range.
+# Without shuffling the last 50 x-values would all be > training max.
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
+
+model = CatBoost(
+    n_estimators=100,
+    learning_rate=0.1,
+    depth=4,             # 2^4 = 16 leaves per symmetric tree
+    l2_leaf_reg=3.0,     # L2 on leaf values (CatBoost's default)
+    random_seed=42
+)
+model.fit(X_train, y_train)
+
+# score() returns NEGATIVE RMSE for regression, so negate it to read an error
+print(f"Train RMSE: {-model.score(X_train, y_train):.4f}")
+print(f"Test  RMSE: {-model.score(X_test,  y_test):.4f}")
+
+preds = model.predict(X_test)
+for i in range(3):
+    print(f"  x={X_test[i,0]:5.2f}  true={y_test[i]:5.2f}  pred={preds[i]:5.2f}")
+
+# ------ CLASSIFICATION: two Gaussian blobs ------
+X0 = np.random.randn(100, 2) + np.array([-2, -2])
+X1 = np.random.randn(100, 2) + np.array([ 2,  2])
+X_c = np.vstack([X0, X1])
+y_c = np.array([0]*100 + [1]*100)
+idx = np.random.permutation(200)
+X_c, y_c = X_c[idx], y_c[idx]
+
+cls = CatBoost(n_estimators=50, learning_rate=0.3, depth=3,
+               objective='binary', random_seed=42)
+cls.fit(X_c[:150], y_c[:150])
+
+print(f"\nClassification accuracy: {cls.score(X_c[150:], y_c[150:]):.2%}")
+proba = cls.predict_proba(X_c[150:])
+for i in range(3):
+    print(f"  true={y_c[150+i]}  P(0)={proba[i,0]:.3f}  P(1)={proba[i,1]:.3f}")
+
+# ------ CATEGORICAL: a raw string column, no one-hot encoding ------
+plans = np.array(['basic', 'plus', 'pro', 'enterprise'])
+value = {'basic': 10.0, 'plus': 25.0, 'pro': 60.0, 'enterprise': 150.0}
+
+plan_col = np.random.choice(plans, 400)
+usage_col = np.random.uniform(0, 10, 400)
+revenue = (np.array([value[p] for p in plan_col])
+           + 3.0 * usage_col + np.random.randn(400) * 5.0)
+
+X_cat = np.empty((400, 2), dtype=object)
+X_cat[:, 0] = plan_col     # strings, straight into the model
+X_cat[:, 1] = usage_col
+idx = np.random.permutation(400)
+X_cat, revenue = X_cat[idx], revenue[idx]
+
+cat_model = CatBoost(n_estimators=120, learning_rate=0.1, depth=4,
+                     cat_features=[0], random_seed=42)
+cat_model.fit(X_cat[:300], revenue[:300])
+
+print(f"\nCategorical test RMSE: {-cat_model.score(X_cat[300:], revenue[300:]):.4f}"
+      f"  (std of target = {np.std(revenue[300:]):.2f})")
+for plan in plans:
+    print(f"  {plan:11s} -> ordered target statistic "
+          f"{cat_model._cat_encodings[0]['mapping'][plan]:7.2f}")
+```
+
+Expected output:
+```
+Train RMSE: 0.4129
+Test  RMSE: 0.4494
+  x=-2.88  true= 8.17  pred= 8.36
+  x= 0.23  true= 0.14  pred= 0.16
+  x= 2.55  true= 6.38  pred= 6.70
+
+Classification accuracy: 100.00%
+  true=1  P(0)=0.006  P(1)=0.994
+  true=0  P(0)=0.974  P(1)=0.026
+  true=1  P(0)=0.003  P(1)=0.997
+
+Categorical test RMSE: 4.9401  (std of target = 58.92)
+  basic       -> ordered target statistic   25.67
+  plus        -> ordered target statistic   40.06
+  pro         -> ordered target statistic   76.33
+  enterprise  -> ordered target statistic  164.18
+```
+
+Notice the third block: the `plan` column holds **strings** and is handed to the model as-is. `cat_features=[0]` tells CatBoost to encode it with ordered target statistics, and the recovered statistics (25.67 / 40.06 / 76.33 / 164.18) track the true plan values (10 / 25 / 60 / 150 plus the average usage effect) without any one-hot encoding.
 
 ---
 
@@ -48,6 +167,14 @@ CatBoost improves upon XGBoost and LightGBM through:
 - **Robust defaults**: Works well out-of-the-box
 - **Handles categoricals natively**: No need for one-hot encoding
 
+> **How this maps onto `_19_catboost.py`:** symmetric trees, the quantizer and
+> the L2-regularized leaf/split formulas are the core of the file and are always
+> active. Ordered boosting is available as `boosting_type='Ordered'` (the
+> default is `'Plain'`, i.e. classic gradient boosting), and ordered target
+> statistics run for the columns you list in `cat_features=[...]`. What is *not*
+> reproduced is spelled out in
+> [Advantages & Limitations](#advantages--limitations).
+
 ### Key Differences from XGBoost and LightGBM
 
 **1. Tree Structure: Symmetric vs Asymmetric**
@@ -79,7 +206,8 @@ CatBoost Symmetric Trees:
 - All nodes at level L split on same feature & threshold
 - Simpler structure
 - Natural regularization
-- Faster prediction: O(depth) instead of O(depth × branching)
+- Branch-free prediction: the same O(depth) comparisons any binary tree needs,
+  but the whole batch shares ONE comparison per level (see below)
 
 Example with depth=3:
 Level 0: ALL split on "Age <= 30"
@@ -129,6 +257,14 @@ CatBoost:
 Example: Color = ["Red", "Blue", "Green"]
 CatBoost internally: Red→0.65, Blue→0.42, Green→0.78
 (based on target statistics, not arbitrary numbers!)
+
+In this implementation that is a real code path, not just theory:
+
+    model = CatBoost(cat_features=[0])     # column 0 holds the strings
+    model.fit(X, y)                        # X[:, 0] can be "Red"/"Blue"/...
+    model._cat_encodings[0]['mapping']     # -> the learned statistic per level
+
+See the Quick Start above for a runnable version.
 ```
 
 **5. Default Learning Rate**
@@ -162,7 +298,7 @@ Step 3: Initialize predictions (base_score)
          ↓
 Step 4: For each boosting iteration:
          a. Calculate gradients
-         b. Apply ordered boosting (simplified in basic implementation)
+         b. Apply ordered boosting (boosting_type='Ordered'; default 'Plain')
          ↓
 Step 5: Build SYMMETRIC tree:
          - For each level (depth):
@@ -171,7 +307,9 @@ Step 5: Build SYMMETRIC tree:
            * Split ALL current partitions with this split
          ↓
 Step 6: Calculate leaf values with L2 regularization:
-         value = -sum(gradients) / (count + l2_leaf_reg)
+         value = -sum(gradients) / (sum(hessians) + l2_leaf_reg)
+         (squared loss has h = 1, so sum(hessians) IS the sample count;
+          log loss has h = p(1-p), which is much smaller)
          ↓
 Step 7: Update predictions: F(x) = F(x) + η × tree(x)
          ↓
@@ -240,6 +378,15 @@ Customer | y | p=0.375 | gradient
    H     | 0 |  0.375  |  0.375
 
 Gradient array: [0.375, 0.375, -0.625, 0.375, -0.625, 0.375, -0.625, 0.375]
+
+For log loss the Hessian is h = p(1-p), so at this first iteration every
+customer has the same one:
+
+h = 0.375 × 0.625 = 0.234375   (all eight)
+
+From here on H means the SUM of these h over a group, never the sample
+count - see "2. Gradient and Hessian Calculation" below. A 4-sample group
+has H = 0.9375, not 4.
 ```
 
 **Step 4: Build Symmetric Tree (Depth=2)**
@@ -251,15 +398,15 @@ Try Income <= Bin 0 (Income ≤ 60):
   Left: [A, C, E, G] gradients = [0.375, -0.625, -0.625, -0.625]
   Right: [B, D, F, H] gradients = [0.375, 0.375, 0.375, 0.375]
   
-  Calculate gain (with l2_leaf_reg=3):
-    Left:  G_L = -1.5, count = 4
-           Score_L = (-1.5)² / (4 + 3) = 2.25 / 7 = 0.321
-    Right: G_R = 1.5, count = 4
-           Score_R = (1.5)² / (4 + 3) = 2.25 / 7 = 0.321
-    Parent: G_P = 0, count = 8
-           Score_P = 0² / (8 + 3) = 0
+  Calculate gain (with l2_leaf_reg=3), using Score = G² / (H + λ):
+    Left:  G_L = -1.5, H_L = 4 × 0.234375 = 0.9375
+           Score_L = (-1.5)² / (0.9375 + 3) = 2.25 / 3.9375 = 0.5714
+    Right: G_R = 1.5, H_R = 4 × 0.234375 = 0.9375
+           Score_R = (1.5)² / (0.9375 + 3) = 2.25 / 3.9375 = 0.5714
+    Parent: G_P = 0, H_P = 8 × 0.234375 = 1.875
+           Score_P = 0² / (1.875 + 3) = 0
     
-    Gain = 0.321 + 0.321 - 0 = 0.642  ← Best split!
+    Gain = 0.5714 + 0.5714 - 0 = 1.1429  ← Best split!
 
 Decision: Level 0 splits on "Income <= 60"
 
@@ -281,8 +428,28 @@ For Partition 1 (High income):
   Left (High income, Low debt): [B, D, H] gradients = [0.375, 0.375, 0.375]
   Right (High income, High debt): [F] gradients = [0.375]
 
-Calculate total gain across BOTH partitions:
-  Gain_partition0 + Gain_partition1 = 0.45 + 0.12 = 0.57
+Calculate total gain across BOTH partitions, using Score = G² / (H + λ).
+Every h is 0.234375 here, so a 1-sample group has H = 0.234375, a 3-sample
+group H = 0.703125 and a 4-sample group H = 0.9375:
+
+  Partition 0: Score_L = 0.375²/(0.234375+3)    = 0.04348
+               Score_R = (-1.875)²/(0.703125+3) = 0.94937
+               Score_P = (-1.5)²/(0.937500+3)   = 0.57143
+               Gain_partition0 = 0.04348 + 0.94937 - 0.57143 = +0.42142
+
+  Partition 1: Score_L = 1.125²/(0.703125+3)    = 0.34177
+               Score_R = 0.375²/(0.234375+3)    = 0.04348
+               Score_P = 1.5²/(0.937500+3)      = 0.57143
+               Gain_partition1 = 0.34177 + 0.04348 - 0.57143 = -0.18618
+
+  Gain_partition0 + Gain_partition1 = 0.421 + (-0.186) = 0.235
+
+Note that partition 1's gain is NEGATIVE. Its four samples (B, D, H, F) all
+carry the same gradient +0.375, so that partition was already pure - splitting
+it can only shed score. The split still wins overall because partition 0 gains
+far more than partition 1 loses. That trade-off is exactly what "one split for
+the whole level" costs, and it is the price symmetric trees pay for the extra
+regularization they buy.
 
 This is the best split across all features!
 
@@ -300,23 +467,39 @@ Final tree structure (Symmetric!):
 **Step 5: Calculate Leaf Values**
 
 ```
+w* = -G / (H + λ)
+
 Leaf 0 (Low income, Low debt): [A]
-  G = 0.375, count = 1
-  value = -0.375 / (1 + 3) = -0.094
+  G = 0.375, H = 0.234375
+  value = -0.375 / (0.234375 + 3) = -0.116
 
 Leaf 1 (Low income, High debt): [C, E, G]
-  G = -1.875, count = 3
-  value = -(-1.875) / (3 + 3) = 0.313
+  G = -1.875, H = 0.703125
+  value = -(-1.875) / (0.703125 + 3) = 0.506
 
 Leaf 2 (High income, Low debt): [B, D, H]
-  G = 1.125, count = 3
-  value = -1.125 / (3 + 3) = -0.188
+  G = 1.125, H = 0.703125
+  value = -1.125 / (0.703125 + 3) = -0.304
 
 Leaf 3 (High income, High debt): [F]
-  G = 0.375, count = 1
-  value = -0.375 / (1 + 3) = -0.094
+  G = 0.375, H = 0.234375
+  value = -0.375 / (0.234375 + 3) = -0.116
 
 Notice how L2 regularization (3.0) shrinks values toward zero!
+
+Every number in this walkthrough is what `_build_symmetric_tree` actually
+returns for these eight rows when it is run with `random_strength=0` - it
+picks Income at level 0 (gain 1.1429) and Debt at level 1 (gain 0.2352),
+with exactly these four leaf values. That setting matters here: Income is
+not the unique winner at level 0, because "Debt <= 22.5" scores exactly the
+same 1.1428571, and with the jitter off it is `np.argmax` keeping the first
+candidate that settles the tie. At the default `random_strength=1.0` the tie
+can go either way (12 Income / 17 Debt / 1 Existing_Loans over random_seed
+0-29), so keep the jitter off to reproduce the tree printed here. Had we
+divided by the sample count instead of by H, leaf 1 would read 0.313 rather
+than 0.506. The count (3) is over four times H (0.703); the +3 from
+l2_leaf_reg softens that, but the step still comes out 1.6x too small - on
+every leaf, on every iteration.
 ```
 
 **Step 6: Update Predictions**
@@ -324,14 +507,23 @@ Notice how L2 regularization (3.0) shrinks values toward zero!
 ```
 Learning rate η = 0.05
 
-Customer A: -0.51 + 0.05 × (-0.094) = -0.515
-Customer C: -0.51 + 0.05 × 0.313 = -0.494
-Customer B: -0.51 + 0.05 × (-0.188) = -0.519
+Customer A: -0.51 + 0.05 × (-0.116) = -0.516
+Customer C: -0.51 + 0.05 × 0.506 = -0.485
+Customer B: -0.51 + 0.05 × (-0.304) = -0.525
 ...
 
-After 100 trees:
-High-risk customers (C, E, G) → positive log-odds → p > 0.5
-Low-risk customers (A, B, D, F, H) → negative log-odds → p < 0.5
+After 100 trees (measured by actually running CatBoost(n_estimators=100,
+learning_rate=0.05, depth=2, l2_leaf_reg=3.0, border_count=2,
+random_strength=0, objective='binary') on these eight rows):
+High-risk customers (C, E, G) → positive log-odds → p = 0.754
+Low-risk customers (A, F)     → negative log-odds → p = 0.268
+Low-risk customers (B, D, H)  → negative log-odds → p = 0.171
+Every customer ends on the correct side of 0.5. B, D and H all land in leaf 2,
+so the model can only ever give the three of them one common probability.
+A and F sit in different leaves (0 and 3), but each is alone in its leaf with
+the same gradient, so those two leaves hold identical values in all 100 trees
+and the customers end up indistinguishable anyway - four leaves cannot say
+more than four things.
 ```
 
 **Why Symmetric Trees Help:**
@@ -349,8 +541,14 @@ Prediction for new customer:
 - Leaf index: 01 (binary) = 1 → Leaf 1
 - Prediction: Add leaf 1 value from each tree!
 
-Traditional tree: O(depth × branches) comparisons
-Symmetric tree: O(depth) comparisons → Much faster!
+Traditional tree: O(depth) comparisons, but each sample follows its OWN path
+Symmetric tree:   O(depth) comparisons too - the asymptotics are IDENTICAL.
+
+The real win is different: every sample at level L is tested against the SAME
+(feature, threshold), so a level is one vectorised array comparison for the
+entire batch, the leaf index is assembled by bit arithmetic, and the answer is
+a single fancy-index lookup into leaf_values. No per-sample branching, no
+pointer chasing. See `goes_right * (2 ** remaining_depth)` in `_leaf_indices`.
 ```
 
 ---
@@ -373,27 +571,48 @@ Where:
   - T: number of leaves = 2^depth
 ```
 
-### 2. Gradient Calculation
+### 2. Gradient and Hessian Calculation
 
-CatBoost uses first-order gradients:
+Every leaf value and every split score is built from two per-sample
+quantities: the gradient g and the Hessian h.
 
 ```
-g = ∂L/∂ŷ
+g = ∂L/∂ŷ          h = ∂²L/∂ŷ²
 
 For squared loss (L2):
 L = ½(y - ŷ)²
 g = ŷ - y
+h = 1                       <- constant!
 
 For log loss (binary classification):
 L = -[y·log(p) + (1-y)·log(1-p)]
 where p = sigmoid(ŷ) = 1/(1 + e^(-ŷ))
 g = p - y
+h = p(1 - p)                <- at most 0.25
 
-Why only first-order?
-- Simpler computation
-- Ordered boosting provides enough regularization
-- Symmetric trees add natural regularization
-- Still achieves excellent performance
+Why the Hessian matters:
+- Leaf value and split score both divide by (Σh + λ), never by the count.
+- For squared loss Σh IS the sample count, so the two are the same number.
+  That is why every count-based formula quoted in this guide is correct for
+  regression - and it is CatBoost's 'Gradient' leaf estimation method.
+- For log loss Σh = Σp(1-p) ≤ 0.25·N, so the count is 4x too large or more.
+  Using it would shrink every classification step by that factor and the
+  model could never become confident. Real CatBoost defaults to 'Newton'
+  leaf estimation for Logloss for exactly this reason, and so does
+  `_compute_hessians` in `_19_catboost.py`.
+
+Measured on two overlapping unit-variance Gaussian blobs - the __main__
+demo's blobs with centres at (-1, -1) and (+1, +1) instead of (-2, -2) and
+(+2, +2): on a fresh np.random.seed(42), draw 100 class-0 points, then 100
+class-1 points, then permutation(200), then split 150 train / 50 test. With
+40 trees, depth 4, learning_rate 0.1 and random_strength 0 (which makes the
+fit deterministic - no model seed needed), switching the denominator from
+the count to Σp(1-p) moved test logloss from 0.3621 to 0.2059 and widened
+the predicted-probability range from [0.227, 0.779] to [0.040, 0.960]. Both
+versions get the same 90% test accuracy - only the confidence changes.
+sklearn 1.7.2's GradientBoostingClassifier(random_state=42) on the same
+split scores 0.3296 with range [0.001, 0.999], so the count denominator
+does not even reach it while the Newton denominator comfortably passes it.
 ```
 
 ### 3. Symmetric Tree Split
@@ -403,14 +622,19 @@ For a symmetric tree, all nodes at level L use the same split:
 ```
 At each level, find split (feature, threshold) that maximizes:
 
-Gain = Σ [Loss_after(partition_i) - Loss_before(partition_i)]
-       for all current partitions
+Gain = Σ [Score(left_i) + Score(right_i) - Score(parent_i)]
+       for all current partitions i
 
 Where for each partition:
-Loss = -G² / (N + λ)
-- G = sum of gradients in partition
-- N = number of samples in partition
+Score = G² / (H + λ)          (a similarity score - HIGHER is better)
+- G = sum of gradients in the partition
+- H = sum of Hessians in the partition. For squared loss h = 1, so H is just
+      N, the sample count; for logloss h = p(1-p), so H is well below N.
 - λ = l2_leaf_reg
+
+ONE sign convention is used everywhere in this document and in the code:
+Score is non-negative, a Gain above 0 means the split helps, and
+`_build_symmetric_tree` maximises it with `np.argmax(scored_gains)`.
 
 Process:
 1. Start with all data as one partition
@@ -427,26 +651,31 @@ Process:
 Optimal leaf value with L2 regularization:
 
 ```
-w* = -G / (N + λ)
+w* = -G / (H + λ)
 
 Where:
 - G = Σ gᵢ for samples in leaf
-- N = number of samples in leaf
+- H = Σ hᵢ for samples in leaf. For squared loss h = 1, so H is simply N,
+      the sample count; for log loss h = p(1-p), so H is well below N.
 - λ = l2_leaf_reg (default: 3.0)
 
 Interpretation:
-- Without regularization (λ=0): w = -G/N (simple average)
+- Without regularization (λ=0): w = -G/H (a Hessian-weighted average)
 - With regularization: w is shrunk toward zero
-- Small leaves (small N): more shrinkage
-- Large leaves (large N): less shrinkage
+- Leaves with little curvature (small H): more shrinkage
+- Leaves with much curvature (large H): less shrinkage
 
-Example:
+Example (squared loss, where H = N so we can count samples):
 Leaf with 10 samples, G = -5.0, λ = 3.0
 w = -(-5.0) / (10 + 3) = 5.0 / 13 = 0.385
 
 Same gradient with 2 samples:
 w = 5.0 / (2 + 3) = 5.0 / 5 = 1.0
 → Smaller leaf gets more shrinkage!
+
+For log loss you cannot substitute the count: see the eight-customer
+walkthrough above, where H = 0.703 for a three-sample leaf and using 3
+instead would shrink the step by more than 4x.
 ```
 
 ### 5. Prediction with Symmetric Trees
@@ -468,8 +697,10 @@ Level 1: Debt <= 20?    → YES → leaf_index += 0 = 4
 Level 2: Loans <= 1?    → NO  → leaf_index += 1 = 5
 → Leaf index = 5 → return leaf_value[5]
 
-Complexity: O(depth) per sample
-Compare to traditional tree: O(depth × log(features)) average case
+Complexity: O(depth) per sample - the same as a traditional binary tree.
+What differs is the constant factor: because the split at a level does not
+depend on which node a sample landed in, all n samples are handled by ONE
+numpy comparison per level (`_leaf_indices`) instead of n independent walks.
 ```
 
 ### 6. Ordered Boosting (Conceptual)
@@ -500,9 +731,25 @@ Full CatBoost implementation:
 - Maintains multiple models
 - Complex but prevents overfitting
 
-Our simplified version:
-- Standard boosting with strong regularization
-- Still effective with symmetric trees + L2 reg
+This implementation (`boosting_type='Ordered'`):
+- ONE permutation sigma, and log2(n) supporting models M_j
+- M_j has only ever been updated from the first 2^(j-1) rows of sigma
+- The row at position p in sigma takes its gradient from the largest such
+  model whose prefix ends at or before p, so no row is ever scored by a
+  model that has seen it
+- Those unbiased gradients choose the tree STRUCTURE; the returned model
+  then re-fits the leaf values on its own gradients, which keeps its
+  training loss monotonically decreasing
+- Default is `boosting_type='Plain'` (classic boosting), because on the
+  clean numeric synthetics used in this repo Ordered actually LOSES.
+  Measured on USAGE EXAMPLE 5's data shape (200 rows x 5 features, test
+  RMSE averaged over 10 seeds):
+      100 trees, lr 0.05, depth 6:  Plain 1.1693, Ordered 1.2385  (+5.9%)
+      150 trees, lr 0.05, depth 4:  Plain 0.9829, Ordered 1.0805  (+9.9%)
+  Ordered wins on only 2 of those 10 seeds. Shrink the data and add noise
+  and the sign flips, which is the regime ordered boosting was designed
+  for: on 40 training rows with noise sigma 2.0 over 12 seeds it wins
+  7/12, 2.4527 against Plain's 2.4814.
 ```
 
 ### 7. Ordered Target Statistics (for Categoricals)
@@ -559,11 +806,15 @@ def _quantize_features(self, X):
     for feature_idx in range(n_features):
         feature_values = X[:, feature_idx]
         
-        # Create borders using quantiles
-        if unique_values <= border_count:
-            borders = unique_values
+        # Create borders. A border must fall strictly BETWEEN two observed
+        # values, never ON one: np.digitize(v, borders) counts borders <= v,
+        # so a border sitting exactly on a value merges it with the next one
+        # up. Put a border on 0 for a 0/1 feature and BOTH values land in
+        # bin 1 - the feature becomes constant and can never be split on.
+        if len(unique_values) <= border_count:
+            borders = midpoints(unique_values)   # (u[:-1] + u[1:]) / 2
         else:
-            percentiles = linspace(0, 100, border_count+1)
+            percentiles = linspace(0, 100, border_count+1)[1:-1]  # interior only
             borders = percentile(feature_values, percentiles)
         
         # Assign bin indices
@@ -572,30 +823,42 @@ def _quantize_features(self, X):
 
 **2. Symmetric Tree Building**
 ```python
-def _build_symmetric_tree(self, X_quantized, gradients):
-    splits = []  # Store splits for each level
-    partitions = [all_samples_mask]  # Start with all data
-    
+def _build_symmetric_tree(self, X_quantized, gradients, hessians):
+    splits = []
+    # ONE integer per sample instead of a list of boolean masks:
+    # partition p's children are numbered 2p (left) and 2p+1 (right)
+    partition_id = zeros(n_samples, dtype=int)
+    n_partitions = 1
+
     for level in range(depth):
-        # Find ONE best split for ALL partitions
-        best_gain = -inf
+        candidates = []
         for feature in features:
-            for threshold in thresholds:
-                # Calculate gain across ALL partitions
-                total_gain = sum(
-                    gain_if_partition_split(p, feature, threshold)
-                    for p in partitions
-                )
-                if total_gain > best_gain:
-                    best = (feature, threshold)
-        
-        # Apply best split to ALL partitions
+            # ONE pass per feature: histogram G, H and counts over every
+            # (partition, bin) cell at once
+            code = partition_id * n_bins + X_quantized[:, feature]
+            g_hist = bincount(code, weights=gradients).reshape(n_partitions, n_bins)
+            h_hist = bincount(code, weights=hessians ).reshape(n_partitions, n_bins)
+            c_hist = bincount(code                   ).reshape(n_partitions, n_bins)
+
+            # cumsum along bins IS the left child for every threshold at once;
+            # the row total minus it is the right child
+            g_left = cumsum(g_hist, axis=1);  g_right = g_left[:, -1:] - g_left
+            h_left = cumsum(h_hist, axis=1);  h_right = h_left[:, -1:] - h_left
+
+            gain = (score(g_left, h_left) + score(g_right, h_right)
+                    - score(g_left[:, -1:], h_left[:, -1:]))   # score = G^2/(H+lambda)
+            gain = where(split_is_legal_for_this_partition, gain, 0.0)
+            candidates += [(feature, t, gain[:, t].sum()) for t in present_bins]
+
+        if not candidates:          # nothing legal left to split on
+            break
+        best = argmax(jitter(candidates))   # jitter scaled by random_strength
         splits.append(best)
-        partitions = [split_partition(p, best) for p in partitions]
-    
-    # Calculate leaf values
-    leaf_values = [calculate_value(p, gradients) for p in partitions]
-    
+        partition_id = partition_id * 2 + (X_quantized[:, best.feature] > best.threshold)
+        n_partitions *= 2
+
+    leaf_values = [calculate_value(partition_id == p, gradients, hessians)
+                   for p in range(n_partitions)]
     return {'splits': splits, 'leaf_values': leaf_values}
 ```
 
@@ -622,13 +885,16 @@ def _predict_tree(self, tree, X_quantized):
 
 **4. Leaf Value with L2 Regularization**
 ```python
-def _calculate_leaf_value(self, gradients, indices):
+def _calculate_leaf_value(self, gradients, indices, hessians=None):
     gradient_sum = sum(gradients[indices])
-    count = sum(indices)
-    
-    # CatBoost formula: shrinkage through L2 reg
-    value = -gradient_sum / (count + l2_leaf_reg)
-    
+    hessian_sum  = sum(indices) if hessians is None else sum(hessians[indices])
+
+    # CatBoost formula: shrinkage through L2 reg.
+    # For squared loss h = 1, so hessian_sum IS the sample count and this is
+    # the familiar -G/(N+lambda). For logloss h = p(1-p), and using the count
+    # instead would under-step every update by roughly 3-4x.
+    value = -gradient_sum / (hessian_sum + l2_leaf_reg)
+
     return value
 ```
 
@@ -666,13 +932,8 @@ Bedrooms bins:
   Bin 1: Bedrooms > 2.5 → [3, 3, 4, 4, 3]
 
 Age bins (border_count=2):
-  Bin 0: Age ≤ 8.5 → [10, 5, 3, 2, 7]  (Hmm, boundary at 8.5)
-  Actually: Age ≤ 11 → [10, 5, 3, 2, 7, 12]
-           Age > 11 → [15, 20]
-
-Let's say:
   Bin 0: Age ≤ 8.5 → [5, 3, 2, 7]
-  Bin 1: Age > 8.5 → [10, 15, 20, 12]
+  Bin 1: Age > 8.5 → [10, 12, 15, 20]
 ```
 
 ### Step 2: Initialize
@@ -713,20 +974,26 @@ Try Size <= Bin 0 (Size ≤ 1650):
   Left (Small houses): [1, 3, 5, 7]
     Gradients: [80, 40, 110, 60]
     G_L = 290, N_L = 4
-    Loss_L = -(290)² / (4 + 3) = -84100 / 7 = -12014.3
-  
+    Score_L = (290)² / (4 + 3) = 84100 / 7 = 12014.3
+
   Right (Large houses): [2, 4, 6, 8]
     Gradients: [-20, -90, -140, -40]
     G_R = -290, N_R = 4
-    Loss_R = -(-290)² / (4 + 3) = -84100 / 7 = -12014.3
-  
+    Score_R = (-290)² / (4 + 3) = 84100 / 7 = 12014.3
+
   Parent:
     G_P = 0, N_P = 8
-    Loss_P = 0² / (8 + 3) = 0
-  
-  Gain = (Loss_L + Loss_R) - Loss_P = -24028.6 - 0 = -24028.6
+    Score_P = 0² / (8 + 3) = 0
 
-(Note: We're looking at loss reduction, so more negative = better)
+  Gain = (Score_L + Score_R) - Score_P = 24028.6 - 0 = +24028.6
+
+(Same convention as everywhere else in this guide: Score = G²/(H+λ), higher is
+ better, and a positive Gain means the split helps. This is a REGRESSION
+ example, so h = 1 and H is exactly the sample count N - which is why every
+ denominator below counts houses. The classification walkthrough earlier
+ could not do that.  Here the parent's gradients
+ cancel to exactly zero while each child's do not, so the split is very
+ valuable - it separates the over-predicted houses from the under-predicted.)
 
 Best split: Size <= 1650
 
@@ -807,15 +1074,26 @@ Iteration 3: Build another symmetric tree
 Iteration 100: Final model
 
 Final predictions after 100 trees:
-House 1 (Small, 2 bed, old):    Predicted ≈ 175 (actual 180) ✓
-House 4 (Large, 4 bed, new):    Predicted ≈ 355 (actual 350) ✓
-House 5 (Smallest, 2 bed, old): Predicted ≈ 145 (actual 150) ✓
+(measured by actually running CatBoost(n_estimators=100, learning_rate=0.05,
+ depth=2, l2_leaf_reg=3.0, random_strength=0) on the 8 houses above)
+
+House 1 (Small, 2 bed, old):    Predicted 183 (actual 180) ✓
+House 4 (Large, 4 bed, new):    Predicted 347 (actual 350) ✓
+House 5 (Smallest, 2 bed, old): Predicted 177 (actual 150) ✗
+
+Why is house 5 off by 27k? A depth-2 tree has only 4 leaves, and houses
+1, 5 and 7 all land in the same one (small, ≤2 bedrooms). Every tree must
+give them the SAME value, so the model can only predict their average
+(~177) and cannot tell the 1000 sqft house apart from the 1400 sqft one.
+That is symmetric trees showing their cost: raise depth (or add trees at a
+lower learning rate) and the leaf splits finer. It is also why 8 rows is a
+teaching example, not a benchmark.
 
 New house [1600 sqft, 3 bed, 8 years]:
 1. Size 1600 ≤ 1650? YES → Partition 0
 2. Bedrooms 3 > 2.5? YES → Leaf 1
 3. Sum contributions from Leaf 1 across all trees
-4. Final prediction ≈ 235k
+4. Final prediction = 220k (measured)
 ```
 
 ---
@@ -946,23 +1224,26 @@ Historical: previous_visits, email_subscriber
 
 ```python
 class CatBoost:
-    def __init__(self, n_estimators=100, learning_rate=0.03, 
-                 depth=6, l2_leaf_reg=3.0, ...):
+    def __init__(self, n_estimators=100, learning_rate=0.03,
+                 depth=6, l2_leaf_reg=3.0, **other_params):
         # Key parameters
         self.depth = depth  # Tree depth (controls 2^depth leaves)
         self.learning_rate = learning_rate  # Shrinkage
         self.l2_leaf_reg = l2_leaf_reg  # Regularization strength
-        # ...
-        
+        ...
+
     def fit(self, X, y):
-        # 1. Quantize features
-        # 2. Initialize predictions
-        # 3. Train symmetric trees sequentially
-        
+        # 1. Encode cat_features with ordered target statistics
+        # 2. Quantize features into bins
+        # 3. Initialize predictions with base_score
+        # 4. Train symmetric trees sequentially
+        ...
+
     def predict(self, X):
-        # 1. Apply quantization
+        # 1. Apply the stored categorical encoding, then quantization
         # 2. Fast prediction using binary indexing
         # 3. Convert to probabilities if classification
+        ...
 ```
 
 ### Key Methods Explained
@@ -1013,8 +1294,13 @@ def _predict_tree(self, tree, X_quantized):
     Fast prediction using binary representation of tree path
     
     Why fast?
-    - Traditional tree: Follow path, could be O(depth × branches)
-    - Symmetric tree: Just compute leaf index, O(depth)
+    - Both tree kinds need O(depth) comparisons per sample - the
+      asymptotics are the same, and anyone claiming otherwise is wrong.
+    - The win is the constant: a traditional tree walks each sample down
+      its OWN path (branching, pointer chasing). A symmetric tree uses the
+      same (feature, threshold) for every sample at a level, so one numpy
+      comparison handles the entire batch, and the leaf index falls out of
+      bit arithmetic + a single fancy-index lookup.
     
     Algorithm:
     1. Start with leaf_index = 0
@@ -1032,24 +1318,29 @@ def _predict_tree(self, tree, X_quantized):
 
 **4. Leaf Value with Strong Regularization**
 ```python
-def _calculate_leaf_value(self, gradients, indices):
+def _calculate_leaf_value(self, gradients, indices, hessians=None):
     """
     Calculate optimal leaf value with L2 regularization
     
-    Formula: value = -sum(gradients) / (count + l2_leaf_reg)
+    Formula: value = -sum(gradients) / (sum(hessians) + l2_leaf_reg)
+             (hessians=None means "all ones", the squared-loss case, where
+              sum(hessians) is just the sample count)
     
     Why L2 in denominator?
     - Shrinks leaf values toward zero
-    - More shrinkage for small leaves (low count)
-    - Less shrinkage for large leaves (high count)
+    - More shrinkage for leaves with little curvature (small sum of h)
+    - Less shrinkage for leaves with much curvature (large sum of h)
     - Prevents overfitting to small groups
     
-    Example:
+    Example (squared loss, so sum(hessians) == the sample count):
       Leaf with 100 samples, sum(g)=-50, λ=3:
         value = 50 / (100 + 3) = 0.485
       
       Leaf with 5 samples, sum(g)=-50, λ=3:
-        value = 50 / (5 + 3) = 6.25  (less shrinkage needed)
+        value = 50 / (5 + 3) = 6.25
+        (the unregularized value would be 50/5 = 10.0, so λ=3 cuts it by 37%,
+         versus only 3% for the 100-sample leaf - the SMALL leaf is shrunk
+         much harder, which is exactly the intent)
     
     CatBoost default λ=3.0 is higher than XGBoost's 1.0!
     """
@@ -1095,9 +1386,32 @@ border_count=128       # Number of feature bins
 **Randomness:**
 ```python
 random_strength=1.0    # Randomization in split selection
-                       # Adds small random value to gain
-                       # Helps with generalization
+                       # Jitter added to each candidate's gain is
+                       #   random_strength * std(this level's gains) * N(0,1)
+                       # Scaling by the level's own spread is what makes the
+                       # parameter mean the same thing whether your target is
+                       # in dollars or thousands of dollars
                        # Typical: 0-2
+
+random_seed=None       # Seed for this model's private RNG
+                       # int  -> reproducible regardless of global RNG state
+                       # None -> seeded FROM the global RNG, so an outer
+                       #         np.random.seed(42) still reproduces the fit
+```
+
+**Categorical features and boosting scheme:**
+```python
+cat_features=None      # Column indices holding categories (strings or codes)
+                       # e.g. cat_features=[0, 3]
+                       # Those columns are encoded with ordered target
+                       # statistics instead of one-hot / label encoding
+                       # None = every column is numeric
+
+boosting_type='Plain'  # 'Plain'   = classic gradient boosting (default)
+                       # 'Ordered' = CatBoost's unbiased scheme; a sample's
+                       #             gradient comes from a supporting model
+                       #             that never saw that sample
+                       # Try 'Ordered' on small, noisy, categorical data
 ```
 
 ### Parameter Tuning Guidelines
@@ -1200,14 +1514,14 @@ importance = model.get_feature_importance('split')
 feature_names = ['size', 'bedrooms', 'age', 'location']
 for name, imp in sorted(zip(feature_names, importance), 
                        key=lambda x: x[1], reverse=True):
-    bar = '█' * int(imp * 50)
+    bar = '#' * int(imp * 50)     # ASCII only: U+2588 crashes a cp1252 console
     print(f"{name:15s}: {imp:.4f} {bar}")
 
-# Output:
-# size           : 0.4821 ████████████████████████
-# bedrooms       : 0.3012 ███████████████
-# age            : 0.1567 ████████
-# location       : 0.0600 ███
+# Illustrative output shape (your numbers depend on your data):
+# size           : 0.4821 ########################
+# bedrooms       : 0.3012 ###############
+# age            : 0.1567 ########
+# location       : 0.0600 ###
 ```
 
 ### Learning Curves
@@ -1266,9 +1580,12 @@ print(f"\nMean CV Score: {np.mean(scores):.4f} ± {np.std(scores):.4f}")
 
 **Signs of Overfitting:**
 ```python
-train_score = model.score(X_train, y_train)  # 0.95
-test_score = model.score(X_test, y_test)     # 0.72
-# Large gap = overfitting!
+# score() returns NEGATIVE RMSE for regression, so negate it to read an error
+train_rmse = -model.score(X_train, y_train)  # e.g. 0.0682
+test_rmse  = -model.score(X_test,  y_test)   # e.g. 0.9311
+# Test RMSE much larger than train RMSE = overfitting!
+# (those are USAGE EXAMPLE 7's measured l2_leaf_reg=0.1 numbers; raising
+#  l2_leaf_reg to 3.0 narrows the gap to 0.2794 train / 0.8344 test)
 ```
 
 **Solutions:**
@@ -1315,7 +1632,7 @@ model = CatBoost(random_strength=2.0)  # More randomization
 |---------|---------|----------|----------|
 | **Tree Growth** | Level-wise | Leaf-wise | Level-wise (symmetric) |
 | **Default LR** | 0.3 | 0.1 | 0.03 |
-| **Categorical Handling** | Manual encoding | Manual encoding | Native (automatic) |
+| **Categorical Handling** | Manual encoding | Manual encoding | Native (ordered target statistics) |
 | **Speed (Large Data)** | Medium | **Fastest** | Fast |
 | **Overfitting Risk** | Medium | Higher | **Lower** |
 | **Default Performance** | Good | Good | **Best** |
@@ -1383,10 +1700,84 @@ Prediction Time (1000 samples):
 └── CatBoost: 5 ms  ← Fastest! (symmetric trees)
 
 Why CatBoost prediction is fast?
-- Symmetric trees → O(depth) instead of O(depth × branches)
-- Binary indexing → direct lookup
+- Symmetric trees → one comparison per level for the WHOLE batch (branch-free),
+  not a lower asymptotic cost - a normal binary tree is also O(depth)
+- Binary indexing → direct lookup, no pointer chasing
 - No need for tree traversal
 ```
+
+---
+
+## Advantages & Limitations
+
+### Advantages of CatBoost (the algorithm)
+
+| Advantage | Why it matters |
+|-----------|----------------|
+| **Native categorical handling** | Ordered target statistics encode a category by the targets of *earlier* rows only, so you get the predictive power of target encoding without its leakage, and no feature explosion from one-hot |
+| **Ordered boosting** | Removes the prediction shift caused by scoring a sample with a model that already fitted it - the benefit grows as the dataset shrinks |
+| **Symmetric (oblivious) trees** | Every level is one split, so the model has far fewer degrees of freedom than a free-form tree of the same depth: strong built-in regularization |
+| **Branch-free prediction** | The whole batch shares one comparison per level and one fancy-index lookup, which vectorizes cleanly |
+| **Strong defaults** | `learning_rate=0.03`, `l2_leaf_reg=3.0` and `depth=6` are deliberately conservative; CatBoost usually performs well before any tuning |
+
+### Limitations of CatBoost (the algorithm)
+
+- **Slower training than LightGBM** on large numeric datasets - obliviousness costs accuracy per tree, so more trees are needed
+- **Symmetric trees underfit** genuinely asymmetric structure: if only one region of feature space needs a deep split, every region gets it
+- **Ordered boosting costs memory and time**, maintaining several supporting models
+- **Target statistics need enough rows per category** - with a handful of examples the encoding is mostly prior
+
+### Limitations of THIS from-scratch implementation
+
+This file is written to be read, not to be deployed. Concretely:
+
+| Area | What is here | What real CatBoost does |
+|------|--------------|-------------------------|
+| Split search | Exhaustive over every (feature, bin), histogram-accelerated | Same idea, plus multithreading, GPU kernels and feature bundling |
+| Border selection | Uniform quantiles (`border_count` of them) | Several strategies, `GreedyLogSum` by default |
+| Ordered boosting | One permutation, log2(n) supporting models, structure only | Several permutations, and its own criterion for picking structure |
+| Categorical features | Ordered target statistics averaged over 4 permutations | Same, plus feature *combinations* built greedily during training |
+| Objectives | `'regression'` (RMSE) and `'binary'` (Logloss) | Dozens, including multiclass, ranking and custom losses |
+| Missing values | Not handled - `NaN` propagates | Dedicated `Min`/`Max` NaN handling per feature |
+| Subsampling | None | Bagging, `rsm` column sampling, MVS |
+
+### Simplification vs. canonical CatBoost
+
+Three gaps are worth naming precisely, because they are where this code and
+the paper (*"CatBoost: unbiased boosting with categorical features"*,
+NeurIPS 2018) genuinely diverge:
+
+1. **Categorical feature combinations.** Real CatBoost greedily builds
+   *combinations* of categorical features (e.g. `country × device`) as the
+   tree grows, encoding each combination with its own target statistic. That
+   is what lets it capture interactions between high-cardinality columns.
+   This implementation encodes each categorical column independently. The
+   practical consequence: an interaction between two categoricals must be
+   discovered through ordinary splits on their separate statistics, which
+   needs more depth and more trees.
+
+2. **Multiple permutations for boosting.** The paper samples several
+   permutations and alternates between them across trees, which averages out
+   the noise a single ordering introduces (a row that lands early sees almost
+   no history). Here `boosting_type='Ordered'` uses ONE permutation for the
+   whole fit. The ordered *target statistics* do average over 4 permutations,
+   which is why they behave well; ordered *boosting* does not, which is part
+   of why it is not the default.
+
+3. **Structure-selection criterion.** The paper scores candidate structures
+   against the supporting models with a cosine-similarity criterion. Here the
+   unbiased gradients feed the ordinary `G²/(H+λ)` gain, which is simpler and
+   is the criterion the rest of this guide teaches.
+
+Measured consequence of (2) and (3): on the clean numeric synthetics used
+throughout this repo, `boosting_type='Ordered'` is 6-10% WORSE on test RMSE
+than `'Plain'` - not a hair behind it. On USAGE EXAMPLE 5's data shape over
+10 seeds it scores 1.2385 against Plain's 1.1693 at depth 6, and 1.0805
+against 0.9829 at depth 4, winning on only 2 seeds of 10. It does come out
+ahead where the theory says it should: on 40 noisy training rows over 12
+seeds it wins 7/12 (2.4527 vs 2.4814). Ordered boosting here is implemented
+faithfully enough to demonstrate the mechanism, not to reproduce the paper's
+benchmark wins.
 
 ---
 
@@ -1398,6 +1789,7 @@ Why CatBoost prediction is fast?
    - Symmetric trees → Natural regularization
    - Ordered boosting → Prevents target leakage
    - Native categorical handling → No manual encoding needed
+     (here: `CatBoost(cat_features=[0, 3])`)
    - Great defaults → Works well out-of-the-box
 
 2. **Main Innovations**
@@ -1486,9 +1878,10 @@ Limited time for tuning?
 
 ### Next Steps
 
-1. **Run the examples** in the `.py` file
+1. **Run the file**: `python _19_catboost.py` runs the three demos from the
+   Quick Start (regression, classification, and a raw string column)
 2. **Compare with your data** - try defaults first!
-3. **Add categorical features** - see CatBoost shine
+3. **Add categorical features** with `cat_features=[...]` - see CatBoost shine
 4. **Monitor for overfitting** - use validation set
 5. **Compare with XGBoost/LightGBM** - see the differences
 6. **Study symmetric trees** - understand the structure

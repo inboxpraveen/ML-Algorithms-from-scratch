@@ -34,11 +34,14 @@ Machine learning libraries like scikit-learn are powerful, but they hide the inn
 
 ## ✨ Key Features
 
+- **▶️ Runs Out of the Box**: `python "<any file>"` trains the model and prints results — NumPy only, no setup, no dataset to download
 - **📖 Comprehensive Documentation**: Each algorithm includes detailed markdown files explaining concepts, math, and implementation
 - **💡 Step-by-Step Examples**: Real-world use cases with complete code examples
-- **🧮 Mathematical Foundations**: Equations explained in plain language
+- **🧮 Mathematical Foundations**: Equations derived in plain language, then mapped onto the code that implements them
+- **🔬 Checked Against the Real Thing**: Compared to scikit-learn/SciPy where they exist, and to the original papers where they don't
 - **📊 Visual Learning**: Code examples that can be easily visualized
-- **🔧 Production-Like Code**: Clean, well-documented, reusable classes
+- **🔧 Clean, Reusable Code**: Well-documented classes with a consistent interface
+- **🙊 No Hidden Hand-Waving**: Where an implementation simplifies the canonical algorithm, it says so and explains the cost
 - **🎓 Educational Focus**: Comments and explanations at every important step
 
 ## 📦 Repository Structure
@@ -156,40 +159,95 @@ cd ML-Algorithms-from-scratch
 ```bash
 pip install numpy
 
-# Optional: Install these for running examples and visualizations
+# Optional: only needed for some of the extended examples inside the docs,
+# which compare against reference implementations or draw plots.
 pip install matplotlib scikit-learn
 ```
 
+**NumPy is the only requirement.** Every algorithm, and every runnable demo in every file,
+works with NumPy alone — including the boosting family, where the point is to see the
+algorithm rather than call a library.
+
 ### Quick Start
 
-All algorithms in this repository follow a consistent, simple interface:
+**Every algorithm runs on its own, right now, with nothing but NumPy installed.** Pick any
+file and run it:
+
+```bash
+python "1. Linear Regression/_1_linear_regressions.py"
+python "17. XGBoost/_17_xgboost.py"
+python "23. Hidden Markov Models/_23_hmm.py"
+```
+
+Each file ends in a **Plug-and-Play Demo** that builds a small synthetic dataset, trains the
+model, and prints training and test scores plus a few sample predictions. Nothing to edit,
+no dataset to download, no arguments to pass. Every demo is seeded, so you get the same
+numbers the documentation quotes, and every one finishes in seconds.
+
+The matching `.md` file opens with a **Quick Start: Plug-and-Play Example** section
+containing that same script and its expected output, so you can read what a model does
+before you read how it works.
+
+Once you want to use an algorithm on your own data, they share a consistent interface:
 
 1. **Import** the algorithm class from its folder
 2. **Create** an instance of the class
 3. **Train** the model using `.fit(X_train, y_train)`
 4. **Predict** on new data using `.predict(X_test)`
-5. **Evaluate** performance using `.score(X_test, y_test)` (where available)
+5. **Evaluate** performance using `.score(X_test, y_test)`
 
-Each algorithm folder contains complete code examples in both the `.py` and `.md` files showing exactly how to use that specific algorithm with real data.
+Dimensionality-reduction algorithms (PCA, t-SNE, UMAP, Autoencoders) use
+`.fit_transform(X)` instead, and clustering algorithms add `.fit_predict(X)`. A few
+algorithms with no meaningful `fit/predict` shape — Apriori, HMM, Prophet — keep the API
+that is natural to them, documented in their own files.
 
 ### How to Use This Repository
 
-1. **Browse the Algorithms Table** below to find an algorithm
-2. **Read the Documentation** (click "View Details") to understand the theory
-3. **Study the Code** in the `.py` file - it's heavily commented
-4. **Run the Examples** provided in the usage section of each file
-5. **Experiment** - modify parameters, try your own data!
+1. **Run the file** — `python "6. Decision Trees/_6_decision_trees.py"` — and see the
+   algorithm work before reading a single line about it
+2. **Read the Quick Start** at the top of the matching `.md` to understand what just happened
+3. **Read the Documentation** (click "View Details") for the intuition and the mathematics
+4. **Study the Code** in the `.py` file — it's heavily commented, and the formulas in the
+   docs map directly onto the lines that implement them
+5. **Experiment** — modify parameters, try your own data!
 
 ### Learning Path
 
-**Recommended order for beginners:**
+The numbering is the recommended order — each algorithm leans on ideas from the ones before
+it. If you are starting out, work through the stages rather than jumping to the famous names
+at the end; XGBoost makes far more sense once you have built a decision tree by hand.
 
-1. **Start with Linear Regression** - Simplest algorithm, foundation for others
-2. **Move to Multiple Regression** - Understand multiple features
-3. **Try Classification** - Logistic Regression (coming soon)
-4. **Explore Non-linear** - Decision Trees, KNN (coming soon)
+**Stage 1 — Foundations (1-4).** Start with **Linear Regression**: one feature, a closed-form
+solution, and the whole idea of fitting a model to data. **Multiple Regression** generalises
+it to many features, **Ridge Regression** introduces regularization — your first encounter
+with the bias-variance trade-off — and **Logistic Regression** turns regression into
+classification and brings in gradient descent.
 
-Each algorithm builds on concepts from previous ones!
+**Stage 2 — Core classifiers (5-9).** **KNN** is the simplest possible classifier and needs
+no training at all. **Decision Trees** introduce splitting criteria and are the single most
+important prerequisite in this repo — seven later algorithms are built out of them.
+**Random Forests** show why averaging many decorrelated models beats one good one. **SVM**
+brings margins and the kernel trick; **Naive Bayes** brings the probabilistic view.
+
+**Stage 3 — Unsupervised learning (10-13).** **k-Means** and **Hierarchical Clustering**
+find structure without labels, **PCA** introduces dimensionality reduction through
+eigenvectors, and **Apriori** mines association rules — a different kind of pattern entirely.
+
+**Stage 4 — Boosting (14-19).** Read these in order; they are a single conversation.
+**t-SNE** is the exception here (a visualization method — take it alongside PCA).
+**AdaBoost** introduces the idea of training models on the mistakes of earlier ones,
+**Gradient Boosting** reframes that as gradient descent in function space, and **XGBoost**
+adds second-order optimization and regularization. **LightGBM** and **CatBoost** then each
+change one thing: leaf-wise growth, and ordered target statistics for categorical features.
+
+**Stage 5 — Specialised methods (20-28).** Pick by what you need. Anomaly detection
+(**Isolation Forest**), probabilistic clustering (**GMM**), manifold learning (**UMAP**),
+sequence models (**HMM**), neural representation learning (**Autoencoders**), topic modelling
+(**LDA**), forecasting (**Prophet**), search ranking (**Learning-to-Rank**), and
+recommendations (**Matrix Factorization**).
+
+**A suggestion:** run the file first, then read the maths. Watching a model score 0.98 and
+then finding out why is a better order than the reverse.
 
 
 ## 🎓 What You'll Learn
@@ -208,19 +266,21 @@ For each algorithm, you'll understand:
 Each algorithm includes:
 
 - **Comprehensive Guide** (`.md` file):
+  - A **Quick Start** at the top: a runnable script and the output it actually produces
   - Intuitive explanations with real-world analogies
-  - Mathematical formulas broken down step-by-step
-  - Implementation details explained
-  - Complete examples with output
-  - Visualization suggestions
-  - Links to further resources
+  - Mathematical formulas derived step-by-step, then mapped onto the lines that implement them
+  - Complete examples with output measured from a real run, not written from memory
+  - An honest **Simplifications** section wherever this implementation departs from the
+    canonical algorithm, naming what is different and what it costs
+  - Links to the original papers and further resources
 
 - **Clean Implementation** (`.py` file):
   - Class-based design for reusability
-  - Detailed docstrings for all methods
-  - Inline comments explaining key steps
-  - Multiple usage examples
-  - Type hints and parameter documentation
+  - Detailed docstrings for every method, stating the formula it implements
+  - Every parameter documented with its type, default, effect, and a typical range
+  - Inline comments at each non-obvious mathematical step
+  - Multiple usage examples, each one executed to confirm it works
+  - A **Plug-and-Play Demo** you can run with `python <file>` — NumPy only, seeded, fast
 
 ## 🤝 Contributing
 
@@ -239,13 +299,21 @@ Contributions are welcome and appreciated! Here's how you can help:
 
 When contributing, please:
 1. Follow the existing code style (clean, well-documented, educational)
-2. Include comprehensive docstrings and comments
-3. Add usage examples in the code
-4. Update or create corresponding `.md` documentation
-5. Ensure code works with NumPy only (no additional ML libraries for core implementation)
-6. Test your implementation with example datasets
+2. Include comprehensive docstrings and comments — every parameter gets its type, default,
+   effect, and a typical range; every method states the formula it implements
+3. Add usage examples in the code, and **run every one of them** before submitting
+4. End the file with an `if __name__ == "__main__":` Plug-and-Play Demo: NumPy only,
+   seeded with `np.random.seed(42)`, ASCII-only output, finishing in seconds
+5. Update or create corresponding `.md` documentation, opening with a **Quick Start** whose
+   expected output you captured from a real run
+6. Ensure code works with NumPy only (no additional ML libraries for core implementation)
+7. Validate against the canonical algorithm — scikit-learn or SciPy where an equivalent
+   exists, otherwise a problem whose answer you can compute by hand
+8. Quote no number you have not measured. If your implementation simplifies the canonical
+   algorithm, add a **Simplifications** section saying what differs and what it costs
 
-**Note**: The goal is education, not performance. Prioritize clarity over optimization.
+**Note**: The goal is education, not performance. Prioritize clarity over optimization —
+but not over correctness. An implementation that is clear and wrong teaches the wrong thing.
 
 ## ❓ Frequently Asked Questions
 
@@ -256,7 +324,21 @@ A: No, these implementations prioritize learning over performance. Use scikit-le
 A: Basic knowledge helps, but each algorithm includes math explanations in plain language.
 
 **Q: Can I compare these with scikit-learn?**  
-A: Absolutely! Many examples show how to use scikit-learn for comparison and validation.
+A: Absolutely, and you should — many examples do exactly that. These implementations are
+checked against their canonical counterparts: where scikit-learn or SciPy has an equivalent,
+the results are expected to match closely, and where no library exists (XGBoost, LightGBM,
+CatBoost, UMAP, HMM, Prophet, Learning-to-Rank, Matrix Factorization) the implementation is
+checked against the formulas in the original paper and against problems with a known answer.
+Where an implementation deliberately simplifies, its `.md` says so in a **Simplifications**
+section rather than leaving you to discover it.
+
+**Q: How close are these to the real thing?**  
+A: Close on the mathematics, not on the engineering. The goal is that the algorithm behaves
+like the canonical one — same update rules, same objective, comparable accuracy on the same
+data. What you will not find is the engineering that makes production libraries fast:
+histogram-based split finding at scale, multithreading, cache-aware memory layouts, GPU
+kernels, or distributed training. A from-scratch tree here may be 20-300x slower than
+scikit-learn's while producing very similar predictions. That trade is deliberate.
 
 **Q: Why NumPy only?**  
 A: To focus on fundamentals. Understanding NumPy operations helps you understand what libraries do internally.
@@ -300,4 +382,4 @@ Understanding the core concepts of machine learning algorithms is essential for 
 
 ---
 
-**Maintained by [@inboxpraveen](https://github.com/inboxpraveen) | Last Updated: March 2026**
+**Maintained by [@inboxpraveen](https://github.com/inboxpraveen) | Last Updated: September 2026**

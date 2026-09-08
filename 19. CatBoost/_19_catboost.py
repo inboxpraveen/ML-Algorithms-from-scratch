@@ -19,14 +19,47 @@ class CatBoost:
     Key Innovations in CatBoost:
         Symmetric Trees: All nodes at same level split on same feature/threshold
         Ordered Boosting: Prevents prediction shift and target leakage
+            (implemented here -- pass boosting_type='Ordered'; the default is
+             'Plain', i.e. classic gradient boosting)
         Ordered Target Statistics: Smart categorical feature encoding
-        No need for extensive preprocessing: Handles categoricals natively
-        Robust to overfitting: Built-in regularization through ordered boosting
+            (implemented here -- pass cat_features=[column indices])
+        No need for extensive preprocessing: Handles categoricals natively,
+            including string columns, without one-hot encoding
+        Robust to overfitting: Built-in regularization through a high default
+            L2 leaf penalty and the simplicity of symmetric trees
+
+    Leaf Value and Split Score:
+        Every leaf and every candidate split is scored from two sums over the
+        samples that reach it -- G (gradients) and H (Hessians):
+
+            w*    = -G / (H + l2_leaf_reg)              leaf value
+            Score = G^2 / (H + l2_leaf_reg)             higher is better
+            Gain  = sum over current partitions of
+                    [ Score(left) + Score(right) - Score(parent) ]
+
+        For squared loss h = 1, so H is exactly the sample count and these
+        reduce to the count-based formulas usually quoted for CatBoost. For
+        Logloss h = p(1-p), which is what real CatBoost's default 'Newton'
+        leaf estimation uses; substituting the count there would under-step
+        every update by roughly 3-4x.
+
+    Ordered Target Statistic (categorical encoding):
+        For row i in a random permutation sigma, using only earlier rows:
+
+            TS_i = (sum of y_j for j before i with x_j == x_i + a * p)
+                   / (count of those j + a)
+
+        with p the global target mean (the prior) and a the smoothing weight.
+        Row i's own target never enters TS_i, so there is no target leakage.
+
+    See "Simplification vs. canonical CatBoost" in _19_catboost.md for the
+    parts of the real library that are deliberately not reproduced here.
     """
     
     def __init__(self, n_estimators=100, learning_rate=0.03, depth=6,
                  l2_leaf_reg=3.0, min_data_in_leaf=1, random_strength=1.0,
-                 border_count=128, objective='regression'):
+                 border_count=128, objective='regression',
+                 cat_features=None, boosting_type='Plain', random_seed=None):
         """
         Initialize the CatBoost model
         
@@ -68,6 +101,13 @@ class CatBoost:
             - Higher values: More randomization, better generalization
             - 0: Deterministic (no randomization)
             Typical values: 0-2
+            Note: the perturbation added to a candidate's gain is
+            random_strength * std(all candidate gains at this level) * N(0,1).
+            Scaling by the spread of the level's own gains is a heuristic (real
+            CatBoost decays the magnitude over training); it is needed because a
+            raw gain is measured in (target units)^2, so a fixed-size
+            perturbation would behave completely differently for a target in
+            dollars and the same target in thousands of dollars.
             
         border_count : int, default=128
             Number of splits for numerical features
@@ -79,6 +119,34 @@ class CatBoost:
             Learning objective
             - 'regression': Regression with RMSE loss
             - 'binary': Binary classification with logloss
+
+        cat_features : list of int, default=None
+            Column indices to treat as CATEGORICAL. Those columns may hold
+            strings or arbitrary integer codes; they are converted to numbers
+            with ordered target statistics (see `_ordered_target_statistics`)
+            instead of one-hot or label encoding.
+            - None or []: every column is numeric (previous behaviour)
+            Typical: pass every genuinely nominal column
+
+        boosting_type : str, default='Plain'
+            How gradients are computed each iteration
+            - 'Plain': classic gradient boosting -- every sample's gradient
+              comes from the one shared model. Fast, and what XGBoost/LightGBM
+              do, but the model has already fitted the sample it is being
+              scored on (prediction shift).
+            - 'Ordered': CatBoost's unbiased scheme -- a sample's gradient
+              comes from a supporting model that never saw that sample.
+              Costs ~log2(n) extra leaf-value computations per tree and helps
+              most on small, noisy datasets.
+            Typical: 'Ordered' below ~10k rows, 'Plain' above
+
+        random_seed : int, default=None
+            Seed for this model's private random generator (split jitter and
+            the ordered-boosting permutation)
+            - int: fully reproducible fits, independent of global RNG state
+            - None: seeded from the global numpy RNG, so np.random.seed(42)
+              before fitting still reproduces the run
+            Typical: any fixed int when you need repeatability
         """
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -88,10 +156,21 @@ class CatBoost:
         self.random_strength = random_strength
         self.border_count = border_count
         self.objective = objective
+        self.cat_features = cat_features
+        self.boosting_type = boosting_type
+        self.random_seed = random_seed
+        # Number of permutations averaged when building ordered target
+        # statistics. CatBoost also uses several; 4 is its usual count.
+        self.ts_permutations = 4
         
         self.trees = []
         self.base_score = None
         self.feature_borders = None
+        self.n_features = None
+        self.train_scores = []
+        self.val_scores = []
+        self._cat_encodings = None
+        self._rng = None
         
     def _sigmoid(self, x):
         """Sigmoid function with numerical stability"""
@@ -103,11 +182,14 @@ class CatBoost:
     
     def _compute_gradients(self, y_true, y_pred):
         """
-        Compute gradients for the loss function
+        Compute first-order gradients g = dL/dpred for the loss function
         
-        CatBoost uses first-order gradients (unlike XGBoost which uses both
-        first and second order). This is simpler but still effective with
-        ordered boosting.
+        Note on first vs second order: for squared loss the Hessian is the
+        constant 1, so "count + l2_leaf_reg" in the leaf formula IS the exact
+        Newton denominator -- this is what CatBoost calls the 'Gradient' leaf
+        estimation method. For Logloss the Hessian is p(1-p) != 1, and real
+        CatBoost defaults to 'Newton', dividing by sum(p*(1-p)) + l2_leaf_reg.
+        See `_compute_hessians`, which supplies exactly that denominator here.
         
         Parameters:
         -----------
@@ -137,6 +219,47 @@ class CatBoost:
         
         return gradients
     
+    def _compute_hessians(self, y_true, y_pred):
+        """
+        Compute second-order derivatives h = d2L/dpred2 (the Hessian diagonal)
+
+        These are the weights that appear in the leaf value and split score:
+
+            w*   = -G / (H + l2_leaf_reg)
+            Score = G^2 / (H + l2_leaf_reg)
+
+        where G = sum of gradients and H = sum of Hessians over a partition.
+
+        - regression (squared loss):  L = 0.5*(y - pred)^2  ->  h = 1
+          so H == number of samples, and the formulas reduce to the familiar
+          count-based ones used in the .md's regression walkthrough.
+        - binary (log loss):          h = p * (1 - p),  p = sigmoid(pred)
+          Because p(1-p) <= 0.25, H is much smaller than the count. Using the
+          count here would make every logistic step 3-4x too small, so the
+          model could never become confident. This is CatBoost's 'Newton'
+          leaf estimation method for Logloss.
+
+        Parameters:
+        -----------
+        y_true : np.ndarray
+            True values
+        y_pred : np.ndarray
+            Current raw predictions (log-odds for the binary objective)
+
+        Returns:
+        --------
+        hessians : np.ndarray
+            Second-order derivatives, same shape as y_pred
+        """
+        if self.objective == 'regression':
+            return np.ones_like(y_pred, dtype=float)
+        elif self.objective == 'binary':
+            p = self._sigmoid(y_pred)
+            # Floor keeps the denominator from collapsing on saturated samples
+            return np.maximum(p * (1 - p), 1e-6)
+        else:
+            raise ValueError(f"Unknown objective: {self.objective}")
+
     def _quantize_features(self, X):
         """
         Quantize continuous features into discrete bins
@@ -163,14 +286,23 @@ class CatBoost:
             unique_values = np.unique(feature_values)
             
             if len(unique_values) <= self.border_count:
-                borders = unique_values[:-1]
+                # Few distinct values: give every distinct value its own bin.
+                # A border must fall strictly BETWEEN two neighbouring values,
+                # never ON one, so we use midpoints. With k unique values this
+                # gives k-1 borders and therefore k bins.
+                # Example: values [0, 1] -> borders [0.5] -> bins {0 -> 0, 1 -> 1}.
+                borders = (unique_values[:-1] + unique_values[1:]) / 2.0
             else:
-                # Create borders using quantiles
+                # Many distinct values: place borders at interior quantiles.
+                # [1:-1] drops the 0th and 100th percentiles, which are the
+                # min and max and would create an empty end bin.
                 percentiles = np.linspace(0, 100, self.border_count + 1)[1:-1]
                 borders = np.percentile(feature_values, percentiles)
                 borders = np.unique(borders)
             
             self.feature_borders.append(borders)
+            # digitize(v, borders) with the default right=False returns the number
+            # of borders strictly below or equal to v, i.e. the bin index in 0..len(borders)
             X_quantized[:, feature_idx] = np.digitize(feature_values, borders)
         
         return X_quantized
@@ -187,22 +319,31 @@ class CatBoost:
         
         return X_quantized
     
-    def _calculate_leaf_value(self, gradients, indices):
+    def _calculate_leaf_value(self, gradients, indices, hessians=None):
         """
         Calculate optimal leaf value with L2 regularization
         
-        CatBoost formula: value = -sum(gradients) / (n_samples + l2_leaf_reg)
+        CatBoost formula: value = -G / (H + l2_leaf_reg)
+            G = sum of gradients in the leaf
+            H = sum of Hessians in the leaf (== the sample count for squared
+                loss, since h = 1 there -- which is why the .md's house-price
+                walkthrough can divide by the number of houses in a leaf,
+                while its logloss walkthrough must not)
         
-        The L2 regularization in denominator acts as smoothing:
-        - More samples → less regularization effect
-        - Fewer samples → more shrinkage toward zero
+        The L2 regularization in the denominator acts as smoothing:
+        - More samples -> less regularization effect
+        - Fewer samples -> more shrinkage toward zero
+          (a 100-sample leaf keeps 100/103 = 97% of its unregularized value,
+           a 5-sample leaf keeps only 5/8 = 62.5% of it)
         
         Parameters:
         -----------
         gradients : np.ndarray
-            Gradients for samples in this leaf
+            Gradients for all samples
         indices : np.ndarray (boolean)
-            Boolean mask for samples in this leaf
+            Boolean mask selecting the samples in this leaf
+        hessians : np.ndarray, optional
+            Hessians for all samples. None means "all ones" (squared loss).
             
         Returns:
         --------
@@ -213,14 +354,17 @@ class CatBoost:
             return 0.0
         
         gradient_sum = np.sum(gradients[indices])
-        count = np.sum(indices)
+        if hessians is None:
+            hessian_sum = np.sum(indices)   # h = 1 for squared loss
+        else:
+            hessian_sum = np.sum(hessians[indices])
         
         # CatBoost's leaf value formula with L2 regularization
-        value = -gradient_sum / (count + self.l2_leaf_reg)
+        value = -gradient_sum / (hessian_sum + self.l2_leaf_reg)
         
         return value
     
-    def _build_symmetric_tree(self, X_quantized, gradients, depth=0):
+    def _build_symmetric_tree(self, X_quantized, gradients, hessians=None):
         """
         Build symmetric (oblivious) tree
         
@@ -238,14 +382,36 @@ class CatBoost:
         
         Note: Both level-1 nodes split on Feature 1!
         
+        THE SCORE BEING MAXIMISED (same formula the .md states):
+
+            Score(partition) = G^2 / (H + l2_leaf_reg)     (higher is better)
+            Gain(split)      = sum over current partitions of
+                               [ Score(left) + Score(right) - Score(parent) ]
+
+        G is the sum of gradients and H the sum of Hessians in a partition
+        (H == the sample count for squared loss, where h = 1). A positive gain
+        means the split helps; the level keeps the single (feature, threshold)
+        pair with the largest gain summed over ALL partitions -- that "summed
+        over all partitions" is what makes the tree oblivious.
+
+        HOW THE SEARCH IS ORGANISED. The straightforward way to evaluate a
+        candidate is to re-mask every partition with a boolean comparison, but
+        that repeats the same sums once per candidate threshold. Instead we
+        accumulate, in ONE pass per feature per level, a histogram of G, H and
+        counts over every (partition, bin) cell with np.bincount, then read off
+        every threshold at once with a cumulative sum along the bin axis:
+        cumsum up to bin t IS the left child for threshold t, and the row total
+        minus it is the right child. Identical arithmetic, far fewer passes.
+
         Parameters:
         -----------
         X_quantized : np.ndarray, shape (n_samples, n_features)
             Quantized training data
         gradients : np.ndarray, shape (n_samples,)
             Gradients to optimize
-        depth : int
-            Current depth (0 = root)
+        hessians : np.ndarray, shape (n_samples,), optional
+            Hessians. None means "all ones", i.e. the squared-loss case where
+            the Hessian sum is simply the sample count.
             
         Returns:
         --------
@@ -253,91 +419,131 @@ class CatBoost:
             Symmetric tree structure
         """
         n_samples, n_features = X_quantized.shape
+        if hessians is None:
+            hessians = np.ones(n_samples)
+        rng = self._rng if self._rng is not None else np.random
+        lam = self.l2_leaf_reg
+
+        # Candidate thresholds are the bin indices actually present in the data
+        # (computed once per tree -- quantization does not change between levels)
+        feature_thresholds = [np.unique(X_quantized[:, f]) for f in range(n_features)]
+        feature_n_bins = [int(X_quantized[:, f].max()) + 1 for f in range(n_features)]
         
         # Store split conditions for each level
         splits = []
         
-        # Current partition (which samples go to which leaf)
-        current_partitions = [np.ones(n_samples, dtype=bool)]
+        # partition_id[i] tells which partition (future leaf) sample i sits in.
+        # This one integer array replaces the old list of boolean masks. When a
+        # partition p is split, its children are numbered 2p (left) and 2p+1
+        # (right) -- exactly the leaf numbering _predict_tree rebuilds bit by bit.
+        partition_id = np.zeros(n_samples, dtype=int)
+        n_partitions = 1
         
         # Build tree level by level
         for level in range(self.depth):
-            best_gain = -np.inf
-            best_feature = None
-            best_threshold = None
+            cand_features = []
+            cand_thresholds = []
+            cand_gains = []
             
-            # Try all features and thresholds
+            # Try all features; all their thresholds are scored in one shot
             for feature_idx in range(n_features):
-                feature_values = X_quantized[:, feature_idx]
-                unique_values = np.unique(feature_values)
+                bins = X_quantized[:, feature_idx]
+                n_bins = feature_n_bins[feature_idx]
                 
-                for threshold in unique_values:
-                    # Calculate gain for this split applied to ALL current partitions
-                    total_gain = 0
+                # Histogram of G, H and counts over every (partition, bin) cell
+                code = partition_id * n_bins + bins
+                size = n_partitions * n_bins
+                g_hist = np.bincount(code, weights=gradients, minlength=size)
+                h_hist = np.bincount(code, weights=hessians, minlength=size)
+                c_hist = np.bincount(code, minlength=size).astype(float)
+                g_hist = g_hist.reshape(n_partitions, n_bins)
+                h_hist = h_hist.reshape(n_partitions, n_bins)
+                c_hist = c_hist.reshape(n_partitions, n_bins)
                     
-                    for partition in current_partitions:
-                        if np.sum(partition) < self.min_data_in_leaf:
-                            continue
+                # cumsum along bins = "everything with bin <= threshold" = LEFT child
+                g_left = np.cumsum(g_hist, axis=1)
+                h_left = np.cumsum(h_hist, axis=1)
+                c_left = np.cumsum(c_hist, axis=1)
                         
-                        # Split this partition
-                        left_mask = partition & (feature_values <= threshold)
-                        right_mask = partition & (feature_values > threshold)
+                # Row totals are the parent; parent - left = RIGHT child
+                g_parent = g_left[:, -1:]
+                h_parent = h_left[:, -1:]
+                c_parent = c_left[:, -1:]
+                g_right = g_parent - g_left
+                h_right = h_parent - h_left
+                c_right = c_parent - c_left
                         
-                        if np.sum(left_mask) < self.min_data_in_leaf or \
-                           np.sum(right_mask) < self.min_data_in_leaf:
-                            continue
+                # Similarity score G^2 / (H + lambda): higher is better, so a
+                # positive gain means the split improves the objective.
+                # With l2_leaf_reg=0 an empty partition gives 0/0 = nan here;
+                # the `valid` mask below discards those cells, so we only need
+                # to keep numpy from printing a warning about them.
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    score_parent = (g_parent ** 2) / (h_parent + lam)
+                    score_children = ((g_left ** 2) / (h_left + lam) +
+                                      (g_right ** 2) / (h_right + lam))
+                    gains = score_children - score_parent
                         
-                        # Calculate gain (reduction in loss)
-                        left_grad_sum = np.sum(gradients[left_mask])
-                        right_grad_sum = np.sum(gradients[right_mask])
-                        parent_grad_sum = np.sum(gradients[partition])
+                # A partition contributes only when the split is legal there:
+                # parent big enough AND both children big enough. Illegal or
+                # empty partitions contribute 0, as in the original mask loop.
+                valid = ((c_parent >= self.min_data_in_leaf) &
+                         (c_left >= self.min_data_in_leaf) &
+                         (c_right >= self.min_data_in_leaf))
+                gains = np.where(valid, gains, 0.0)
                         
-                        left_count = np.sum(left_mask)
-                        right_count = np.sum(right_mask)
-                        parent_count = np.sum(partition)
+                total_gain = gains.sum(axis=0)      # summed over all partitions
+                any_valid = valid.any(axis=0)       # was it legal anywhere?
                         
-                        # Gain = loss_before - loss_after (with L2 regularization)
-                        loss_before = (parent_grad_sum ** 2) / (parent_count + self.l2_leaf_reg)
-                        loss_after = ((left_grad_sum ** 2) / (left_count + self.l2_leaf_reg) +
-                                     (right_grad_sum ** 2) / (right_count + self.l2_leaf_reg))
-                        
-                        gain = loss_after - loss_before
-                        total_gain += gain
-                    
-                    # Add randomness for split selection (random_strength)
-                    if self.random_strength > 0:
-                        total_gain += np.random.randn() * self.random_strength
-                    
-                    if total_gain > best_gain:
-                        best_gain = total_gain
-                        best_feature = feature_idx
-                        best_threshold = threshold
+                for threshold in feature_thresholds[feature_idx]:
+                    # Keep only candidates that actually split something. Without
+                    # this test a meaningless "everything goes left" split would
+                    # win whenever every partition was skipped.
+                    if any_valid[threshold]:
+                        cand_features.append(feature_idx)
+                        cand_thresholds.append(int(threshold))
+                        cand_gains.append(float(total_gain[threshold]))
             
             # If no valid split found, stop growing
-            if best_feature is None:
+            if not cand_gains:
                 break
             
-            # Record this level's split
+            raw_gains = np.array(cand_gains)
+
+            # random_strength: jitter the scores so that near-ties are broken
+            # randomly instead of always favouring the first feature. The noise
+            # is scaled by the spread of THIS level's gains, because a raw gain
+            # is measured in (target units)^2 -- an absolute perturbation would
+            # mean something different for prices in dollars and in thousands.
+            scored_gains = raw_gains
+            if self.random_strength > 0:
+                scale = np.std(raw_gains)
+                if scale == 0.0:
+                    scale = np.mean(np.abs(raw_gains))
+                noise = rng.normal(size=raw_gains.shape)
+                scored_gains = raw_gains + noise * self.random_strength * scale
+
+            best = int(np.argmax(scored_gains))
+
+            # Record this level's split (gain is the un-jittered value, so that
+            # get_feature_importance('gain') reports real improvements)
             splits.append({
-                'feature': best_feature,
-                'threshold': best_threshold
+                'feature': cand_features[best],
+                'threshold': cand_thresholds[best],
+                'gain': float(raw_gains[best])
             })
             
-            # Update partitions: split each partition using this split
-            new_partitions = []
-            for partition in current_partitions:
-                feature_values = X_quantized[:, best_feature]
-                left_mask = partition & (feature_values <= best_threshold)
-                right_mask = partition & (feature_values > best_threshold)
-                new_partitions.append(left_mask)
-                new_partitions.append(right_mask)
-            
-            current_partitions = new_partitions
+            # Apply the split to EVERY partition at once: left child keeps the
+            # parent's number doubled, right child adds one
+            goes_right = (X_quantized[:, cand_features[best]] >
+                          cand_thresholds[best]).astype(int)
+            partition_id = partition_id * 2 + goes_right
+            n_partitions *= 2
         
         # Calculate leaf values for final partitions
         leaf_values = []
-        for partition in current_partitions:
-            value = self._calculate_leaf_value(gradients, partition)
+        for p in range(n_partitions):
+            value = self._calculate_leaf_value(gradients, partition_id == p, hessians)
             leaf_values.append(value)
         
         return {
@@ -391,28 +597,213 @@ class CatBoost:
         
         return predictions
     
+    def _leaf_indices(self, tree, X_quantized):
+        """
+        Leaf index of every sample in one symmetric tree
+
+        Same bit arithmetic as `_predict_tree`, exposed separately because
+        ordered boosting needs the indices without the leaf values (it computes
+        a DIFFERENT set of leaf values per supporting model on the same tree
+        structure). Note there is no per-sample branching or pointer chasing:
+        one vectorised comparison per level for the whole batch.
+        """
+        leaf_indices = np.zeros(X_quantized.shape[0], dtype=int)
+        for level, split in enumerate(tree['splits']):
+            goes_right = X_quantized[:, split['feature']] > split['threshold']
+            remaining_depth = tree['depth'] - level - 1
+            leaf_indices += goes_right * (2 ** remaining_depth)
+        return leaf_indices
+
+    def _as_2d(self, X, allow_object=False):
+        """
+        Coerce X to a 2-D array, accepting plain Python lists
+
+        A 1-D input is read as n_samples rows of ONE feature, matching the
+        common `X = np.array([1, 2, 3])` case. `allow_object` keeps string
+        columns intact for categorical handling.
+        """
+        X = np.asarray(X, dtype=object) if allow_object else np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        if X.ndim != 2:
+            raise ValueError(f"X must be 1-D or 2-D, got {X.ndim} dimensions")
+        return X
+
+    def _cat_key(self, value):
+        """
+        Canonical dictionary key for one categorical value
+
+        Categories are looked up by string, so the SAME level must produce the
+        same string whether it arrives as a float, an int, or text. Numpy turns
+        an int column into floats during fitting, so a category written 0 would
+        be stored as '0.0' and then missed at predict time when a plain Python
+        list supplies '0' -- silently falling back to the prior. Collapsing
+        whole-number values to their integer form removes that trap.
+        """
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        if np.isfinite(number) and number == int(number):
+            return str(int(number))
+        return str(number)
+
+    def _ordered_target_statistics(self, keys, y, permutation, prior, prior_count):
+        """
+        Ordered target statistics for one categorical column (the paper's TS)
+
+        This is CatBoost's answer to target encoding. Plain target encoding
+        replaces a category with the mean target of every row in that category
+        -- including the row being encoded, which leaks the answer. CatBoost
+        instead fixes a random order and lets each row see only the rows BEFORE
+        it, exactly the way the .md's "Red at positions 3, 7, 12, 18" example
+        walks through it:
+
+            TS_i = (sum of y_j over j before i in sigma with x_j == x_i
+                    + prior_count * prior)
+                   / (count of those j + prior_count)
+
+        The first occurrence of a category therefore gets the prior alone --
+        no leakage is possible, because y_i never enters TS_i.
+
+        Parameters:
+        -----------
+        keys : np.ndarray of str, shape (n_samples,)
+            The raw category labels of this column
+        y : np.ndarray
+            Target values
+        permutation : np.ndarray
+            The random order sigma (sigma[k] = index of the k-th row)
+        prior : float
+            Global target mean, used to smooth rare categories
+        prior_count : float
+            Smoothing weight `a` (how many "virtual prior rows" each category
+            starts with)
+
+        Returns:
+        --------
+        ts : np.ndarray, shape (n_samples,)
+            Encoded values, aligned with the ORIGINAL row order
+        """
+        ts = np.zeros(len(keys))
+        running_sum = {}
+        running_count = {}
+
+        for i in permutation:
+            key = keys[i]
+            s = running_sum.get(key, 0.0)
+            c = running_count.get(key, 0)
+            ts[i] = (s + prior_count * prior) / (c + prior_count)
+            # Only now does row i's own target join the running totals, so it
+            # can influence later rows but never itself
+            running_sum[key] = s + y[i]
+            running_count[key] = c + 1
+
+        return ts
+
+    def _encode_categoricals(self, X, y=None):
+        """
+        Replace categorical columns by numbers, leaving numeric columns alone
+
+        During fit (y given) each categorical column becomes its ordered target
+        statistic, and the FULL-data statistic per category is stored for later.
+        At predict time (y is None) the stored statistic is used, because there
+        is no ordering to respect once training is over; unseen categories fall
+        back to the prior (the training target mean).
+
+        Returns:
+        --------
+        X_numeric : np.ndarray of float, shape like X
+        """
+        cat_idx = set(self.cat_features) if self.cat_features else set()
+        X_numeric = np.empty(X.shape, dtype=float)
+
+        for j in range(X.shape[1]):
+            column = X[:, j]
+            if j not in cat_idx:
+                X_numeric[:, j] = column.astype(float)
+                continue
+
+            keys = np.array([self._cat_key(v) for v in column])
+
+            if y is not None:
+                prior = float(np.mean(y))
+                prior_count = 1.0
+                # Average over several permutations, as the paper prescribes.
+                # One permutation alone is very noisy: a row that happens to
+                # land early sees almost no history and gets the prior, so the
+                # same category can land in wildly different bins. Averaging
+                # keeps the no-leakage property (no permutation ever lets a row
+                # see its own target) while tightening the encoding. Measured
+                # on Demo 3's generator below (4 plan strings + one numeric
+                # column) shrunk to 90 train / 30 test rows, over seeds 0-199
+                # with each seed used both for the data and as the model's
+                # random_seed, and random_strength=0: mean test RMSE 8.67 with
+                # one permutation vs 7.81 with four, four winning on 115 of
+                # the 200 seeds, against 7.86 for one-hot encoding. At the
+                # demo's own 300 training rows one and four permutations are
+                # within noise of each other (6.18 vs 6.09) while one-hot
+                # leads at 5.64 -- averaging earns its keep when a category
+                # has few rows to average over.
+                ts_sum = np.zeros(len(keys))
+                for _ in range(self.ts_permutations):
+                    permutation = self._rng.permutation(len(keys))
+                    ts_sum += self._ordered_target_statistics(
+                        keys, y, permutation, prior, prior_count)
+                X_numeric[:, j] = ts_sum / self.ts_permutations
+
+                # Full-data statistic per category, for predict time
+                mapping = {}
+                for key in np.unique(keys):
+                    in_cat = (keys == key)
+                    mapping[key] = ((np.sum(y[in_cat]) + prior_count * prior) /
+                                    (np.sum(in_cat) + prior_count))
+                self._cat_encodings[j] = {'mapping': mapping, 'prior': prior}
+            else:
+                stored = self._cat_encodings[j]
+                X_numeric[:, j] = [stored['mapping'].get(k, stored['prior'])
+                                   for k in keys]
+
+        return X_numeric
+
+    def _transform(self, X):
+        """Encode categoricals (predict-time statistics) then quantize."""
+        X = self._as_2d(X, allow_object=bool(self.cat_features))
+        if self.cat_features:
+            X = self._encode_categoricals(X, y=None)
+        return self._apply_quantization(X)
+
     def fit(self, X, y, eval_set=None, early_stopping_rounds=None, verbose=False):
         """
         Train the CatBoost model
         
         Algorithm:
-        1. Quantize features into discrete bins
-        2. Initialize predictions with base score
-        3. For each boosting iteration:
-           a. Calculate gradients
+        1. Encode categorical columns with ordered target statistics
+        2. Quantize features into discrete bins
+        3. Initialize predictions with base score
+        4. For each boosting iteration:
+           a. Calculate gradients (and Hessians)
            b. Build symmetric tree to minimize loss
-           c. Update predictions with tree × learning_rate
-        4. Optional: Early stopping on validation set
+           c. Update predictions with tree * learning_rate
+        5. Optional: Early stopping on validation set
         
-        CatBoost uses ORDERED BOOSTING (simplified in this implementation):
-        - Prevents prediction shift and target leakage
-        - Each sample's gradient uses predictions from trees trained on other samples
-        - Makes the model more robust to overfitting
+        ORDERED BOOSTING (boosting_type='Ordered', off by default):
+        Plain boosting scores every sample with a model that has already fitted
+        that same sample, which biases the gradients (prediction shift). In
+        Ordered mode this implementation fixes one random permutation sigma and
+        keeps log2(n) supporting models M_j, where M_j has only ever been
+        updated using the first 2^(j-1) rows of sigma. The row at position p in
+        sigma takes its gradient from the largest such model whose prefix ends
+        at or before p, so no row is ever scored by a model that saw it.
+        See the .md section "Simplification vs. canonical CatBoost" for what
+        the real library does on top of this (several permutations, and its own
+        criterion for choosing the tree structure).
         
         Parameters:
         -----------
         X : np.ndarray or list, shape (n_samples, n_features)
-            Training data
+            Training data. A 1-D input is read as one feature column. Columns
+            listed in `cat_features` may hold strings.
         y : np.ndarray or list, shape (n_samples,)
             Target values
         eval_set : list of tuples, optional
@@ -427,12 +818,32 @@ class CatBoost:
         self : CatBoost
             Fitted model
         """
-        # Convert to numpy arrays
-        X = np.array(X, dtype=float)
-        y = np.array(y, dtype=float)
+        # Private RNG. When no random_seed is given we draw the seed from the
+        # global numpy RNG, so np.random.seed(42) before fit() still makes the
+        # run reproducible without the class touching global state itself.
+        seed = self.random_seed
+        if seed is None:
+            seed = np.random.randint(0, 2 ** 31 - 1)
+        self._rng = np.random.default_rng(seed)
+
+        # Convert to numpy arrays (object dtype keeps string categories intact)
+        X = self._as_2d(X, allow_object=bool(self.cat_features))
+        y = np.asarray(y, dtype=float).ravel()
         
         n_samples, n_features = X.shape
+        if len(y) != n_samples:
+            raise ValueError(f"X has {n_samples} rows but y has {len(y)}")
         self.n_features = n_features
+
+        # Encode categorical columns with ordered target statistics
+        self._cat_encodings = {}
+        if self.cat_features:
+            bad = [j for j in self.cat_features if not 0 <= j < n_features]
+            if bad:
+                raise ValueError(f"cat_features indices out of range: {bad}")
+            X = self._encode_categoricals(X, y)
+        else:
+            X = X.astype(float)
         
         # Quantize features (border selection)
         X_quantized = self._quantize_features(X)
@@ -452,17 +863,84 @@ class CatBoost:
         self.train_scores = []
         self.val_scores = []
         
+        # ---- Ordered boosting bookkeeping ----------------------------------
+        ordered = (self.boosting_type == 'Ordered')
+        if ordered:
+            sigma = self._rng.permutation(n_samples)
+            position = np.empty(n_samples, dtype=int)
+            position[sigma] = np.arange(n_samples)   # rank of each row in sigma
+
+            # Supporting model j is fitted on prefix_lengths[j] rows of sigma:
+            # model 0 sees nothing (stays at base_score), model j>=1 sees the
+            # first 2^(j-1) rows. Row at position p uses the largest model whose
+            # prefix stops at or before p, i.e. j = floor(log2(p)) + 1.
+            model_of = np.zeros(n_samples, dtype=int)
+            nonzero = position >= 1
+            model_of[nonzero] = np.floor(np.log2(position[nonzero])).astype(int) + 1
+            n_models = int(model_of.max()) + 1
+            prefix_masks = [np.zeros(n_samples, dtype=bool)]
+            for j in range(1, n_models):
+                prefix_masks.append(position < 2 ** (j - 1))
+
+            # M_j's raw prediction for EVERY row (a model must be able to score
+            # rows it was not fitted on -- that is the whole point)
+            ordered_preds = np.full((n_models, n_samples), float(self.base_score))
+            row_index = np.arange(n_samples)
+
+        # ---- Validation bookkeeping ----------------------------------------
+        # Quantize the validation set ONCE and keep a running prediction vector,
+        # instead of replaying every tree from scratch on every iteration.
+        if eval_set is not None:
+            X_val, y_val = eval_set[0]
+            y_val = np.asarray(y_val, dtype=float).ravel()
+            X_val_quantized = self._transform(X_val)
+            val_raw = np.full(X_val_quantized.shape[0], float(self.base_score))
+
         # Early stopping variables
         best_score = float('inf')
         best_iteration = 0
         
         # Train trees
         for iteration in range(self.n_estimators):
-            # Calculate gradients
+            # Calculate gradients (and Hessians) of the model being returned
             gradients = self._compute_gradients(y, predictions)
+            hessians = self._compute_hessians(y, predictions)
+
+            if ordered:
+                # Unbiased gradients: each row is scored by a supporting model
+                # that never saw it. These choose the tree STRUCTURE, which is
+                # where prediction shift does its damage.
+                unbiased_raw = ordered_preds[model_of, row_index]
+                struct_gradients = self._compute_gradients(y, unbiased_raw)
+                struct_hessians = self._compute_hessians(y, unbiased_raw)
+            else:
+                struct_gradients, struct_hessians = gradients, hessians
             
             # Build symmetric tree
-            tree = self._build_symmetric_tree(X_quantized, gradients)
+            tree = self._build_symmetric_tree(X_quantized, struct_gradients,
+                                              struct_hessians)
+
+            if ordered:
+                # Reuse the tree STRUCTURE for every supporting model, but give
+                # each one leaf values computed from its own prefix only
+                leaf_idx = self._leaf_indices(tree, X_quantized)
+                n_leaves = len(tree['leaf_values'])
+                for j in range(1, n_models):
+                    rows = prefix_masks[j]
+                    g_sum = np.bincount(leaf_idx[rows], weights=struct_gradients[rows],
+                                        minlength=n_leaves)
+                    h_sum = np.bincount(leaf_idx[rows], weights=struct_hessians[rows],
+                                        minlength=n_leaves)
+                    values_j = -g_sum / (h_sum + self.l2_leaf_reg)
+                    ordered_preds[j] += self.learning_rate * values_j[leaf_idx]
+
+                # The returned model keeps that structure but re-fits its leaf
+                # values on its OWN gradients, so `predictions` stays a proper
+                # descent sequence (its training loss decreases monotonically).
+                g_sum = np.bincount(leaf_idx, weights=gradients, minlength=n_leaves)
+                h_sum = np.bincount(leaf_idx, weights=hessians, minlength=n_leaves)
+                tree['leaf_values'] = -g_sum / (h_sum + self.l2_leaf_reg)
+
             self.trees.append(tree)
             
             # Update predictions
@@ -481,11 +959,12 @@ class CatBoost:
             
             # Evaluate on validation set
             if eval_set is not None:
-                X_val, y_val = eval_set[0]
-                val_preds = self.predict(X_val, num_iteration=iteration+1)
+                # Running update, mirroring the training-side update above
+                val_raw += self.learning_rate * self._predict_tree(tree, X_val_quantized)
+                val_preds = self._sigmoid(val_raw) if self.objective == 'binary' else val_raw
                 
                 if self.objective == 'binary':
-                    val_score = -np.mean(y_val * np.log(val_preds + 1e-10) + 
+                    val_score = -np.mean(y_val * np.log(val_preds + 1e-10) +
                                         (1 - y_val) * np.log(1 - val_preds + 1e-10))
                 else:
                     val_score = np.sqrt(np.mean((y_val - val_preds) ** 2))
@@ -501,7 +980,11 @@ class CatBoost:
                         if verbose:
                             print(f"Early stopping at iteration {iteration}")
                             print(f"Best iteration: {best_iteration}, Best score: {best_score:.6f}")
+                        # Trim the model AND the learning curves together, so
+                        # train_scores/val_scores describe the trees we kept
                         self.trees = self.trees[:best_iteration + 1]
+                        self.train_scores = self.train_scores[:best_iteration + 1]
+                        self.val_scores = self.val_scores[:best_iteration + 1]
                         break
                 
                 # Verbose output
@@ -527,20 +1010,25 @@ class CatBoost:
         Parameters:
         -----------
         X : np.ndarray or list, shape (n_samples, n_features)
-            Data to predict
+            Data to predict. A 1-D input is read as one feature column.
         num_iteration : int, optional
             Number of trees to use (None means all)
             
         Returns:
         --------
         predictions : np.ndarray
-            Predicted values
+            Predicted values (probabilities when objective='binary')
         """
-        X = np.array(X, dtype=float)
-        n_samples = X.shape[0]
+        if self.base_score is None:
+            raise ValueError("This CatBoost model is not fitted yet. "
+                             "Call fit(X, y) before predict().")
         
-        # Apply quantization
-        X_quantized = self._apply_quantization(X)
+        # Encode categoricals with the stored statistics, then quantize
+        X_quantized = self._transform(X)
+        n_samples = X_quantized.shape[0]
+        if X_quantized.shape[1] != self.n_features:
+            raise ValueError(f"X has {X_quantized.shape[1]} features, "
+                             f"but this model was fitted on {self.n_features}")
         
         # Start with base score
         predictions = np.full(n_samples, self.base_score)
@@ -597,9 +1085,11 @@ class CatBoost:
         Returns:
         --------
         score : float
-            RMSE for regression, accuracy for classification
+            NEGATIVE RMSE for regression (always <= 0, higher is better, so
+            write `rmse = -model.score(X, y)` to read it as an error), or
+            accuracy in [0, 1] for classification.
         """
-        y = np.array(y)
+        y = np.asarray(y, dtype=float).ravel()
         predictions = self.predict(X)
         
         if self.objective == 'binary':
@@ -624,17 +1114,31 @@ class CatBoost:
         importance_type : str, default='split'
             Type of importance:
             - 'split': Number of times feature is used for splitting
+            - 'gain' : Total gain (sum of the split scores recorded when the
+                       level was chosen) contributed by that feature
             
         Returns:
         --------
         importance : np.ndarray, shape (n_features,)
-            Feature importance scores (normalized)
+            Feature importance scores (normalized to sum to 1)
         """
+        if self.n_features is None:
+            raise ValueError("This CatBoost model is not fitted yet. "
+                             "Call fit(X, y) before get_feature_importance().")
+        if importance_type not in ('split', 'gain'):
+            raise ValueError(f"Unknown importance_type: {importance_type!r} "
+                             "(expected 'split' or 'gain')")
+
         importance = np.zeros(self.n_features)
         
         for tree in self.trees:
             for split in tree['splits']:
-                importance[split['feature']] += 1
+                if importance_type == 'split':
+                    importance[split['feature']] += 1
+                else:
+                    # 'gain' stored by _build_symmetric_tree is the un-jittered
+                    # sum of score improvements this split bought
+                    importance[split['feature']] += max(split.get('gain', 0.0), 0.0)
         
         # Normalize
         if np.sum(importance) > 0:
@@ -652,6 +1156,12 @@ import numpy as np
 np.random.seed(42)
 X = np.linspace(-3, 3, 200).reshape(-1, 1)
 y = X.ravel() ** 2 + np.random.randn(200) * 0.5
+
+# Shuffle so train and test cover the same x range.
+# linspace produces SORTED x, so slicing straight away would put every test
+# point beyond the training maximum - and a tree cannot extrapolate.
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
 
 # Split train/test
 X_train, X_test = X[:150], X[150:]
@@ -700,8 +1210,8 @@ X = X[indices]
 y = y[indices]
 
 # Split
-X_train, X_test = X[:150], X[50:]
-y_train, y_test = y[:150], y[50:]
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
 
 # Train CatBoost classifier
 model = CatBoost(
@@ -801,7 +1311,7 @@ importance = model.get_feature_importance('split')
 print("\nFeature Importance (by split count):")
 print("="*50)
 for i, imp in enumerate(importance):
-    bar = '█' * int(imp * 50)
+    bar = '#' * int(imp * 50)
     print(f"Feature {i:2d}: {imp:.4f} {bar}")
 """
 
@@ -815,11 +1325,11 @@ np.random.seed(42)
 X = np.random.randn(200, 5)
 y = 2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] + np.random.randn(200) * 0.5
 
-X_train, X_test = X[:150], X[50:]
-y_train, y_test = y[:150], y[50:]
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
 
 # Test different depths
-depths = [3, 4, 6, 8, 10]
+depths = [3, 4, 5, 6, 8]
 
 print("Effect of Tree Depth (Complexity):")
 print("="*80)
@@ -855,8 +1365,8 @@ X = np.random.randn(300, 8)
 y = (X[:, 0] ** 2 + X[:, 1] ** 2 + np.sin(X[:, 2]) * X[:, 3] + 
      np.random.randn(300) * 0.5)
 
-X_train, X_test = X[:200], X[100:]
-y_train, y_test = y[:200], y[100:]
+X_train, X_test = X[:200], X[200:]
+y_train, y_test = y[:200], y[200:]
 
 # Try different learning rates
 learning_rates = [0.01, 0.03, 0.05, 0.1, 0.3]
@@ -892,8 +1402,8 @@ np.random.seed(42)
 X = np.random.randn(150, 15)  # Many features, few samples
 y = 2 * X[:, 0] - X[:, 1] + np.random.randn(150) * 0.5
 
-X_train, X_test = X[:100], X[50:]
-y_train, y_test = y[:100], y[50:]
+X_train, X_test = X[:100], X[100:]
+y_train, y_test = y[:100], y[100:]
 
 # Test different l2_leaf_reg values
 l2_values = [0.1, 1.0, 3.0, 10.0, 30.0]
@@ -1040,8 +1550,8 @@ X = np.random.randn(300, 10)
 y = (2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] ** 2 - 
      np.sin(X[:, 3]) * X[:, 4] + np.random.randn(300) * 0.5)
 
-X_train, X_test = X[:200], X[100:]
-y_train, y_test = y[:200], y[100:]
+X_train, X_test = X[:200], X[200:]
+y_train, y_test = y[:200], y[200:]
 
 # Test different configurations
 configs = [
@@ -1073,3 +1583,141 @@ print("- Balanced: Good default for most cases")
 print("- Accurate: Maximum accuracy when training time is not an issue")
 print("- Regularized: When overfitting is a concern")
 """
+
+
+if __name__ == "__main__":
+    # ----------------------------------------------------------------
+    # Plug-and-Play Demo: run this file directly with
+    #   python _19_catboost.py
+    # Requires numpy only. Everything below is seeded and reproducible.
+    # ----------------------------------------------------------------
+    np.random.seed(42)
+
+    # --- Regression demo: predict y = x^2 + noise ---
+    print("=" * 60)
+    print("DEMO 1 - Regression: y = x^2 + noise")
+    print("=" * 60)
+
+    X_reg = np.linspace(-3, 3, 200).reshape(-1, 1)
+    y_reg = X_reg.ravel() ** 2 + np.random.randn(200) * 0.5
+    # Shuffle so train and test cover the same x range: linspace is sorted,
+    # and a tree can never extrapolate past the range it was trained on.
+    idx_reg = np.random.permutation(200)
+    X_reg, y_reg = X_reg[idx_reg], y_reg[idx_reg]
+    X_tr, X_te = X_reg[:150], X_reg[150:]
+    y_tr, y_te = y_reg[:150], y_reg[150:]
+
+    reg_model = CatBoost(
+        n_estimators=100,
+        learning_rate=0.1,
+        depth=4,
+        l2_leaf_reg=3.0,
+        random_seed=42
+    )
+    reg_model.fit(X_tr, y_tr)
+
+    def r2(model, X, y):
+        """R^2 = 1 - SS_res / SS_tot (score() returns negative RMSE instead)"""
+        residual = np.sum((y - model.predict(X)) ** 2)
+        total = np.sum((y - np.mean(y)) ** 2)
+        return 1 - residual / total
+
+    # score() returns NEGATIVE RMSE for regression, so negate it to read an error
+    print(f"Train RMSE : {-reg_model.score(X_tr, y_tr):.4f}")
+    print(f"Test  RMSE : {-reg_model.score(X_te, y_te):.4f}")
+    print(f"Train R2   : {r2(reg_model, X_tr, y_tr):.4f}")
+    print(f"Test  R2   : {r2(reg_model, X_te, y_te):.4f}")
+
+    preds = reg_model.predict(X_te)
+    print("\nSample predictions (x, true, predicted):")
+    for i in range(5):
+        print(f"  x={X_te[i, 0]:5.2f}  true={y_te[i]:5.2f}  pred={preds[i]:5.2f}")
+
+    # --- Classification demo: two Gaussian blobs ---
+    print("\n" + "=" * 60)
+    print("DEMO 2 - Binary Classification: two Gaussian blobs")
+    print("=" * 60)
+
+    X0 = np.random.randn(100, 2) + np.array([-2, -2])
+    X1 = np.random.randn(100, 2) + np.array([2, 2])
+    X_cls = np.vstack([X0, X1])
+    y_cls = np.array([0] * 100 + [1] * 100)
+    idx_cls = np.random.permutation(200)
+    X_cls, y_cls = X_cls[idx_cls], y_cls[idx_cls]
+    X_tr2, X_te2 = X_cls[:150], X_cls[150:]
+    y_tr2, y_te2 = y_cls[:150], y_cls[150:]
+
+    cls_model = CatBoost(
+        n_estimators=50,
+        learning_rate=0.3,
+        depth=3,
+        objective='binary',
+        random_seed=42
+    )
+    cls_model.fit(X_tr2, y_tr2)
+
+    print(f"Train Accuracy : {cls_model.score(X_tr2, y_tr2):.2%}")
+    print(f"Test  Accuracy : {cls_model.score(X_te2, y_te2):.2%}")
+    probas = cls_model.predict_proba(X_te2)
+    print("\nSample predictions (true, P(0), P(1)):")
+    for i in range(5):
+        print(f"  true={int(y_te2[i])}  "
+              f"P(class=0)={probas[i, 0]:.3f}  "
+              f"P(class=1)={probas[i, 1]:.3f}")
+
+    # --- Categorical demo: the feature CatBoost is named after ---
+    print("\n" + "=" * 60)
+    print("DEMO 3 - Categorical Features: string column, no one-hot")
+    print("=" * 60)
+
+    plans = np.array(['basic', 'plus', 'pro', 'enterprise'])
+    monthly_value = {'basic': 10.0, 'plus': 25.0, 'pro': 60.0, 'enterprise': 150.0}
+
+    n_cat = 400
+    plan_col = np.random.choice(plans, n_cat)
+    usage_col = np.random.uniform(0, 10, n_cat)
+    # Revenue depends on the PLAN (a string!) plus usage, plus noise
+    revenue = (np.array([monthly_value[p] for p in plan_col])
+               + 3.0 * usage_col
+               + np.random.randn(n_cat) * 5.0)
+
+    X_cat = np.empty((n_cat, 2), dtype=object)
+    X_cat[:, 0] = plan_col          # categorical: raw strings
+    X_cat[:, 1] = usage_col         # numeric
+    idx_cat = np.random.permutation(n_cat)
+    X_cat, revenue = X_cat[idx_cat], revenue[idx_cat]
+    X_tr3, X_te3 = X_cat[:300], X_cat[300:]
+    y_tr3, y_te3 = revenue[:300], revenue[300:]
+
+    cat_model = CatBoost(
+        n_estimators=120,
+        learning_rate=0.1,
+        depth=4,
+        cat_features=[0],           # column 0 holds strings
+        random_seed=42
+    )
+    cat_model.fit(X_tr3, y_tr3)
+
+    print("Column 0 is raw text: " + ", ".join(str(v) for v in X_tr3[:4, 0]))
+    print(f"Train RMSE : {-cat_model.score(X_tr3, y_tr3):.4f}")
+    print(f"Test  RMSE : {-cat_model.score(X_te3, y_te3):.4f}")
+    print(f"(std of test target = {np.std(y_te3):.4f}, so lower is better)")
+
+    print("\nLearned target statistic per category (predict-time value):")
+    mapping = cat_model._cat_encodings[0]['mapping']
+    for plan in plans:
+        print(f"  {plan:11s} -> {mapping[plan]:7.2f}   "
+              f"(true plan value {monthly_value[plan]:6.2f} + avg usage effect)")
+
+    preds3 = cat_model.predict(X_te3)
+    print("\nSample predictions (plan, usage, true, predicted):")
+    for i in range(5):
+        print(f"  {str(X_te3[i, 0]):11s} usage={float(X_te3[i, 1]):5.2f}  "
+              f"true={y_te3[i]:7.2f}  pred={preds3[i]:7.2f}")
+
+    print("\n" + "=" * 60)
+    print("Feature importance (Demo 3, normalized split counts):")
+    for name, imp in zip(['plan (categorical)', 'usage (numeric)'],
+                         cat_model.get_feature_importance('split')):
+        print(f"  {name:20s}: {imp:.4f} {'#' * int(imp * 40)}")
+    print("=" * 60)

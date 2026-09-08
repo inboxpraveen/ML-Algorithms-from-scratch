@@ -21,6 +21,47 @@ class TSNE:
         Perplexity: Balances local vs global aspects (typical: 5-50)
         KL Divergence: Measures difference between high-D and low-D similarities
         Student t-distribution: Used in low-D to spread out points (avoid crowding)
+
+    The Three Formulas This Class Embeds:
+
+        1. Perplexity / bandwidth search (per point i)
+               p(j|i) = exp(-beta_i * ||x_i - x_j||^2) / sum_{k != i} exp(-beta_i * ||x_i - x_k||^2)
+               H(P_i) = -sum_j p(j|i) * log2(p(j|i))        <- entropy in BITS
+               Perplexity(P_i) = 2^H(P_i)
+           Therefore the binary search targets  H_target = log2(perplexity).
+           The base MUST be 2 on both sides. Using ln on one side and log2 on the
+           other silently solves for 2^ln(perplexity) instead (perplexity 30 -> 10.56).
+           Here beta_i = 1 / (2 * sigma_i^2), so a larger beta means a narrower Gaussian.
+           The joint matrix is then symmetrized:  P_ij = (p(j|i) + p(i|j)) / (2n).
+
+        2. Low-dimensional affinities (Student t with 1 degree of freedom)
+               q_ij = (1 + ||y_i - y_j||^2)^-1 / sum_{k != l} (1 + ||y_k - y_l||^2)^-1
+           The heavy tail is what fixes the "crowding problem".
+
+        3. Gradient of the cost C = KL(P||Q)
+               dC/dy_i = 4 * sum_j (p_ij - q_ij) * (y_i - y_j) * (1 + ||y_i - y_j||^2)^-1
+           The factor 4 comes from the chain rule (2 from d/dy of the squared
+           distance, 2 more because each pair (i, j) appears twice in the
+           symmetric double sum).
+
+    Simplifications vs. canonical t-SNE (see "Simplifications vs. Canonical
+    t-SNE" in _14_tsne.md for the full discussion and the measurements):
+        - Plain momentum instead of the reference implementation's adaptive
+          per-parameter "gains" with min_gain=0.01. Measured cost on planted
+          blobs: none. On sklearn's make_blobs(n_samples=200, centers=4,
+          n_features=10, cluster_std=1.0, random_state=42), perplexity 30,
+          1000 iterations, this code reaches KL 0.2309 and sklearn's exact
+          gains-based solver 0.2363 - a gap smaller than the spread either
+          solver shows across three seeds.
+        - Exact O(n^2) forces, no Barnes-Hut quadtree. This is the real
+          limitation: complete runs, timed end to end, take 9.6 s for 400
+          points x 1000 iterations and 190 s (3.2 min) for all 1797 digits.
+          Use sklearn beyond a few thousand.
+        - Random initialization only, no PCA init (sklearn's current default),
+          so the arrangement of clusters relative to each other varies with
+          random_state.
+        - No transform() for new points - and sklearn.manifold.TSNE has none
+          either. t-SNE optimizes positions, not a reusable mapping.
     """
     
     def __init__(self, n_components=2, perplexity=30.0, learning_rate=200.0, 
@@ -42,7 +83,14 @@ class TSNE:
             - Small perplexity: Focuses on very local structure
             - Large perplexity: Considers more global structure
             - Rule of thumb: perplexity < n_samples / 3
-            
+            - Hard limit: perplexity < n_samples (fit_transform raises otherwise,
+              because the largest entropy reachable with n-1 neighbours is log2(n-1))
+            - Do not go near perplexity 1: the target entropy is then ~0 bits,
+              which no point with two near-equidistant neighbours can reach, so
+              the search drives beta up until exp(-d^2 * beta) underflows and
+              those rows of P collapse to zero (measured: sum(P) = 0.88 instead
+              of 1.0 at perplexity=1 on the demo blobs). Nothing warns you.
+
         learning_rate : float, default=200.0
             Learning rate for gradient descent
             - Typical range: 10-1000
@@ -57,8 +105,11 @@ class TSNE:
             - More iterations: Better convergence, slower computation
             
         random_state : int or None, default=None
-            Random seed for reproducibility
-            
+            Seed for the random initialization of the embedding
+            - Uses a private np.random.RandomState, so it never disturbs the
+              caller's global numpy random stream
+            - None: a fresh, non-reproducible initialization each run
+
         early_exaggeration : float, default=12.0
             Factor to multiply P values by in early learning
             - Helps create tight clusters that can separate later
@@ -66,15 +117,23 @@ class TSNE:
             
         early_exaggeration_iter : int, default=250
             Number of iterations for early exaggeration phase
-            
+            - The momentum schedule switches at the same iteration (0.5 -> 0.8).
+              Tying the two phases to one constant is sklearn's design
+              (_EXPLORATION_MAX_ITER = 250 ends both at once). Van der Maaten's
+              reference tsne.py keeps them apart - momentum flips at iteration
+              20, exaggeration stops at 100 - and the 2008 paper flips momentum
+              at 250 while exaggerating only the first 50 iterations.
+
         min_grad_norm : float, default=1e-7
             Convergence threshold - stops if gradient norm < this value
             
         verbose : int, default=0
             Verbosity level
             - 0: Silent
-            - 1: Show progress every 50 iterations
-            - 2: Show detailed information
+            - 1: Phase banners, KL divergence every 50 iterations, final KL
+            - 2: Everything in level 1, plus the achieved perplexity and the
+              mean sigma found by the per-point bandwidth search (a direct
+              check that Perplexity = 2^H(P_i) really was solved)
         """
         self.n_components = n_components
         self.perplexity = perplexity
@@ -105,7 +164,7 @@ class TSNE:
         distances : numpy array of shape (n_samples, n_samples)
             Squared Euclidean distances between all pairs
         """
-        # Efficient computation: ||x - y||^2 = ||x||^2 + ||y||^2 - 2*x·y
+        # Efficient computation: ||x - y||^2 = ||x||^2 + ||y||^2 - 2*dot(x, y)
         sum_X = np.sum(np.square(X), axis=1)
         D = sum_X[:, np.newaxis] + sum_X[np.newaxis, :] - 2 * np.dot(X, X.T)
         
@@ -136,11 +195,18 @@ class TSNE:
         """
         n = distances.shape[0]
         P = np.zeros((n, n))
-        
-        # Target entropy based on perplexity
-        # Perplexity = 2^(entropy)
-        target_entropy = np.log(target_perplexity)
-        
+
+        # Target entropy based on perplexity.
+        # Perplexity = 2^(entropy), so entropy = log2(perplexity).
+        # The entropy below is measured in BITS (np.log2), so the target must be
+        # log2 as well. Using np.log here would silently solve for a perplexity of
+        # 2^ln(perplexity) instead (a request of 30 would become 10.56).
+        target_entropy = np.log2(target_perplexity)
+
+        # Diagnostics for verbose=2: the beta and entropy each point settled on
+        betas = np.ones(n)
+        entropies = np.zeros(n)
+
         # For each point, find the sigma that gives target perplexity
         for i in range(n):
             # Binary search for optimal sigma (variance)
@@ -164,9 +230,18 @@ class TSNE:
                 # Normalize to get conditional probabilities
                 P_i = P_i / sum_P_i
                 
-                # Compute entropy: H = -sum(p * log(p))
-                entropy = -np.sum(P_i * np.log2(P_i + 1e-8))
-                
+                # Compute Shannon entropy in bits: H = -sum(p * log2(p))
+                # Clip p instead of shifting it, so tiny probabilities contribute
+                # ~0 rather than biasing every term by log2(p + 1e-8).
+                entropy = -np.sum(P_i * np.log2(np.maximum(P_i, 1e-12)))
+
+                # Record what THIS beta achieved (verbose=2 diagnostics).
+                # Written here, not after the loop, because beta is advanced
+                # to its next candidate below before the loop can exit on
+                # exhaustion rather than on the break.
+                betas[i] = beta
+                entropies[i] = entropy
+
                 # Check if we've reached target entropy
                 entropy_diff = entropy - target_entropy
                 
@@ -191,55 +266,75 @@ class TSNE:
             
             # Store computed probabilities for this point
             P[i, np.concatenate([np.arange(0, i), np.arange(i + 1, n)])] = P_i
-        
+
+        if self.verbose > 1:
+            # Direct check of the invariant Perplexity = 2^H(P_i)
+            achieved = 2.0 ** entropies
+            sigmas = np.sqrt(1.0 / (2.0 * betas))
+            print(f"[t-SNE] Achieved perplexity: mean={achieved.mean():.3f}, "
+                  f"min={achieved.min():.3f}, max={achieved.max():.3f} "
+                  f"(requested {target_perplexity})")
+            print(f"[t-SNE] Mean sigma from bandwidth search: {sigmas.mean():.4f}")
+
         # Symmetrize: P_ij = (P_i|j + P_j|i) / (2n)
         P = (P + P.T) / (2 * n)
-        
+
         # Ensure minimum probability for numerical stability
         P = np.maximum(P, 1e-12)
-        
+
         return P
     
-    def _compute_low_dim_affinities(self, Y):
+    def _compute_low_dim_affinities(self, Y, return_num=False):
         """
         Compute affinities (similarities) in low-dimensional space using Student t-distribution
-        
+
         Uses Student t-distribution with 1 degree of freedom (Cauchy distribution)
         This helps prevent "crowding problem" where moderate distances in high-D
         get crowded in low-D space.
-        
+
         Parameters:
         -----------
         Y : numpy array of shape (n_samples, n_components)
             Low-dimensional embedding
-            
+        return_num : bool, default=False
+            If True, also return the un-normalized numerator
+            num_ij = (1 + ||y_i - y_j||^2)^-1 (zero on the diagonal).
+            The gradient needs exactly this matrix, so returning it lets
+            fit_transform avoid recomputing the pairwise distances a second
+            time in the same iteration. Default False keeps the original
+            single-value return for any existing caller.
+
         Returns:
         --------
         Q : numpy array of shape (n_samples, n_samples)
             Similarity matrix in low-dimensional space
+        num : numpy array of shape (n_samples, n_samples), only if return_num
+            The un-normalized Student-t numerator (1 + ||y_i - y_j||^2)^-1
         """
         # Compute squared Euclidean distances
         distances = self._compute_pairwise_distances(Y)
-        
+
         # Student t-distribution with 1 degree of freedom
         # Q_ij = (1 + ||y_i - y_j||^2)^(-1) / sum(1 + ||y_k - y_l||^2)^(-1)
-        Q = 1 / (1 + distances)
-        
+        num = 1 / (1 + distances)
+
         # Set diagonal to zero (point compared to itself)
-        np.fill_diagonal(Q, 0)
-        
+        np.fill_diagonal(num, 0)
+
         # Normalize to get probabilities
-        sum_Q = np.sum(Q)
+        sum_Q = np.sum(num)
         if sum_Q == 0:
             sum_Q = 1e-8
-        Q = Q / sum_Q
-        
+        Q = num / sum_Q
+
         # Ensure minimum probability for numerical stability
         Q = np.maximum(Q, 1e-12)
-        
+
+        if return_num:
+            return Q, num
         return Q
-    
-    def _compute_gradient(self, P, Q, Y):
+
+    def _compute_gradient(self, P, Q, Y, inv_distances=None):
         """
         Compute gradient of KL divergence with respect to Y
         
@@ -254,25 +349,31 @@ class TSNE:
             Probabilities in low-dimensional space
         Y : numpy array of shape (n_samples, n_components)
             Current low-dimensional embedding
-            
+        inv_distances : numpy array of shape (n_samples, n_samples) or None
+            Pre-computed (1 + ||y_i - y_j||^2)^-1 with a zero diagonal, as
+            returned by _compute_low_dim_affinities(Y, return_num=True).
+            If None (the default) it is computed here, so the method still
+            works when called on its own.
+
         Returns:
         --------
         gradient : numpy array of shape (n_samples, n_components)
             Gradient of cost function
         """
         n = Y.shape[0]
-        
+
         # Compute pairwise differences in Y
         # Y_diff[i,j] = y_i - y_j
         Y_diff = Y[:, np.newaxis, :] - Y[np.newaxis, :, :]
-        
-        # Compute distances in low-D space
-        distances = self._compute_pairwise_distances(Y)
-        
-        # Inverse of (1 + distance^2)
-        inv_distances = 1 / (1 + distances)
-        np.fill_diagonal(inv_distances, 0)
-        
+
+        if inv_distances is None:
+            # Compute distances in low-D space
+            distances = self._compute_pairwise_distances(Y)
+
+            # Inverse of (1 + distance^2)
+            inv_distances = 1 / (1 + distances)
+            np.fill_diagonal(inv_distances, 0)
+
         # Gradient: 4 * sum_j (P_ij - Q_ij) * (y_i - y_j) * (1 + ||y_i - y_j||^2)^(-1)
         # The factor of 4 comes from the derivative
         PQ_diff = P - Q
@@ -322,19 +423,53 @@ class TSNE:
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, n_features)
-            High-dimensional input data
-            
+        X : array-like of shape (n_samples, n_features)
+            High-dimensional input data. A plain Python list of lists is
+            accepted; a 1-D array is treated as n_samples single-feature points.
+
         Returns:
         --------
         Y : numpy array of shape (n_samples, n_components)
             Embedded coordinates in low-dimensional space
+
+        Raises:
+        -------
+        ValueError
+            If X is empty, has more than 2 dimensions, or if perplexity is not
+            smaller than n_samples (the entropy target log2(perplexity) would
+            then be unreachable: the most a point can spread over n-1 neighbours
+            is log2(n-1) bits).
         """
-        if self.random_state is not None:
-            np.random.seed(self.random_state)
-        
+        # Accept lists and 1-D input, as the docstring promises
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        if X.ndim != 2:
+            raise ValueError(
+                f"X must be 1-D or 2-D, got an array with {X.ndim} dimensions."
+            )
+        if X.shape[0] < 2:
+            raise ValueError(
+                f"t-SNE needs at least 2 samples, got {X.shape[0]}."
+            )
+
         n_samples, n_features = X.shape
-        
+
+        if self.perplexity >= n_samples:
+            raise ValueError(
+                f"perplexity ({self.perplexity}) must be less than n_samples "
+                f"({n_samples}). The largest entropy reachable with "
+                f"{n_samples - 1} neighbours is log2({n_samples - 1}) = "
+                f"{np.log2(n_samples - 1):.3f} bits, i.e. a perplexity of "
+                f"{n_samples - 1}. A good rule of thumb is "
+                f"perplexity < n_samples / 3."
+            )
+
+        # Private random stream: seeding this never disturbs the caller's
+        # global numpy RNG. RandomState(seed) reproduces the same numbers that
+        # np.random.seed(seed) would have produced.
+        rng = np.random.RandomState(self.random_state)
+
         if self.verbose > 0:
             print(f"[t-SNE] Computing pairwise distances...")
         
@@ -348,14 +483,19 @@ class TSNE:
         P = self._compute_joint_probabilities(distances, self.perplexity)
         
         # Step 3: Initialize Y randomly (small values near origin)
-        Y = np.random.randn(n_samples, self.n_components) * 1e-4
-        
+        Y = rng.randn(n_samples, self.n_components) * 1e-4
+
         # For momentum-based gradient descent
         Y_velocity = np.zeros_like(Y)
-        
+
+        # Bind this before the loop so that n_iter=0 is a legal (if useless)
+        # request that returns the random initialization instead of raising
+        # UnboundLocalError on the n_iter_ line below.
+        iteration = -1
+
         if self.verbose > 0:
             print(f"[t-SNE] Starting optimization with {self.n_iter} iterations...")
-        
+
         # Step 4: Gradient descent optimization
         for iteration in range(self.n_iter):
             # Apply early exaggeration in initial iterations
@@ -364,12 +504,15 @@ class TSNE:
             else:
                 P_effective = P
             
-            # Compute low-dimensional affinities
-            Q = self._compute_low_dim_affinities(Y)
-            
+            # Compute low-dimensional affinities.
+            # Ask for the un-normalized numerator as well: it is exactly the
+            # (1 + ||y_i - y_j||^2)^-1 matrix the gradient needs, so the O(n^2 d)
+            # distance computation happens once per iteration instead of twice.
+            Q, num = self._compute_low_dim_affinities(Y, return_num=True)
+
             # Compute gradient
-            gradient = self._compute_gradient(P_effective, Q, Y)
-            
+            gradient = self._compute_gradient(P_effective, Q, Y, inv_distances=num)
+
             # Check for convergence
             grad_norm = np.linalg.norm(gradient)
             if grad_norm < self.min_grad_norm:
@@ -377,8 +520,12 @@ class TSNE:
                     print(f"[t-SNE] Converged at iteration {iteration}")
                 break
             
-            # Momentum schedule
-            if iteration < 250:
+            # Momentum schedule. The switch happens at the same iteration where
+            # early exaggeration ends - the way sklearn does it, where one
+            # constant (_EXPLORATION_MAX_ITER) ends both phases. The idea is
+            # gentle momentum while the exaggerated clusters form, then a
+            # larger momentum to refine them.
+            if iteration < self.early_exaggeration_iter:
                 momentum = 0.5
             else:
                 momentum = 0.8
@@ -397,8 +544,14 @@ class TSNE:
                       f"KL divergence: {kl_div:.4f}, "
                       f"Gradient norm: {grad_norm:.6f}")
         
-        # Store final results
+        # Store final results.
+        # Recompute Q from the Y we are about to return: the Q left over from
+        # the loop belongs to the embedding *before* the last gradient step, so
+        # reusing it would report the KL of a configuration we never returned.
+        # Note P (not P_effective) is used, so the reported KL is always the
+        # true cost, never the exaggerated one.
         self.embedding_ = Y
+        Q = self._compute_low_dim_affinities(Y)
         self.kl_divergence_ = self._compute_kl_divergence(P, Q)
         self.n_iter_ = iteration + 1
         
@@ -435,11 +588,20 @@ from sklearn.datasets import load_digits
 
 # Load digits dataset (8x8 images of digits 0-9)
 digits = load_digits()
-X = digits.data  # 1797 samples, 64 features
-y = digits.target  # Labels (0-9)
 
-# Apply t-SNE
-tsne = TSNE(n_components=2, perplexity=30, learning_rate=200, 
+# This implementation is the EXACT O(n^2) t-SNE: every iteration touches all
+# n*n pairs. All 1797 digits at 1000 iterations takes ~3.2 minutes (190 s, a
+# complete run timed end to end; the cost grows as n^2, so it is very
+# sensitive to machine and dataset size).
+# Subsample to keep the example interactive. The first 400 rows of
+# load_digits already cover all ten classes.
+X = digits.data[:400]    # 400 samples, 64 features
+y = digits.target[:400]  # Labels (0-9)
+
+# Apply t-SNE (measured: about 10 seconds, final KL divergence ~= 0.36)
+# Do NOT cut n_iter much below 1000 here: at 500 iterations this dataset is
+# still mid-descent (KL ~= 1.65) and the ten clusters have not separated yet.
+tsne = TSNE(n_components=2, perplexity=30, learning_rate=200,
             n_iter=1000, random_state=42, verbose=1)
 X_embedded = tsne.fit_transform(X)
 
@@ -464,8 +626,15 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import load_digits
 
 digits = load_digits()
-X = digits.data
-y = digits.target
+
+# Four full-size fits would take about 13 minutes with the exact O(n^2)
+# algorithm (4 x the 190 s a full 1797-digit run costs), so subsample. The
+# four fits below take about 40 s together. Note perplexity must stay below
+# n_samples: with only 400 points here, 100 is still legal (and under the
+# n_samples/3 rule of thumb), but on a 90-point dataset fit_transform would
+# raise.
+X = digits.data[:400]
+y = digits.target[:400]
 
 # Try different perplexity values
 perplexities = [5, 30, 50, 100]
@@ -474,11 +643,12 @@ axes = axes.ravel()
 
 for idx, perplexity in enumerate(perplexities):
     print(f"\nRunning t-SNE with perplexity={perplexity}")
-    
-    tsne = TSNE(n_components=2, perplexity=perplexity, 
-                learning_rate=200, n_iter=500, random_state=42)
+
+    tsne = TSNE(n_components=2, perplexity=perplexity,
+                learning_rate=200, n_iter=1000, random_state=42)
     X_embedded = tsne.fit_transform(X)
-    
+    print(f"  final KL divergence: {tsne.kl_divergence_:.4f}")
+
     axes[idx].scatter(X_embedded[:, 0], X_embedded[:, 1], 
                      c=y, cmap='tab10', s=10, alpha=0.7)
     axes[idx].set_title(f'Perplexity = {perplexity}')
@@ -492,6 +662,10 @@ plt.show()
 # - Low perplexity (5): Many small clusters, very local structure
 # - Medium perplexity (30): Balanced, usually works well
 # - High perplexity (50-100): Broader structure, more global patterns
+#
+# Sanity check you can run yourself: pass verbose=2 and confirm the printed
+# "Achieved perplexity" matches what you asked for. That is the invariant
+# Perplexity = 2^H(P_i) with H in bits.
 """
 
 """
@@ -502,18 +676,24 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import fetch_openml
 
 # Load Fashion MNIST (takes a moment to download first time)
-# Using a subset for faster computation
-fashion = fetch_openml('Fashion-MNIST', version=1, parser='auto')
-X = fashion.data[:5000] / 255.0  # Normalize to [0, 1]
-y = fashion.target[:5000].astype(int)
+# Using a subset for faster computation.
+# as_frame=False returns plain numpy arrays instead of a pandas DataFrame.
+# fit_transform also calls np.asarray, so either would work - keep it explicit.
+# Keep n small - the exact O(n^2) implementation costs about (n/400)^2 times
+# as much per iteration as the 400-point examples above.
+fashion = fetch_openml('Fashion-MNIST', version=1, parser='auto', as_frame=False)
+X = np.asarray(fashion.data)[:1000] / 255.0  # Normalize to [0, 1]
+y = np.asarray(fashion.target)[:1000].astype(int)
 
 # Class names
 class_names = ['T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
                'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
 
-# Apply t-SNE
+# Apply t-SNE (about 30 s to fit 1000 points for 500 iterations - timed on an
+# array of the same shape, since the cost depends on n and n_features, not on
+# the values - plus the one-time download, which needs a network connection)
 tsne = TSNE(n_components=2, perplexity=30, learning_rate=200,
-            n_iter=1000, random_state=42, verbose=1)
+            n_iter=500, random_state=42, verbose=1)
 X_embedded = tsne.fit_transform(X)
 
 # Visualize
@@ -541,14 +721,15 @@ USAGE EXAMPLE 4: 3D Visualization
 
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from sklearn.datasets import load_digits
 
 digits = load_digits()
-X = digits.data
-y = digits.target
+# Subsampled for runtime: n_components=3 makes the (n, n, 3) difference
+# tensor 50% larger than the 2D case, so keep n modest.
+X = digits.data[:400]
+y = digits.target[:400]
 
-# 3D t-SNE
+# 3D t-SNE (measured: about 11 seconds)
 tsne = TSNE(n_components=3, perplexity=30, learning_rate=200,
             n_iter=1000, random_state=42, verbose=1)
 X_embedded = tsne.fit_transform(X)
@@ -633,14 +814,14 @@ from sklearn.datasets import load_digits
 from sklearn.decomposition import PCA
 
 digits = load_digits()
-X = digits.data
-y = digits.target
+X = digits.data[:400]    # subsampled so the t-SNE half finishes in ~10 s
+y = digits.target[:400]
 
-# Apply PCA
+# Apply PCA (instant - closed form)
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X)
 
-# Apply t-SNE
+# Apply t-SNE (iterative - this is the slow half)
 tsne = TSNE(n_components=2, perplexity=30, learning_rate=200,
             n_iter=1000, random_state=42, verbose=1)
 X_tsne = tsne.fit_transform(X)
@@ -678,10 +859,12 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import load_digits
 
 digits = load_digits()
-X = digits.data[:500]  # Smaller subset for faster experimentation
-y = digits.target[:500]
+X = digits.data[:250]  # Smaller subset for faster experimentation
+y = digits.target[:250]  # 250 rows still cover all ten digit classes
 
 # Test different parameter combinations
+# Nine fits: keep n and n_iter small or this grid runs for many minutes.
+# At 250 points x 500 iterations each fit is ~1.7 s, so the grid is ~15 s.
 param_grid = {
     'perplexity': [5, 30, 50],
     'learning_rate': [50, 200, 500]
@@ -692,7 +875,7 @@ fig, axes = plt.subplots(3, 3, figsize=(18, 18))
 for i, perplexity in enumerate(param_grid['perplexity']):
     for j, lr in enumerate(param_grid['learning_rate']):
         print(f"\nTesting: perplexity={perplexity}, lr={lr}")
-        
+
         tsne = TSNE(n_components=2, perplexity=perplexity, learning_rate=lr,
                    n_iter=500, random_state=42)
         X_embedded = tsne.fit_transform(X)
@@ -726,7 +909,7 @@ import matplotlib.pyplot as plt
 np.random.seed(42)
 
 # Simulate 4 classes with high-dimensional features
-n_samples_per_class = 100
+n_samples_per_class = 50   # 200 points total: the fit takes about 2 s
 n_features = 128
 
 X_list = []
@@ -768,4 +951,118 @@ plt.show()
 # - Which classes are confused
 # - Quality of learned representations
 """
+
+
+if __name__ == "__main__":
+    # ----------------------------------------------------------------
+    # Plug-and-Play Demo: run this file directly with
+    #   python _14_tsne.py
+    # numpy only, seeded, finishes in a couple of seconds.
+    # ----------------------------------------------------------------
+    np.random.seed(42)
+
+    def make_blobs(n_per_cluster=50, n_features=10, separation=6.0):
+        """Three well-separated Gaussian blobs in n_features dimensions."""
+        direction = np.random.randn(n_features)
+        direction = direction / np.linalg.norm(direction)
+        offsets = [0.0, separation, -separation]
+
+        chunks, labels = [], []
+        for cluster_id, offset in enumerate(offsets):
+            center = offset * direction
+            chunks.append(center + np.random.randn(n_per_cluster, n_features))
+            labels.extend([cluster_id] * n_per_cluster)
+        return np.vstack(chunks), np.array(labels)
+
+    def neighbor_preservation(X_high, Y_low, k=10):
+        """
+        Fraction of each point's k nearest neighbours in high-D that are still
+        among its k nearest neighbours in the embedding, averaged over points.
+
+        t-SNE has no train/test split and no predict(), so this is the honest
+        quality measure: it asks the only question t-SNE promises to answer,
+        "did local neighbourhoods survive the projection?". 1.0 is perfect.
+        Uses the same ||x - y||^2 = ||x||^2 + ||y||^2 - 2*dot(x, y) expansion
+        as _compute_pairwise_distances.
+        """
+        def nearest(Z):
+            sq = np.sum(np.square(Z), axis=1)
+            D = sq[:, np.newaxis] + sq[np.newaxis, :] - 2 * np.dot(Z, Z.T)
+            np.fill_diagonal(D, np.inf)   # never count a point as its own neighbour
+            return np.argsort(D, axis=1)[:, :k]
+
+        high_nn = nearest(X_high)
+        low_nn = nearest(Y_low)
+        shared = [len(set(high_nn[i]) & set(low_nn[i])) for i in range(len(X_high))]
+        return float(np.mean(shared)) / k
+
+    X, labels = make_blobs()
+
+    print("=" * 60)
+    print("DEMO 1 - Planted clusters survive the 10-D -> 2-D embedding")
+    print("=" * 60)
+    print(f"Input: {X.shape[0]} points in {X.shape[1]}-D, "
+          f"{len(np.unique(labels))} planted Gaussian blobs")
+    print("t-SNE is unsupervised: the labels below are ground truth used only")
+    print("to score the embedding, never shown to the algorithm.")
+
+    model = TSNE(n_components=2, perplexity=15, learning_rate=200,
+                 n_iter=500, random_state=42)
+    Y = model.fit_transform(X)
+
+    # A random 2-D layout gives the floor this metric should be judged against.
+    Y_random = np.random.randn(*Y.shape)
+    baseline = neighbor_preservation(X, Y_random, k=10)
+
+    print(f"\nEmbedding shape   : {Y.shape}")
+    print(f"Iterations run    : {model.n_iter_}")
+    print(f"Final KL(P||Q)    : {model.kl_divergence_:.4f}")
+    print(f"kNN(10) preserved : {neighbor_preservation(X, Y, k=10):.3f} "
+          f"(1.0 = perfect; a random 2-D layout scores {baseline:.3f})")
+    print("Note: the blobs are isotropic 10-D Gaussians, so their internal")
+    print("neighbour order genuinely cannot all fit in 2-D. Beating the random")
+    print("baseline by this much is the local structure t-SNE did keep.")
+
+    print("\nPer-cluster geometry in the embedding:")
+    print("  cluster    centroid (x, y)        mean spread")
+    centroids = []
+    for cluster_id in np.unique(labels):
+        pts = Y[labels == cluster_id]
+        centroid = pts.mean(axis=0)
+        spread = np.mean(np.sqrt(np.sum((pts - centroid) ** 2, axis=1)))
+        centroids.append(centroid)
+        print(f"    {cluster_id}      ({centroid[0]:8.2f}, {centroid[1]:8.2f})"
+              f"      {spread:6.2f}")
+
+    centroids = np.array(centroids)
+    gaps = [np.linalg.norm(centroids[i] - centroids[j])
+            for i in range(len(centroids)) for j in range(i + 1, len(centroids))]
+    print(f"  Smallest gap between cluster centroids: {min(gaps):.2f}")
+    print("  Separation >> spread means the clusters did not merge.")
+
+    print("\nSample embedded points (label, x, y):")
+    for i in [0, 40, 60, 110, 140]:
+        print(f"  label={labels[i]}  x={Y[i, 0]:8.3f}  y={Y[i, 1]:8.3f}")
+
+    print("\n" + "=" * 60)
+    print("DEMO 2 - What perplexity actually does")
+    print("=" * 60)
+    print("Perplexity is the effective number of neighbours each point keeps:")
+    print("  Perplexity = 2^H(P_i), H measured in bits.")
+    print("A small perplexity makes P concentrate on a handful of nearest")
+    print("neighbours, whose exact ordering 2-D cannot reproduce. A larger")
+    print("perplexity spreads P over the whole blob, which is a smoother and")
+    print("easier target - so on well-separated blobs KL FALLS as perplexity")
+    print("rises. On data with fine sub-structure the trade-off reverses.")
+    print("(Pass verbose=2 to print the perplexity actually achieved.)")
+    print("\n  perplexity    final KL    kNN(10) preserved")
+    for perplexity in [5, 15, 30]:
+        sweep = TSNE(n_components=2, perplexity=perplexity, learning_rate=200,
+                     n_iter=400, random_state=42)
+        Y_sweep = sweep.fit_transform(X)
+        preserved = neighbor_preservation(X, Y_sweep, k=10)
+        print(f"     {perplexity:5.1f}       {sweep.kl_divergence_:7.4f}"
+              f"           {preserved:.3f}")
+
+    print("\nDone.")
 

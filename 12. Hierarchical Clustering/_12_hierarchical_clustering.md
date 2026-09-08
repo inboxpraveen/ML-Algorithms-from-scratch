@@ -3,14 +3,126 @@
 Welcome to the world of Hierarchical Clustering! 🎯 In this comprehensive guide, we'll explore one of the most intuitive and powerful unsupervised learning algorithms. Think of it as the "family tree" of data clustering!
 
 ## Table of Contents
-1. [What is Hierarchical Clustering?](#what-is-hierarchical-clustering)
-2. [How Hierarchical Clustering Works](#how-hierarchical-clustering-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is Hierarchical Clustering?](#what-is-hierarchical-clustering)
+3. [How Hierarchical Clustering Works](#how-hierarchical-clustering-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Advantages and Limitations](#advantages-and-limitations)
+11. [Simplifications vs. Canonical Hierarchical Clustering](#simplifications-vs-canonical-hierarchical-clustering)
+12. [Complete Usage Example](#complete-usage-example)
+13. [Key Concepts to Remember](#key-concepts-to-remember)
+14. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Hierarchical Clustering from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _12_hierarchical_clustering.py  (the __main__ block runs this)
+# Or copy the HierarchicalClustering class from _12_hierarchical_clustering.py
+# and paste it above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the HierarchicalClustering class here ----
+# class HierarchicalClustering: ...
+
+np.random.seed(42)
+
+def cluster_purity(true_labels, pred_labels):
+    """Fraction of points sitting in a cluster dominated by their own class."""
+    correct = 0
+    for cluster in np.unique(pred_labels):
+        members = true_labels[pred_labels == cluster]
+        correct += np.bincount(members).max()
+    return correct / len(true_labels)
+
+# ------ Three planted Gaussian blobs ------
+blob_centers = np.array([[0.0, 0.0], [6.0, 0.0], [3.0, 5.0]])
+X = np.vstack([np.random.randn(30, 2) * 0.6 + c for c in blob_centers])
+y = np.repeat([0, 1, 2], 30)
+
+# Shuffle BEFORE splitting so train and test both cover all three blobs
+order = np.random.permutation(len(X))
+X, y = X[order], y[order]
+X_train, X_test = X[:60], X[60:]
+y_train, y_test = y[:60], y[60:]
+
+# Which linkage recovers the blobs?
+for linkage_name in ['single', 'complete', 'average', 'ward']:
+    model = HierarchicalClustering(n_clusters=3, linkage=linkage_name)
+    labels = model.fit_predict(X_train)
+    heights = model.linkage_matrix_[-3:, 2]
+    print(f"{linkage_name:<10} purity={cluster_purity(y_train, labels):.3f}  "
+          f"last 3 merge heights = [{heights[0]:.2f}, {heights[1]:.2f}, {heights[2]:.2f}]")
+
+# Fit once, then assign the held-out points by nearest cluster centroid
+model = HierarchicalClustering(n_clusters=3, linkage='ward').fit(X_train)
+test_labels = model.predict(X_test)
+print(f"\nTrain purity : {cluster_purity(y_train, model.labels_):.4f}")
+print(f"Test  purity : {cluster_purity(y_test, test_labels):.4f}")
+for i in range(3):
+    print(f"  ({X_test[i,0]:6.2f}, {X_test[i,1]:6.2f})  true blob={y_test[i]}  "
+          f"predicted cluster={test_labels[i]}")
+
+# ------ Build once, cut many times ------
+cities = np.array([
+    [37.77, -122.42], [34.05, -118.24], [47.61, -122.33],   # SF, LA, Seattle
+    [40.71,  -74.01], [42.36,  -71.06], [38.91,  -77.04],   # NYC, Boston, DC
+    [41.88,  -87.63], [44.98,  -93.27],                     # Chicago, Minneapolis
+])
+city_names = ['SF', 'LA', 'Seattle', 'NYC', 'Boston', 'DC', 'Chicago', 'Minneapolis']
+
+city_model = HierarchicalClustering(n_clusters=3, linkage='average')
+print("\nCity clusters:", city_model.fit_predict(cities))
+print("Merge heights:", np.round(city_model.linkage_matrix_[:, 2], 2))
+
+for k in [2, 3, 4]:
+    city_model.set_n_clusters(k)          # re-cut, NO refitting
+    groups = [[city_names[i] for i in range(8) if city_model.labels_[i] == c]
+              for c in range(k)]
+    print(f"  k={k}: " + " | ".join("{" + ", ".join(g) + "}" for g in groups))
+```
+
+Expected output:
+```
+single     purity=1.000  last 3 merge heights = [0.78, 3.46, 3.60]
+complete   purity=1.000  last 3 merge heights = [2.67, 7.92, 8.23]
+average    purity=1.000  last 3 merge heights = [1.46, 5.87, 6.04]
+ward       purity=1.000  last 3 merge heights = [3.75, 25.50, 27.46]
+
+Train purity : 1.0000
+Test  purity : 1.0000
+  (  3.15,   5.21)  true blob=2  predicted cluster=0
+  (  3.31,   5.18)  true blob=2  predicted cluster=0
+  (  6.06,  -1.19)  true blob=1  predicted cluster=1
+
+City clusters: [0 0 0 1 1 1 2 2]
+Merge heights: [ 3.38  5.21  5.6   6.44 12.   16.78 40.95]
+  k=2: {SF, LA, Seattle} | {NYC, Boston, DC, Chicago, Minneapolis}
+  k=3: {SF, LA, Seattle} | {NYC, Boston, DC} | {Chicago, Minneapolis}
+  k=4: {SF, LA} | {Seattle} | {NYC, Boston, DC} | {Chicago, Minneapolis}
+```
+
+Two things to read off that output. First, **every** linkage gets purity 1.000 on
+well-separated blobs — the linkage choice only starts to matter on harder data.
+
+Second, look at the three merge heights on each row. They are the last three merges:
+4->3 clusters, then 3->2, then 2->1. In every row the jump happens between the
+**first and second** number (ward: 3.75 then 25.50), not between the second and third
+(25.50 then 27.46, barely a step). Merging the last three blobs down to two is what
+costs a lot, so you cut below that jump — and are left with 3 clusters. That is the
+dendrogram saying "stop at 3".
 
 ---
 
@@ -78,7 +190,10 @@ Continue until each point is alone
      ●  ●  ●  ●  ●  ●
 ```
 
-**We'll focus on Agglomerative** as it's more popular and intuitive!
+**We'll focus on Agglomerative** as it's more popular and intuitive — and it is the
+only one `HierarchicalClustering` implements. The divisive sketch above is background
+only; there is no code behind it (see
+[Simplifications vs. Canonical Hierarchical Clustering](#simplifications-vs-canonical-hierarchical-clustering)).
 
 ### The Agglomerative Algorithm in 4 Steps
 
@@ -99,6 +214,11 @@ Step 4: Repeat
 
 ### Visual Example
 
+This is the real merge trace produced by `HierarchicalClustering(linkage='average')`
+(average is the class default) on these six points. Every distance below is what the
+code actually prints in `linkage_matrix_[:, 2]`, and it matches
+`scipy.cluster.hierarchy.linkage(X, 'average')` exactly.
+
 ```
 Data Points:
     A: [1, 1]
@@ -111,26 +231,40 @@ Data Points:
 Initial Clusters:
     {A}, {B}, {C}, {D}, {E}, {F}
 
-Step 1: Merge A and B (closest)
+Step 1: Merge A and B (closest pair, tied with D-E; A-B wins the tie by scan order)
     {A,B}, {C}, {D}, {E}, {F}
-    Distance: 1.0
+    Distance: 1.00
 
-Step 2: Merge A,B with C
-    {A,B,C}, {D}, {E}, {F}
-    Distance: 1.41
+Step 2: Merge D and E (the other distance-1.0 pair)
+    {A,B}, {C}, {D,E}, {F}
+    Distance: 1.00
 
-Step 3: Merge D and E
+Step 3: Merge {A,B} with C
     {A,B,C}, {D,E}, {F}
-    Distance: 1.0
+    Distance: 1.21     <- mean of d(A,C)=1.00 and d(B,C)=1.41
 
-Step 4: Merge D,E with F
+Step 4: Merge {D,E} with F
     {A,B,C}, {D,E,F}
-    Distance: 1.41
+    Distance: 1.21     <- mean of d(D,F)=1.00 and d(E,F)=1.41
 
 Step 5: Merge both groups
     {A,B,C,D,E,F}
-    Distance: 9.90
+    Distance: 9.93     <- mean of all 3 x 3 = 9 cross distances
 ```
+
+Note that the heights only ever go **up**: 1.00, 1.00, 1.21, 1.21, 9.93. That is
+guaranteed for single, complete, average and Ward linkage, and it is what makes a
+dendrogram drawable. If you ever compute a merge height *lower* than the one before
+it, something is wrong.
+
+Swap the linkage and only the heights change, never this merge order:
+
+| Linkage | Merge heights |
+|---------|---------------|
+| single | 1.00, 1.00, 1.00, 1.00, 9.22 |
+| average | 1.00, 1.00, 1.21, 1.21, 9.93 |
+| complete | 1.00, 1.00, 1.41, 1.41, 10.63 |
+| ward | 1.00, 1.00, 1.29, 1.29, 17.15 |
 
 ---
 
@@ -167,6 +301,11 @@ d(x, y) = |x₁-y₁| + |x₂-y₂| + ... + |xₙ-yₙ|
 ```
 d(x, y) = 1 - (x·y) / (||x|| × ||y||)
 ```
+
+Cosine distance ignores vector *length* and compares only direction, which is why it
+is the default for TF-IDF document vectors: a long article and a short note about the
+same topic point the same way. All three of these metrics are available as
+`distance_metric='euclidean' | 'manhattan' | 'cosine'`.
 
 ### Linkage Methods
 
@@ -239,10 +378,15 @@ Where μ₁, μ₂ are cluster centroids.
 **Pros**: Creates very compact, balanced clusters  
 **Cons**: Assumes spherical clusters
 
-**Example Comparison**:
+**Example Comparison** (all four numbers verified against the implementation and
+against SciPy):
 ```python
 Cluster A: [1,1], [2,2]
 Cluster B: [8,8], [9,9]
+
+The four cross distances are:
+    d([1,1],[8,8]) = 9.90    d([1,1],[9,9]) = 11.31
+    d([2,2],[8,8]) = 8.49    d([2,2],[9,9]) =  9.90
 
 Single Linkage:
     min distance = d([2,2], [8,8]) = 8.49
@@ -251,25 +395,35 @@ Complete Linkage:
     max distance = d([1,1], [9,9]) = 11.31
 
 Average Linkage:
-    avg of all 4 pairs = 9.73
+    (9.90 + 11.31 + 8.49 + 9.90) / 4 = 9.90
 
 Ward's Method:
-    considers variance = 9.19
+    mu_A = [1.5, 1.5],  mu_B = [8.5, 8.5],  ||mu_A - mu_B|| = 9.90
+    sqrt((2 * 2 * 2) / (2 + 2)) * 9.90 = sqrt(2) * 9.90 = 14.00
 ```
+
+Ward's value is *larger* than the largest point-to-point distance here, which
+surprises people. That is expected: Ward's height is not a distance between points
+at all, it is `sqrt(2 * increase in within-cluster sum of squares)`. The
+`sqrt(2*n1*n2/(n1+n2))` factor grows with cluster size, which is exactly how Ward
+discourages merging two already-large clusters.
 
 ### The Dendrogram
 
-A tree diagram showing the clustering hierarchy:
+A tree diagram showing the clustering hierarchy. This is the *actual* tree for the
+six points A..F from the Visual Example under average linkage — the four heights on
+the axis are the four distinct values in `linkage_matrix_[:, 2]`:
 
 ```
 Height
-  10 |         ╭─────────╮
-     |         │         │
-   5 |     ╭───╯     ╭───╯
-     |     │         │
-   2 | ╭───╯     ╭───╯
-     | │         │
-   0 | A   B   C   D   E   F
+ 9.93 |     ╭───────────────────────╮
+      |     │                       │
+      |     │                       │
+ 1.21 |  ╭──┴──╮                 ╭──┴──╮
+      |  │     │                 │     │
+ 1.00 | ╭┴╮    │                ╭┴╮    │
+      | │ │    │                │ │    │
+    0 | A B    C                D E    F
 ```
 
 **Reading the Dendrogram**:
@@ -277,17 +431,22 @@ Height
 - **Height**: Distance at which merge occurs
 - **Horizontal cut**: Determines number of clusters
 
-**Example**:
+**Example** — every cut here is `model.set_n_clusters(k)` on the same fitted model:
 ```
-Cut at height 7:
-    → 2 clusters: {A,B,C} and {D,E,F}
+Cut anywhere between 1.21 and 9.93 (say height 5):
+    → 2 clusters: {A,B,C} and {D,E,F}          k = 2
 
-Cut at height 3:
-    → 4 clusters: {A,B}, {C}, {D,E}, {F}
+Cut anywhere between 1.00 and 1.21 (say height 1.1):
+    → 4 clusters: {A,B}, {C}, {D,E}, {F}       k = 4
 
-Cut at height 1:
-    → 6 clusters: {A}, {B}, {C}, {D}, {E}, {F}
+Cut below 1.00 (say height 0.5):
+    → 6 clusters: {A}, {B}, {C}, {D}, {E}, {F} k = 6
 ```
+
+Notice there is no cut that gives 3 or 5 clusters *cleanly* here: those cuts would
+have to slice through a tie (two merges at exactly the same height). The tree still
+returns a 3-cluster answer if you ask for one — it just replays one of the two tied
+merges and stops.
 
 ---
 
@@ -315,33 +474,49 @@ class HierarchicalClustering:
 
 2. **`_calculate_distance(x1, x2)`** - Private helper method
    - Computes distance between two points
-   - Supports multiple distance metrics
+   - Supports 'euclidean', 'manhattan' and 'cosine'
    - Returns a single float value
 
-3. **`_calculate_cluster_distance(cluster1, cluster2)`** - Cluster distance
-   - Measures distance between two clusters
-   - Uses specified linkage method
+3. **`_compute_distance_matrix(X)`** - Private helper method
+   - Builds the full n x n table of point-to-point distances, once
+   - This is the O(n^2) memory the theory section talks about
+   - Every later distance request becomes a table lookup instead of a recomputation
+
+4. **`_calculate_cluster_distance(X, cluster1_indices, cluster2_indices)`** - Cluster distance
+   - Measures distance between two clusters, given their *index lists*
+   - Uses the specified linkage method
    - Core of the algorithm
 
-4. **`fit(X)`** - Build the hierarchy
-   - Creates the dendrogram structure
-   - Performs iterative merging
-   - Stores merge history
+5. **`fit(X)`** - Build the hierarchy
+   - Merges all the way down to a single cluster, so the dendrogram is complete
+   - Stores every merge in `linkage_matrix_` (SciPy-compatible)
+   - Then cuts that hierarchy at `n_clusters` and fills in `labels_`
 
-5. **`predict(X)`** - Assign cluster labels
-   - Cuts dendrogram at specified height
-   - Returns cluster assignments
-   - Can be called with different n_clusters
+6. **`_cut_dendrogram(n_clusters)`** - Private helper method
+   - Replays the first `n_samples - n_clusters` rows of `linkage_matrix_`
+   - Does **not** re-cluster anything
+   - Returns the list of index lists making up the partition
 
-6. **`fit_predict(X)`** - Fit and predict in one step
+7. **`set_n_clusters(k)`** - Re-cut an already fitted tree
+   - Changes `n_clusters` and recomputes `labels_` from the stored hierarchy
+   - No refit: this is the "build once, cut many times" workflow
+   - Returns `self`, so `model.set_n_clusters(5).labels_` works
+
+8. **`predict(X)`** - Assign cluster labels
+   - Passing the exact training matrix back returns the fitted `labels_`
+   - For genuinely new points: nearest **training-cluster centroid**
+   - (sklearn's `AgglomerativeClustering` has no `predict` at all; this is a
+     practical extension, not part of the canonical algorithm)
+
+9. **`fit_predict(X)`** - Fit and predict in one step
    - Convenience method
-   - Equivalent to fit(X) then predict(X)
+   - Calls `fit(X)` and returns the resulting `labels_`
    - Returns cluster labels
 
-7. **`get_linkage_matrix()`** - Get merge history
-   - Returns dendrogram structure
-   - Compatible with scipy for visualization
-   - Shows which clusters merged and when
+10. **`get_linkage_matrix()`** - Get merge history
+    - Returns dendrogram structure
+    - Compatible with scipy for visualization
+    - Shows which clusters merged and when
 
 ---
 
@@ -377,7 +552,7 @@ city_names = ['SF', 'LA', 'Seattle', 'NYC', 'Boston', 'DC', 'Chicago', 'Minneapo
 ### Training the Model
 
 ```python
-from hierarchical_clustering import HierarchicalClustering
+# Paste the HierarchicalClustering class from _12_hierarchical_clustering.py above
 
 # Create model
 model = HierarchicalClustering(
@@ -392,38 +567,60 @@ labels = model.fit_predict(X)
 
 ### What Happens Internally
 
-**Iteration 1** - Initial state:
+Every distance below is the real value from `model.get_linkage_matrix()[:, 2]`,
+and it matches `scipy.cluster.hierarchy.linkage(X, 'average')` to 15 decimals.
+
+**Iteration 0** - Initial state:
 ```
 Clusters: {SF}, {LA}, {Seattle}, {NYC}, {Boston}, {DC}, {Chicago}, {Minneapolis}
 ```
 
-**Iteration 2** - Find closest pair:
+**Iteration 1** - Find closest pair:
 ```
-Distances calculated...
-Closest: NYC and Boston (distance ≈ 2.8)
-Merge: {NYC, Boston}, {SF}, {LA}, {Seattle}, {DC}, {Chicago}, {Minneapolis}
+All 28 pair distances calculated...
+Closest: NYC and Boston (distance = 3.38)
+Merge: {SF}, {LA}, {Seattle}, {NYC, Boston}, {DC}, {Chicago}, {Minneapolis}
 ```
 
-**Iteration 3** - Next closest:
+**Iteration 2** - Next closest:
 ```
-Closest: SF and LA (distance ≈ 4.5)
-Merge: {SF, LA}, {NYC, Boston}, {Seattle}, {DC}, {Chicago}, {Minneapolis}
+Closest: {NYC, Boston} and DC (distance = 5.21)
+    = mean of d(NYC,DC)=3.52 and d(Boston,DC)=6.90
+Merge: {SF}, {LA}, {Seattle}, {NYC, Boston, DC}, {Chicago}, {Minneapolis}
+```
+
+**Iteration 3**:
+```
+Closest: SF and LA (distance = 5.60)
+Merge: {SF, LA}, {Seattle}, {NYC, Boston, DC}, {Chicago}, {Minneapolis}
 ```
 
 **Iteration 4**:
 ```
-Closest: NYC,Boston and DC (distance ≈ 3.2)
-Merge: {NYC, Boston, DC}, {SF, LA}, {Seattle}, {Chicago}, {Minneapolis}
+Closest: Chicago and Minneapolis (distance = 6.44)
+Merge: {SF, LA}, {Seattle}, {NYC, Boston, DC}, {Chicago, Minneapolis}
 ```
 
 **Continue until...**
 ```
-Final structure formed!
-Cut at height to get 3 clusters:
-    Cluster 0: {SF, LA, Seattle}         ← West Coast
-    Cluster 1: {NYC, Boston, DC}         ← East Coast
-    Cluster 2: {Chicago, Minneapolis}    ← Midwest
+Iteration 5: {SF, LA} + Seattle                             at 12.00
+Iteration 6: {NYC, Boston, DC} + {Chicago, Minneapolis}     at 16.78
+Iteration 7: everything                                     at 40.95
+
+Full height sequence: 3.38, 5.21, 5.60, 6.44, 12.00, 16.78, 40.95
+                                        ^^^^^^^^^^^ the big gaps live here
+
+Cut just below 12.00 -> 4 clusters
+Cut just below 16.78 -> 3 clusters:
+    Cluster 0: {SF, LA, Seattle}         <- West Coast
+    Cluster 1: {NYC, Boston, DC}         <- East Coast
+    Cluster 2: {Chicago, Minneapolis}    <- Midwest
+Cut just below 40.95 -> 2 clusters (West Coast vs everything else)
 ```
+
+Note that the heights never decrease. Average linkage (UPGMA) is *monotone*: a merge
+can never happen at a lower height than the merge before it. Seeing 2.8 then 4.5 then
+3.2 would be a sign of a broken implementation, not of interesting data.
 
 ### Results
 
@@ -439,6 +636,21 @@ for cluster in range(3):
 # Cluster 0: SF, LA, Seattle
 # Cluster 1: NYC, Boston, DC
 # Cluster 2: Chicago, Minneapolis
+```
+
+Changed your mind about `k`? The hierarchy is already built, so ask it a different
+question — no refitting:
+
+```python
+model.set_n_clusters(4)
+print(model.labels_)
+# Output: [0 0 1 2 2 2 3 3]
+#   -> {SF, LA}, {Seattle}, {NYC, Boston, DC}, {Chicago, Minneapolis}
+
+model.set_n_clusters(2)
+print(model.labels_)
+# Output: [0 0 0 1 1 1 1 1]
+#   -> {SF, LA, Seattle}, {everything east of the Rockies}
 ```
 
 ---
@@ -498,10 +710,23 @@ Let's break down the key parts of our implementation:
 ```python
 def _calculate_distance(self, x1, x2):
     if self.distance_metric == 'euclidean':
+        # Euclidean distance: sqrt(sum((x1 - x2)^2))
         return np.sqrt(np.sum((x1 - x2) ** 2))
     elif self.distance_metric == 'manhattan':
+        # Manhattan distance: sum(|x1 - x2|)
         return np.sum(np.abs(x1 - x2))
+    elif self.distance_metric == 'cosine':
+        # Cosine distance: 1 - (x1 . x2) / (||x1|| * ||x2||)
+        norm_product = np.sqrt(np.sum(x1 ** 2)) * np.sqrt(np.sum(x2 ** 2))
+        if norm_product == 0:
+            return 0.0 if np.allclose(x1, x2) else 1.0
+        return 1.0 - np.sum(x1 * x2) / norm_product
+    else:
+        raise ValueError(f"Unknown distance metric: {self.distance_metric}")
 ```
+
+These three lines up with the three formulas in
+[The Mathematical Foundation](#the-mathematical-foundation) one for one.
 
 **How it works**:
 ```python
@@ -517,97 +742,216 @@ distance = √25 = 5
 
 ### 2. Cluster Distance (Linkage)
 
+Note the signature: clusters are passed as **index lists**, not as arrays of points.
+That is what lets each loop *read* `d(x, y)` out of the cached `n x n` table
+`self._distance_matrix_` instead of recomputing it on every merge step.
+
 ```python
-def _calculate_cluster_distance(self, cluster1, cluster2):
+def _calculate_cluster_distance(self, X, cluster1_indices, cluster2_indices):
+    cluster1_points = X[cluster1_indices]
+    cluster2_points = X[cluster2_indices]
+
+    # distances[i, j] = d(point i, point j), computed once in fit()
+    distances = self._distance_matrix_
+    if distances is None or distances.shape[0] != X.shape[0]:
+        distances = self._compute_distance_matrix(X)
+
     if self.linkage == 'single':
-        # Minimum distance
-        return min([self._calculate_distance(x1, x2) 
-                   for x1 in cluster1 for x2 in cluster2])
-    
+        # d(C1, C2) = min d(x, y), x in C1, y in C2
+        min_distance = float('inf')
+        for i1 in cluster1_indices:
+            for i2 in cluster2_indices:
+                distance = distances[i1, i2]
+                min_distance = min(min_distance, distance)
+        return min_distance
+
     elif self.linkage == 'complete':
-        # Maximum distance
-        return max([self._calculate_distance(x1, x2) 
-                   for x1 in cluster1 for x2 in cluster2])
-    
+        # d(C1, C2) = max d(x, y), x in C1, y in C2
+        max_distance = 0
+        for i1 in cluster1_indices:
+            for i2 in cluster2_indices:
+                distance = distances[i1, i2]
+                max_distance = max(max_distance, distance)
+        return max_distance
+
     elif self.linkage == 'average':
-        # Average distance
-        distances = [self._calculate_distance(x1, x2) 
-                    for x1 in cluster1 for x2 in cluster2]
-        return np.mean(distances)
+        # d(C1, C2) = (1 / (|C1| * |C2|)) * sum of all cross distances
+        total_distance = 0
+        count = 0
+        for i1 in cluster1_indices:
+            for i2 in cluster2_indices:
+                distance = distances[i1, i2]
+                total_distance += distance
+                count += 1
+        return total_distance / count if count > 0 else 0
+
+    elif self.linkage == 'ward':
+        # d(C1, C2) = sqrt(2*|C1|*|C2| / (|C1|+|C2|)) * ||mu1 - mu2||
+        # Ward needs CENTROIDS, so it works from the raw points, not the table.
+        centroid1 = np.mean(cluster1_points, axis=0)
+        centroid2 = np.mean(cluster2_points, axis=0)
+
+        n1 = len(cluster1_indices)
+        n2 = len(cluster2_indices)
+
+        distance = np.sqrt((2.0 * n1 * n2) / (n1 + n2)) * \
+                   self._calculate_distance(centroid1, centroid2)
+        return distance
+
+    else:
+        raise ValueError(f"Unknown linkage method: {self.linkage}")
 ```
 
-**Example**:
-```python
-Cluster A: [[1,1], [2,2]]
-Cluster B: [[8,8], [9,9]]
+Each of the first three branches is the matching formula from
+[Linkage Methods](#linkage-methods) transcribed literally: walk every pair
+`(x in C1, y in C2)` and take the min, the max, or the mean. The Ward branch is the
+one line of real mathematics in the file - the
+`sqrt(2*n1*n2/(n1+n2)) * ||mu1 - mu2||` formula from
+[Ward's Method](#4-wards-method-minimum-variance) written out directly.
 
-Single: min(d([1,1],[8,8]), d([1,1],[9,9]), 
+**Example** (`X = [[1,1],[2,2],[8,8],[9,9]]`, cluster A = indices `[0,1]`,
+cluster B = indices `[2,3]`):
+```python
+Single: min(d([1,1],[8,8]), d([1,1],[9,9]),
             d([2,2],[8,8]), d([2,2],[9,9]))
-      = 8.49
+      = min(9.90, 11.31, 8.49, 9.90) = 8.49
 
 Complete: max(...) = 11.31
 
-Average: mean of all 4 distances = 9.73
+Average: (9.90 + 11.31 + 8.49 + 9.90) / 4 = 9.90
+
+Ward: sqrt(2*2*2 / (2+2)) * ||[1.5,1.5] - [8.5,8.5]||
+    = sqrt(2) * 9.90 = 14.00
 ```
 
 ### 3. The Main Algorithm Loop
 
+This is the body of `fit`. Two details matter and are easy to get wrong:
+
+- The loop runs **down to one cluster**, not down to `n_clusters`. The whole
+  dendrogram gets built regardless of `k`, which is what makes re-cutting free.
+- The merged cluster is written back at position `merge_i` (the *lower* of the two
+  positions), not appended to the end. Appending would scramble the cluster
+  numbering so that the last cluster formed would get the highest label.
+
 ```python
 # Start with each point as its own cluster
-clusters = [[i] for i in range(n_samples)]
+clusters = [[i] for i in range(self.n_samples_)]
 
-# Merge until desired number of clusters
-while len(clusters) > self.n_clusters:
+# SciPy ID convention: points keep 0..n-1, merge number m creates ID n + m
+cluster_ids = list(range(self.n_samples_))
+next_cluster_id = self.n_samples_
+distance_cache = {}
+
+# Merge until a single cluster remains -> the COMPLETE dendrogram
+while len(clusters) > 1:
     # Find closest pair
     min_distance = float('inf')
     merge_i, merge_j = -1, -1
-    
+
     for i in range(len(clusters)):
-        for j in range(i+1, len(clusters)):
-            distance = self._calculate_cluster_distance(
-                X[clusters[i]], X[clusters[j]]
-            )
+        for j in range(i + 1, len(clusters)):
+            pair_key = (cluster_ids[i], cluster_ids[j])
+            if pair_key not in distance_cache:
+                distance_cache[pair_key] = self._calculate_cluster_distance(
+                    X, clusters[i], clusters[j]
+                )
+            distance = distance_cache[pair_key]
+
             if distance < min_distance:
                 min_distance = distance
                 merge_i, merge_j = i, j
-    
-    # Merge the closest clusters
-    clusters[merge_i].extend(clusters[merge_j])
-    del clusters[merge_j]
+
+    # Record the merge for the dendrogram
+    self.linkage_matrix_.append([
+        min(cluster_ids[merge_i], cluster_ids[merge_j]),
+        max(cluster_ids[merge_i], cluster_ids[merge_j]),
+        min_distance,
+        len(clusters[merge_i]) + len(clusters[merge_j])
+    ])
+
+    # Merge the closest clusters IN PLACE at the lower position
+    clusters[merge_i] = clusters[merge_i] + clusters[merge_j]
+    cluster_ids[merge_i] = next_cluster_id
+    clusters.pop(merge_j)
+    cluster_ids.pop(merge_j)
+    next_cluster_id += 1
 ```
+
+**Why the `distance_cache`?** After a merge, only the pairs involving the brand-new
+cluster have changed. Every other cluster pair holds the same points it held a moment
+ago, so its distance is still valid. Reusing them is pure bookkeeping - the merge
+choices are identical either way - but it is the difference between a fit that takes
+0.4 seconds on 150 points and one that takes 40.
 
 **Step-by-step**:
 ```python
 # Initial: 6 points
-clusters = [[0], [1], [2], [3], [4], [5]]
+clusters    = [[0], [1], [2], [3], [4], [5]]
+cluster_ids = [ 0,   1,   2,   3,   4,   5 ]
 
-# Iteration 1: Find closest (say 0 and 1)
-min_distance = 1.0
-merge_i, merge_j = 0, 1
+# Iteration 1: closest pair is (0, 1) at distance 1.0
+clusters    = [[0,1], [2], [3], [4], [5]]
+cluster_ids = [  6,    2,   3,   4,   5 ]
+linkage_matrix_ = [[0, 1, 1.0, 2]]
 
-# Merge
-clusters[0].extend(clusters[1])  # clusters[0] = [0, 1]
-del clusters[1]
-# Now: [[0,1], [2], [3], [4], [5]]
+# Iteration 2: closest pair is (3, 4) at distance 1.0
+clusters    = [[0,1], [2], [3,4], [5]]
+cluster_ids = [  6,    2,    7,    5 ]
+linkage_matrix_ = [[0, 1, 1.0, 2], [3, 4, 1.0, 2]]
 
-# Iteration 2: Continue...
-# Now: [[0,1], [2,3], [4], [5]]
-
-# And so on...
+# And so on, until one cluster with ID 10 remains.
 ```
 
 ### 4. Creating Labels from Hierarchy
 
+Once `fit` has the full hierarchy, `_cut_dendrogram(k)` replays the first
+`n_samples - k` recorded merges and stops. Nothing is re-clustered:
+
 ```python
-def predict(self, X):
-    # Start from leaf nodes, work up to desired clusters
-    labels = np.zeros(n_samples, dtype=int)
-    
-    for cluster_id, cluster_indices in enumerate(final_clusters):
+def _cut_dendrogram(self, n_clusters):
+    clusters = [[i] for i in range(self.n_samples_)]
+    cluster_ids = list(range(self.n_samples_))
+    next_cluster_id = self.n_samples_
+
+    for row in self.linkage_matrix_[:self.n_samples_ - n_clusters]:
+        id_a, id_b = int(row[0]), int(row[1])
+        pos_a = cluster_ids.index(id_a)
+        pos_b = cluster_ids.index(id_b)
+        low, high = min(pos_a, pos_b), max(pos_a, pos_b)
+
+        clusters[low] = clusters[low] + clusters[high]
+        cluster_ids[low] = next_cluster_id
+        clusters.pop(high)
+        cluster_ids.pop(high)
+        next_cluster_id += 1
+
+    return clusters
+```
+
+The resulting index lists become the label array (this lives at the tail of `fit`,
+and is re-run by `set_n_clusters`):
+
+```python
+def _labels_from_clusters(self, clusters):
+    labels = np.zeros(self.n_samples_, dtype=int)
+
+    for cluster_id, cluster_indices in enumerate(clusters):
         for idx in cluster_indices:
             labels[idx] = cluster_id
-    
+
     return labels
+```
+
+`predict(X)` is a **different** thing. It returns `labels_` when handed the training
+matrix back, and otherwise assigns each new point to the nearest *training-cluster
+centroid*:
+
+```python
+cluster_centers = []
+for cluster_indices in self._final_clusters:
+    # NOTE: self._X_fit, the TRAINING data - _final_clusters indexes into it
+    cluster_centers.append(np.mean(self._X_fit[cluster_indices], axis=0))
 ```
 
 ### 5. Building the Linkage Matrix
@@ -626,14 +970,24 @@ for each merge:
     ])
 ```
 
-**Linkage Matrix Example**:
+**The ID rule** is what makes this a valid SciPy linkage matrix, and it is the single
+easiest thing to get wrong: the `n` original points are IDs `0 .. n-1`, and the
+cluster produced by **row m** is given ID `n + m`. So the two IDs on row `m` are
+always strictly less than `n + m`, and no ID may ever appear twice in columns 0-1.
+
+**Linkage Matrix Example** - the real output of
+`HierarchicalClustering(linkage='average').fit(X).get_linkage_matrix()` on the
+six points A..F from the Visual Example (`n = 6`):
 ```
-Merge History:
-[[0, 1, 1.0, 2],    # Points 0 and 1 merged at distance 1.0
- [3, 4, 1.4, 2],    # Points 3 and 4 merged at distance 1.4
- [5, 6, 2.0, 3],    # Cluster 5 and point 6 merged
- [7, 8, 5.5, 5]]    # Final merge
+[[ 0.  1.  1.0000  2.]    # A + B          -> new cluster ID 6
+ [ 3.  4.  1.0000  2.]    # D + E          -> new cluster ID 7
+ [ 2.  6.  1.2071  3.]    # C + cluster 6  -> new cluster ID 8
+ [ 5.  7.  1.2071  3.]    # F + cluster 7  -> new cluster ID 9
+ [ 8.  9.  9.9331  6.]]   # cluster 8 + cluster 9 -> ID 10, the root
 ```
+
+Because the IDs obey that rule, this matrix can be handed straight to
+`scipy.cluster.hierarchy.dendrogram`, `cophenet` and `fcluster`.
 
 ---
 
@@ -644,8 +998,18 @@ Merge History:
 The best way to evaluate hierarchical clustering!
 
 ```python
+import numpy as np
 import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import dendrogram
+
+X = np.array([
+    [37.77, -122.42], [34.05, -118.24], [47.61, -122.33],
+    [40.71,  -74.01], [42.36,  -71.06], [38.91,  -77.04],
+    [41.88,  -87.63], [44.98,  -93.27],
+])
+city_names = ['SF', 'LA', 'Seattle', 'NYC', 'Boston', 'DC', 'Chicago', 'Minneapolis']
+
+model = HierarchicalClustering(n_clusters=3, linkage='average').fit(X)
 
 # Get linkage matrix
 linkage_matrix = model.get_linkage_matrix()
@@ -658,6 +1022,9 @@ plt.xlabel('Cities')
 plt.ylabel('Distance')
 plt.show()
 ```
+
+This works because `get_linkage_matrix()` returns a *valid* SciPy linkage matrix
+(see the ID rule above) - SciPy will refuse to draw anything else.
 
 **What to look for**:
 - **Long vertical lines**: Good natural clusters
@@ -677,7 +1044,7 @@ cophenetic_correlation = correlation(original_distances, dendrogram_distances)
 - **0.7 - 0.8**: Good
 - **< 0.7**: Poor fit
 
-**Example**:
+**Example** (continuing with the city model above):
 ```python
 from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import pdist
@@ -685,8 +1052,12 @@ from scipy.spatial.distance import pdist
 c, coph_dists = cophenet(linkage_matrix, pdist(X))
 print(f"Cophenetic correlation: {c:.3f}")
 
-# Output: Cophenetic correlation: 0.876 (Good!)
+# Output: Cophenetic correlation: 0.920 (Excellent!)
 ```
+
+For reference, the same measurement on the standardised Iris data with Ward linkage
+gives `0.823` - still good, but Ward deliberately distorts distances in exchange for
+compact clusters, so it always scores below average linkage on this metric.
 
 ### 3. Silhouette Score
 
@@ -739,17 +1110,32 @@ Cut before the big jump → 2 clusters
 #### Method 2: Elbow Method
 
 ```python
-# Try different numbers of clusters
+import numpy as np
+from sklearn.datasets import make_blobs
+from sklearn.metrics import silhouette_score
+
+X, _ = make_blobs(n_samples=120, centers=4, n_features=2,
+                  cluster_std=0.8, random_state=42)
+
+# BUILD ONCE - the hierarchy does not depend on k at all
+model = HierarchicalClustering(n_clusters=2, linkage='ward').fit(X)
+
+# CUT MANY TIMES - set_n_clusters re-cuts the stored tree, no refitting
+k_values = list(range(2, 10))
 silhouette_scores = []
-for k in range(2, 10):
-    model = HierarchicalClustering(n_clusters=k)
-    labels = model.fit_predict(X)
+for k in k_values:
+    labels = model.set_n_clusters(k).labels_
     score = silhouette_score(X, labels)
     silhouette_scores.append(score)
 
 # Plot and find elbow
 optimal_k = k_values[np.argmax(silhouette_scores)]
+print(f"Optimal k: {optimal_k}")
+
+# Output: Optimal k: 4
 ```
+
+Doing it this way is not just tidier, it is 8x less work: one fit instead of eight.
 
 #### Method 3: Domain Knowledge
 
@@ -781,9 +1167,13 @@ Use business understanding:
    - Reproducible results
 
 4. **Works with Any Distance Metric**
-   - Euclidean, Manhattan, Cosine, etc.
-   - Can use custom distances
+   - The algorithm only ever needs `d(x, y)`, so any metric plugs in
+   - This implementation ships `'euclidean'`, `'manhattan'` and `'cosine'`;
+     adding another means one more branch in `_calculate_distance`
    - Flexible for different data types
+   - Caveat: Ward is the exception. Its formula is derived from Euclidean sums of
+     squares, so `fit` raises `ValueError` for `linkage='ward'` with any other
+     metric (exactly as scikit-learn does)
 
 5. **Captures Hierarchy**
    - Natural for nested structures
@@ -823,8 +1213,8 @@ Use business understanding:
    - Requires domain knowledge or experimentation
 
 6. **Memory Requirements**
-   - Stores entire distance matrix
-   - O(n²) memory
+   - Stores entire distance matrix (`self._distance_matrix_`, built once in `fit`)
+   - O(n²) memory - 10,000 points is already an 800 MB float64 table
    - Prohibitive for very large datasets
 
 ### When to Use Hierarchical Clustering
@@ -855,6 +1245,25 @@ Use business understanding:
 | **Hierarchy** | Yes | No |
 | **Large data** | ❌ | ✅ |
 | **Dendrogram** | ✅ | ❌ |
+
+---
+
+## Simplifications vs. Canonical Hierarchical Clustering
+
+The clustering itself is not simplified: merge heights match
+`scipy.cluster.hierarchy.linkage` to within 4e-15 for single, complete, average and
+Ward under euclidean, manhattan and cosine, and the partitions match
+`sklearn.cluster.AgglomerativeClustering` with an Adjusted Rand Index of 1.000.
+What is left out is around the edges:
+
+| Canonical behaviour | Here | Consequence |
+|---------------------|------|-------------|
+| Divisive (top-down) clustering as an alternative strategy | Not implemented - only agglomerative | The divisive section above is conceptual background, not code you can call |
+| `distance_threshold` cut ("cut at height 7", sklearn's option) | Cut by `n_clusters` only | To cut at a height, read `linkage_matrix_[:, 2]` and count how many merges sit below your threshold, then pass that `k` to `set_n_clusters` |
+| SciPy's nearest-neighbour-chain algorithm, O(n²) time | Plain scan of all cluster pairs at every step, O(n³) distance lookups | Fine to a few hundred points (n=200 fits in about 1 second); SciPy stays fast into the tens of thousands |
+| Centroid and median linkage (which can produce *inversions* - a merge lower than the one before it) | Not implemented | Every hierarchy this class produces is monotone, so it is always drawable as a dendrogram |
+| `AgglomerativeClustering` has **no** `predict` | `predict` is provided, using nearest training-cluster centroid | Convenient, but it is an extension. A point predicted into cluster 2 would not necessarily have joined cluster 2 had it been present during `fit` |
+| Connectivity constraints (only merge neighbours in a graph) | Not implemented | Cannot be used for the connectivity-constrained image-segmentation variant |
 
 ---
 
@@ -965,15 +1374,16 @@ print("\n" + "="*60)
 print("Finding optimal number of clusters...")
 print("="*60 + "\n")
 
-k_range = range(2, 8)
+k_range = list(range(2, 8))
 scores = []
 
 print(f"{'k':<5} {'Silhouette':<15}")
 print("-" * 20)
 
+# Note: no refitting here. `model` is already fitted, and set_n_clusters just
+# re-cuts the hierarchy it already built - the whole point of the algorithm.
 for k in k_range:
-    model = HierarchicalClustering(n_clusters=k, linkage='ward')
-    labels = model.fit_predict(X_scaled)
+    labels = model.set_n_clusters(k).labels_
     score = silhouette_score(X_scaled, labels)
     scores.append(score)
     print(f"{k:<5} {score:<15.3f}")
@@ -981,6 +1391,64 @@ for k in k_range:
 optimal_k = k_range[np.argmax(scores)]
 print(f"\nOptimal number of clusters: {optimal_k}")
 ```
+
+**Expected output** (the plotting call opens a window; everything else prints):
+```
+Comparing Linkage Methods:
+
+Linkage         Silhouette      Notes                         
+------------------------------------------------------------
+single          0.877           Good for elongated clusters   
+complete        0.877           Creates compact clusters      
+average         0.877           Balanced approach             
+ward            0.877           Minimizes variance            
+
+============================================================
+Training final model with Ward linkage...
+============================================================
+
+Silhouette Score: 0.877
+
+Cluster Analysis:
+
+Cluster 0:
+  Size: 50 points
+  Center: [-2.66301205  8.9251602 ]
+  Std Dev: [0.66565758 0.76449609]
+
+Cluster 1:
+  Size: 50 points
+  Center: [-6.77912214 -6.88758091]
+  Std Dev: [0.89912136 0.79441173]
+
+Cluster 2:
+  Size: 50 points
+  Center: [4.59523718 2.10914946]
+  Std Dev: [0.71362662 0.80855562]
+
+Generating dendrogram...
+
+============================================================
+Finding optimal number of clusters...
+============================================================
+
+k     Silhouette     
+--------------------
+2     0.701          
+3     0.877          
+4     0.717          
+5     0.551          
+6     0.368          
+7     0.370          
+
+Optimal number of clusters: 3
+```
+
+All four linkages score identically here because the three blobs are so cleanly
+separated that every method finds exactly the same partition. That is the *expected*
+result on easy data - the linkage choice only starts to matter when clusters touch,
+overlap or are non-convex (see USAGE EXAMPLE 3 in the `.py`, where single linkage
+recovers two interleaved moons perfectly while scoring the worst silhouette).
 
 ---
 
@@ -996,7 +1464,20 @@ Unlike k-Means, you can decide the number of clusters after seeing the dendrogra
 - Ward: Compact, assumes similar sizes
 
 ### 3. **Build Once, Cut Many Times**
-Build the hierarchy once, then try different numbers of clusters by cutting at different heights.
+Build the hierarchy once with `fit(X)`, then try different numbers of clusters with
+`set_n_clusters(k)`. `fit` always merges all the way down to one cluster, so the
+whole tree is stored in `linkage_matrix_` and re-cutting is just a replay of the
+recorded merges — no distance is recomputed.
+
+```python
+import numpy as np
+np.random.seed(0)
+X = np.vstack([np.random.randn(10, 2) + c for c in [[0, 0], [6, 0], [3, 5]]])
+
+model = HierarchicalClustering(n_clusters=3, linkage='ward').fit(X)   # one fit
+for k in range(2, 8):
+    print(k, model.set_n_clusters(k).labels_)                         # six cuts
+```
 
 ### 4. **Dendrogram is Key**
 The dendrogram visualization is the most important tool for understanding and evaluating your clustering.

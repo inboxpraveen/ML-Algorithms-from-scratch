@@ -3,14 +3,21 @@
 Welcome to the world of XGBoost! 🚀 In this comprehensive guide, we'll explore XGBoost (Extreme Gradient Boosting) - one of the most powerful and widely-used machine learning algorithms. Think of it as gradient boosting on steroids, with advanced optimizations and regularization techniques!
 
 ## Table of Contents
-1. [What is XGBoost?](#what-is-xgboost)
-2. [How XGBoost Works](#how-xgboost-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is XGBoost?](#what-is-xgboost)
+3. [How XGBoost Works](#how-xgboost-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Computational Complexity](#computational-complexity)
+11. [Simplification vs. Canonical XGBoost](#simplification-vs-canonical-xgboost)
+12. [Advantages and Limitations](#advantages-and-limitations)
+13. [Comparing with Alternatives](#comparing-with-alternatives)
+14. [Key Concepts to Remember](#key-concepts-to-remember)
+15. [Conclusion](#conclusion)
 
 ---
 
@@ -87,12 +94,12 @@ for i in range(3):
 Expected output:
 ```
 Train R2: 0.9832
-Test  R2: 0.9535
-  x=-2.88  true= 8.17  pred= 8.30
+Test  R2: 0.9534
+  x=-2.88  true= 8.17  pred= 8.81
   x= 0.23  true= 0.14  pred= 0.15
   x= 2.55  true= 6.38  pred= 6.76
   x=-1.43  true= 1.71  pred= 2.22
-  x= 2.34  true= 6.19  pred= 5.44
+  x= 2.34  true= 6.19  pred= 5.30
 
 Classification accuracy: 100.00%
   true=1  P(0)=0.007  P(1)=0.993
@@ -163,7 +170,7 @@ Benefits:
 - Better generalization
 ```
 
-**3. Improved Split Finding**
+**3. Improved Split Finding** *(real XGBoost library only - not implemented here)*
 ```
 Standard GB: Tries all possible splits
 XGBoost: Weighted quantile sketch + sparsity-aware algorithm
@@ -173,6 +180,12 @@ Benefits:
 - Handles large datasets
 - Optimized for sparse data
 ```
+
+> **What `_17_xgboost.py` actually does:** the *exact greedy* algorithm
+> (Algorithm 1 of the paper), which scores every midpoint between consecutive
+> distinct feature values. Exact, easy to read, and quadratic in `n_samples`.
+> The quantile sketch is the library's approximation of this scan. See
+> [Simplification vs. Canonical XGBoost](#simplification-vs-canonical-xgboost).
 
 **4. Column Subsampling**
 ```
@@ -188,11 +201,13 @@ Benefits:
 **5. Shrinkage and Column Subsampling**
 ```
 Multiple levels of randomness:
-- Row subsampling (subsample)
-- Column subsampling per tree (colsample_bytree)
-- Column subsampling per level (colsample_bylevel)
-- Column subsampling per split (colsample_bynode)
+- Row subsampling (subsample)                     <- implemented here
+- Column subsampling per tree (colsample_bytree)  <- implemented here
+- Column subsampling per level (colsample_bylevel)  (library only)
+- Column subsampling per split (colsample_bynode)   (library only)
 ```
+Our `__init__` exposes `subsample` and `colsample_bytree` only; the per-level and
+per-split variants are library features.
 
 ---
 
@@ -212,10 +227,12 @@ Step 3: Row subsampling (if subsample < 1.0)
          ↓
 Step 4: Build tree using regularized objective:
         For each node, find best split by maximizing:
-        Gain = 0.5 × [G_L²/(H_L+λ) + G_R²/(H_R+λ) - (G_L+G_R)²/(H_L+H_R+λ)] - γ
+        Gain = 0.5 × [s(G_L,H_L) + s(G_R,H_R) - s(G_L+G_R,H_L+H_R)] - γ
+        where s(G,H) = shrink(G,α)²/(H+λ)
+        (with α = 0 this is the familiar G²/(H+λ) form)
          ↓
 Step 5: Calculate leaf weights:
-        w* = -G/(H+λ)
+        w* = -shrink(G,α)/(H+λ)      [α = 0  ->  w* = -G/(H+λ)]
          ↓
 Step 6: Update predictions:
         F(x) = F(x) + η × tree(x)
@@ -533,25 +550,38 @@ zero. This is exactly the Lasso effect: sparse solutions.
 
 **Effect of Regularization:**
 
+Both penalties pull the weight **toward zero**. L2 does it by inflating the
+denominator; L1 does it by shrinking the numerator. Watch the baseline `w = 10`
+fall in every row below.
+
 ```
-No regularization (λ=0, α=0):
+No regularization (λ=0, α=0):        <- baseline
   w = -G/H
-  Example: G=-100, H=10 → w = 10 (large weight)
+  Example: G=-100, H=10 → w = -(-100)/10 = 10 (large weight)
 
 L2 only (λ=10, α=0):
   w = -G/(H+λ)
-  Example: G=-100, H=10 → w = -(-100)/20 = 5 (shrunk weight)
+  Example: G=-100, H=10 → w = -(-100)/(10+10) = 5      (10 → 5)
 
 L1 only (λ=0, α=5):
   w = -shrink(G, α)/H
-  Example: G=-100, H=10 → shrink(-100, 5) = -105 → w = 10.5
+  G is negative and G < -α, so shrink ADDS α, moving G toward 0:
+  Example: G=-100, H=10 → shrink(-100, 5) = -100 + 5 = -95
+                        → w = -(-95)/10 = 9.5          (10 → 9.5)
 
 Both (λ=10, α=5):
   w = -shrink(G, α)/(H+λ)
-  Example: G=-100, H=10 → shrink(-100, 5) = -105 → w = -(-105)/20 = 5.25
+  Example: G=-100, H=10 → shrink(-100, 5) = -95
+                        → w = -(-95)/(10+10) = 4.75    (10 → 4.75)
 
-L1 on weak evidence: G=3, H=10, α=5 → shrink(3,5)=0 → w=0 (leaf zeroed!)
+L1 on weak evidence: G=3, H=10, α=5 → |G| ≤ α → shrink(3,5)=0 → w=0 (leaf zeroed!)
 ```
+
+**The sign trap.** `shrink` always moves `G` *closer to zero*, never further:
+subtract α when `G > α`, **add** α when `G < -α`. Writing `shrink(-100, 5) = -105`
+would push the gradient away from zero and *increase* the weight - the opposite of
+what Lasso does. Every number above is what
+`XGBoost(reg_alpha=..., reg_lambda=...)._calculate_leaf_weight(G, H)` returns.
 
 ### 4. Gradients and Hessians for Different Loss Functions
 
@@ -619,9 +649,9 @@ Example with 10 features:
 Each tree learns different patterns!
 ```
 
-### 6. Handling Missing Values
+### 6. Handling Missing Values *(real XGBoost library only - not implemented here)*
 
-XGBoost has a clever way to handle missing data:
+The XGBoost library has a clever way to handle missing data:
 
 ```
 For each split, try both directions for missing values:
@@ -633,6 +663,13 @@ Choose direction that gives better gain!
 This learns optimal default direction automatically
 No need to impute missing values!
 ```
+
+> **What `_17_xgboost.py` actually does:** nothing special. `_build_tree` stores no
+> default direction and never searches for one. Because `np.nan <= threshold` is
+> always `False`, a `NaN` is **silently routed right** at every node, in training
+> and in prediction alike. It will not raise, and it will not warn - so impute
+> your missing values before calling `fit`. See
+> [Simplification vs. Canonical XGBoost](#simplification-vs-canonical-xgboost).
 
 ---
 
@@ -673,15 +710,17 @@ class XGBoost:
    - Different for each loss function
 
 3. **`_calculate_leaf_weight(G, H)`** - Optimal leaf weight
-   - Uses regularized formula: w* = -G/(H+λ)
-   - Automatic weight shrinkage
+   - Uses regularized formula: w* = -shrink(G, α)/(H+λ)
+     (with α = 0 this is the familiar w* = -G/(H+λ))
+   - Automatic weight shrinkage from both penalties
 
 4. **`_calculate_gain(G_L, H_L, G_R, H_R)`** - Split gain
-   - Regularized gain formula
+   - Regularized gain formula, with the same shrink(G, α) inside every score
    - Accounts for complexity penalty
 
 5. **`_build_tree(X, gradient, hessian, depth, features)`** - Build tree
    - Uses gradient and hessian
+   - Candidate thresholds are midpoints between consecutive distinct values
    - Implements column subsampling
    - Pruning based on gain and min_child_weight
 
@@ -691,12 +730,13 @@ class XGBoost:
 
 7. **`fit(X, y, eval_set, early_stopping_rounds, verbose)`** - Train
    - Iterative tree building
-   - Optional validation monitoring
+   - Optional validation monitoring (only `eval_set[0]` is used)
    - Early stopping support
 
 8. **`predict(X, num_iteration)`** - Make predictions
    - Sum all tree predictions
    - Optional tree limit for early stopping
+   - Raises a clear `ValueError` if the model is not fitted yet
 
 9. **`get_feature_importance(importance_type)`** - Feature importance
    - Types: 'weight', 'gain', 'cover'
@@ -722,9 +762,14 @@ y = X.ravel() ** 2 + np.random.randn(200) * 0.5
 idx = np.random.permutation(200)
 X, y = X[idx], y[idx]
 
-# Split train/test
+# Split train/test (disjoint slices - X[:150] and X[150:] share no rows)
 X_train, X_test = X[:150], X[150:]
 y_train, y_test = y[:150], y[150:]
+
+# The Early Stopping subsection below also needs a validation set, so make a
+# three-way split of the same shuffled data (120 / 40 / 40, all disjoint):
+X_train_es, X_val, X_test_es = X[:120], X[120:160], X[160:]
+y_train_es, y_val, y_test_es = y[:120], y[120:160], y[160:]
 ```
 
 ### Training the Model
@@ -748,55 +793,91 @@ model.fit(X_train, y_train)
 
 ```
 Initialize:
-  base_score = mean(y_train) = 3.02
+  base_score = mean(y_train) = 3.0886
 
-Current predictions (F): all samples = 3.02
-True values (y): [9.2, 4.1, 1.5, ...]
+Current predictions (F): all samples = 3.0886
+True values (y_train[:3]): [6.34, -0.61, -0.06]
 
 Calculate gradients and hessians:
   For squared loss:
-  g = F - y = [3.02-9.2, 3.02-4.1, 3.02-1.5, ...]
-            = [-6.18, -1.08, 1.52, ...]
+  g = F - y = [3.0886-6.34, 3.0886-(-0.61), 3.0886-(-0.06), ...]
+            = [-3.26, 3.70, 3.15, ...]
   h = 1 (constant for squared loss)
 ```
 
 **Iteration 1: Build First Tree**
 
-```
-For each potential split, calculate gain:
+Every number below comes from running the code on the data above - reproduce them
+with `_calculate_gain` and `_calculate_leaf_weight` if you want to check.
 
-Example split at x ≤ 0:
-  Left samples: x ≤ 0
-    G_L = sum of g for left = 45.2
-    H_L = sum of h for left = 80 (80 samples)
-  
-  Right samples: x > 0
-    G_R = sum of g for right = -45.2
-    H_R = sum of h for right = 70 (70 samples)
+*First, a split that looks obvious and turns out to be almost worthless:*
+
+```
+Candidate split at x ≤ 0:
+  Left samples: x ≤ 0  (73 of the 150 training rows)
+    G_L = sum of g for left  =  7.4015
+    H_L = sum of h for left  = 73        (h = 1 each, so H = row count)
+
+  Right samples: x > 0  (77 rows)
+    G_R = sum of g for right = -7.4015
+    H_R = sum of h for right = 77
 
 Calculate gain (λ=1, γ=0.1):
-  Score_left = G_L²/(H_L+λ) = 45.2²/(80+1) = 25.2
-  Score_right = G_R²/(H_R+λ) = 45.2²/(70+1) = 28.7
-  Score_parent = 0²/(150+1) = 0
-  
-  Gain = 0.5 × (25.2 + 28.7 - 0) - 0.1
-       = 26.85
-  
-High gain → Good split!
+  Score_left   = G_L²/(H_L+λ) =  7.4015²/(73+1) = 0.7403
+  Score_right  = G_R²/(H_R+λ) =  7.4015²/(77+1) = 0.7023
+  Score_parent = (G_L+G_R)²/(150+1) = 0²/151    = 0.0000
 
-Calculate leaf weights:
-  w_left = -G_L/(H_L+λ) = -45.2/(80+1) = -0.56
-  w_right = -G_R/(H_R+λ) = 45.2/(70+1) = 0.64
+  Gain = 0.5 × (0.7403 + 0.7023 - 0.0000) - 0.1
+       = 0.6213
+
+LOW gain → a poor split, and the formula is right to say so.
+```
+
+**Why is it so low?** Because `y = x² + noise` is *symmetric about zero*. The left
+half and the right half have nearly the same mean, so their gradient sums are equal
+and opposite (`+7.40` and `-7.40`) and both are tiny next to a hessian of ~75. A
+split only earns gain when the two children disagree about the target; here they
+agree almost perfectly. This is the gain formula doing its job - it refuses to be
+impressed by a split that merely looks tidy.
+
+*Now the split the algorithm actually chooses:*
+
+```
+Best split at the root of tree 1: x ≤ 2.1859
+  Left:  G_L =  89.6151, H_L = 127
+  Right: G_R = -89.6151, H_R =  23
+
+  Score_left   =  89.6151²/(127+1) =  62.74
+  Score_right  =  89.6151²/( 23+1) = 334.63
+  Score_parent =    0²/(150+1)     =   0.00
+
+  Gain = 0.5 × (62.74 + 334.63 - 0.00) - 0.1 = 198.5803
+
+That is 320x the gain of the x ≤ 0 split.
+```
+
+The winner isolates the far-right tail, where `x² ` shoots up to 9 and the model's
+flat prediction of 3.09 is most wrong. Boosting always attacks the largest errors
+first.
+
+```
+Calculate leaf weights for the chosen split:
+  w_left  = -G_L/(H_L+λ) = -89.6151/(127+1) = -0.7001
+  w_right = -G_R/(H_R+λ) =  89.6151/( 23+1) =  3.7340
 
 Update predictions (η=0.1):
-  For x ≤ 0: F_new = 3.02 + 0.1×(-0.56) = 2.96
-  For x > 0:  F_new = 3.02 + 0.1×0.64 = 3.08
+  For x ≤ 2.1859: F_new = 3.0886 + 0.1×(-0.7001) = 3.0186
+  For x > 2.1859: F_new = 3.0886 + 0.1×( 3.7340) = 3.4620
 ```
+
+Notice how small those updates are. The leaf *wants* to move the right group by
++3.73, but `learning_rate=0.1` lets through only a tenth of it. That is shrinkage:
+a hundred small, cautious corrections generalize better than ten confident ones.
 
 **Iteration 2: Build Second Tree**
 
 ```
-New predictions: [2.96, ..., 3.08, ...]
+New predictions: [3.0186, ..., 3.4620, ...]
 New gradients: g = F_new - y
 
 Build next tree on new gradients...
@@ -807,7 +888,7 @@ Continues for 100 iterations
 
 ```
 Final model:
-  F(x) = 3.02 + 0.1×[tree₁(x) + tree₂(x) + ... + tree₁₀₀(x)]
+  F(x) = 3.0886 + 0.1×[tree₁(x) + tree₂(x) + ... + tree₁₀₀(x)]
 
 Predictions closely follow y = x²
 With regularization preventing overfitting!
@@ -821,7 +902,7 @@ predictions = model.predict(X_test)
 
 # Evaluate
 test_score = model.score(X_test, y_test)
-print(f"Test R²: {test_score:.4f}")
+print(f"Test R2: {test_score:.4f}")
 
 # Sample predictions
 for i in range(5):
@@ -832,19 +913,20 @@ for i in range(5):
 
 **Output:**
 ```
-Test R²: 0.9535
+Test R2: 0.9534
 
-x: -2.88, True:  8.17, Predicted:  8.30
+x: -2.88, True:  8.17, Predicted:  8.81
 x:  0.23, True:  0.14, Predicted:  0.15
 x:  2.55, True:  6.38, Predicted:  6.76
 x: -1.43, True:  1.71, Predicted:  2.22
-x:  2.34, True:  6.19, Predicted:  5.44
+x:  2.34, True:  6.19, Predicted:  5.30
 ```
 
 ### Early Stopping Example
 
 ```python
-# Train with validation set and early stopping
+# Train with validation set and early stopping.
+# Uses the three-way split (X_train_es / X_val / X_test_es) made above.
 model = XGBoost(
     n_estimators=500,  # Set high
     learning_rate=0.1,
@@ -854,27 +936,48 @@ model = XGBoost(
 
 # Provide validation set
 model.fit(
-    X_train, y_train,
+    X_train_es, y_train_es,
     eval_set=[(X_val, y_val)],
     early_stopping_rounds=20,
-    verbose=50
+    verbose=10
 )
 
 print(f"Optimal trees: {len(model.trees)}")
+print(f"Test R2: {model.score(X_test_es, y_test_es):.4f}")
 ```
 
 **Output:**
 ```
-[0] train-rmse: 2.845123, val-rmse: 2.901234
-[50] train-rmse: 0.512345, val-rmse: 0.545678
-[100] train-rmse: 0.423456, val-rmse: 0.456789
-[150] train-rmse: 0.398765, val-rmse: 0.445123  ← Best
-[170] train-rmse: 0.387654, val-rmse: 0.448234
-Early stopping at iteration 170
-Best iteration: 150, Best score: 0.445123
-
-Optimal trees: 150
+[0] train-rmse: 2.569305, val-rmse: 2.714649
+[10] train-rmse: 1.083613, val-rmse: 1.130903
+[20] train-rmse: 0.552677, val-rmse: 0.618673
+[30] train-rmse: 0.381177, val-rmse: 0.532100
+[40] train-rmse: 0.332940, val-rmse: 0.537695
+Early stopping at iteration 50
+Best iteration: 30, Best val-rmse: 0.532100
+Keeping 31 trees (iterations 0..30)
+Optimal trees: 31
+Test R2: 0.9392
 ```
+
+**Read that trace carefully - it is the whole point of early stopping:**
+
+- `train-rmse` keeps falling (0.381 -> 0.333). The model is still learning the
+  training set. It always will be.
+- `val-rmse` bottoms out at iteration 30 (0.5321) and then *rises* to 0.5377. Past
+  iteration 30 the new trees are fitting noise, not signal.
+- Nothing prints for iterations 41-49 because `verbose=10` only prints when
+  `iteration % verbose == 0`. And `[50]` never prints either, even though
+  `50 % 10 == 0`: inside the loop the early-stopping check comes *before* the
+  progress print, so iteration 50 breaks out first.
+- 20 rounds after the best, training halts at iteration 50 and the trees built
+  after the best one are discarded: `self.trees = self.trees[:best_iteration + 1]`.
+- **Best iteration 30 means 31 trees**, because iterations are numbered from 0.
+  Off-by-one here is the classic early-stopping bug.
+
+Both the progress lines and the summary now report the same unit (rmse, the square
+root of the stored MSE), so `0.532100` on the `[30]` line and `0.532100` on the
+`Best val-rmse` line are the same number - as they should be.
 
 ---
 
@@ -1115,17 +1218,22 @@ Let's break down the key parts of our implementation:
 
 ```python
 def _compute_gradient_hessian(self, y_true, y_pred):
-    if self.objective == 'reg:squarederror':
+    # Membership tests, not ==, because each objective has an alias
+    if self.objective in ['reg:squarederror', 'reg:linear']:
         # For squared error: L = 0.5 * (y - pred)^2
         gradient = y_pred - y_true
         hessian = np.ones_like(y_pred)
-    
-    elif self.objective == 'binary:logistic':
+
+    elif self.objective in ['binary:logistic', 'reg:logistic']:
         # For logistic: L = -y*log(p) - (1-y)*log(1-p)
         p = self._sigmoid(y_pred)
         gradient = p - y_true
         hessian = p * (1 - p)
-    
+
+    else:
+        # Fail loudly rather than returning undefined names
+        raise ValueError(f"Unknown objective: {self.objective}")
+
     return gradient, hessian
 ```
 
@@ -1238,22 +1346,29 @@ def _calculate_leaf_weight(self, gradient_sum, hessian_sum):
 gradient_sum = -100
 hessian_sum  = 50
 
-# No regularization (lambda=0, alpha=0)
+# No regularization (lambda=0, alpha=0)          <- baseline
 # shrink(-100, 0) = -100
 weight = -(-100) / (50 + 0) = 2.0
 
 # L2 only (lambda=10, alpha=0)
 # shrink(-100, 0) = -100
-weight = -(-100) / (50 + 10) = 1.67   # shrunk by L2
+weight = -(-100) / (50 + 10) = 1.67   # 2.0 -> 1.67, shrunk by L2
 
 # L1 only (lambda=0, alpha=5)
-# shrink(-100, 5) = -105
-weight = -(-105) / (50 + 0) = 2.1
+# G = -100 < -alpha, so shrink ADDS alpha to move G toward zero:
+# shrink(-100, 5) = -100 + 5 = -95
+weight = -(-95) / (50 + 0) = 1.9      # 2.0 -> 1.9, shrunk by L1
 
 # L1 on a weak gradient (lambda=0, alpha=5, G=3)
 # shrink(3, 5) = 0  (|G| <= alpha)
 weight = 0  # leaf zeroed out by L1
 ```
+
+Every row shrinks the baseline `2.0` toward zero - that is what "regularization"
+means. If a worked example ever shows L1 *raising* the weight (2.0 -> 2.1), the
+soft-threshold has been applied with the wrong sign. Check against the code:
+`XGBoost(reg_alpha=5, reg_lambda=0)._calculate_leaf_weight(-100, 50)` returns
+`1.9`.
 
 ### 4. Building the Tree
 
@@ -1267,19 +1382,32 @@ def _build_tree(self, X, gradient, hessian, depth=0, feature_indices=None):
     if (depth >= self.max_depth or 
         n_samples < 2 or
         hessian_sum < self.min_child_weight):
-        # Create leaf
+        # Create leaf. 'count' and 'hessian' are what the 'cover' and 'gain'
+        # feature-importance modes read later, so every node must carry them.
         leaf_weight = self._calculate_leaf_weight(gradient_sum, hessian_sum)
-        return {'type': 'leaf', 'weight': leaf_weight}
-    
-    # Column subsampling
+        return {'type': 'leaf', 'weight': leaf_weight,
+                'count': n_samples, 'hessian': hessian_sum}
+
+    # Column subsampling.
+    # max(1, ...) guarantees at least one feature: with colsample_bytree=0.3 and
+    # 3 features, int(0.9) == 0 and no split could ever be found.
+    # replace=False stops the same column being drawn twice.
+    # The draw runs even at colsample_bytree=1.0, where it randomizes the feature
+    # scan order and therefore decides exact gain ties - see the note under
+    # "subsample (row sampling)" in Model Evaluation.
     if feature_indices is None:
-        n_features_use = int(self.colsample_bytree * n_features)
-        feature_indices = np.random.choice(n_features, n_features_use)
-    
+        n_features_use = max(1, int(self.colsample_bytree * n_features))
+        feature_indices = np.random.choice(n_features, n_features_use, replace=False)
+
     # Find best split
     best_gain = 0
     for feature_idx in feature_indices:
-        for threshold in np.unique(X[:, feature_idx]):
+        # Candidate thresholds are MIDPOINTS between consecutive distinct values,
+        # exactly as sklearn and the xgboost library do. k distinct values give
+        # k-1 candidates, each with a non-empty left and right child - unless the
+        # two values it separates are adjacent float64 numbers (see below).
+        unique_values = np.unique(X[:, feature_idx])
+        for threshold in (unique_values[:-1] + unique_values[1:]) / 2.0:
             # Calculate gain for this split
             gain = self._calculate_gain(...)
             
@@ -1290,8 +1418,9 @@ def _build_tree(self, X, gradient, hessian, depth=0, feature_indices=None):
     # If no good split, create leaf
     if best_gain <= 0:
         leaf_weight = self._calculate_leaf_weight(gradient_sum, hessian_sum)
-        return {'type': 'leaf', 'weight': leaf_weight}
-    
+        return {'type': 'leaf', 'weight': leaf_weight,
+                'count': n_samples, 'hessian': hessian_sum}
+
     # Recursively build children
     left_tree = self._build_tree(X[left_mask], ...)
     right_tree = self._build_tree(X[right_mask], ...)
@@ -1300,10 +1429,41 @@ def _build_tree(self, X, gradient, hessian, depth=0, feature_indices=None):
         'type': 'split',
         'feature': best_feature,
         'threshold': best_threshold,
+        'gain': best_gain,
         'left': left_tree,
-        'right': right_tree
+        'right': right_tree,
+        'count': n_samples,
+        'hessian': hessian_sum
     }
 ```
+
+**Why midpoints and not the observed values?** Both choices produce the *same*
+partition of the training rows, so training predictions are identical. They differ
+on data the tree has never seen. Fit a depth-1 tree on
+`X = [[1], [2], [10], [11]]`, `y = [0, 0, 5, 5]`:
+
+```
+Threshold = 2.0  (an observed value)   -> x = 5 goes RIGHT, predicted 5.0
+Threshold = 6.0  (the midpoint)        -> x = 5 goes LEFT,  predicted 0.0
+```
+
+sklearn's `DecisionTreeRegressor` also stores 6.0. Putting the boundary in the
+middle of the empty gap is the neutral choice, and it is what makes this
+implementation's *test-set* predictions line up with sklearn's rather than merely
+its training-set ones.
+
+**Two float64 edge cases in `(u[:-1] + u[1:]) / 2`, documented rather than fixed.**
+When `u[i]` and `u[i+1]` are *adjacent* float64 numbers their midpoint is an exact
+tie, and round-half-to-even puts it on `u[i+1]` about half the time (20 of the first
+40 adjacent pairs above `1.0`); because the code routes with `<=`, that candidate then
+reproduces the next one and the partition separating `u[i]` from `u[i+1]` is never
+scored. And for feature values above `~9e307` the sum overflows to `inf`, emitting a
+numpy `RuntimeWarning` and giving a threshold no row can exceed. Neither fires on
+ordinary data - **0 collapses across 59,700 candidates** from 300 standard-normal
+columns of 200 rows - so no clamp is applied here and the warning is not suppressed.
+sklearn declines the same split, for its own reason: `DecisionTreeRegressor` casts
+`X` to `float32`, in which two float64-adjacent values are the *same* number, so it
+finds nothing to split on at all.
 
 **Key differences from standard gradient boosting:**
 
@@ -1324,19 +1484,27 @@ XGBoost:
 ### 5. Training Loop
 
 ```python
-def fit(self, X, y, eval_set=None, early_stopping_rounds=None):
-    # Initialize
-    self.base_score = np.mean(y)
+def fit(self, X, y, eval_set=None, early_stopping_rounds=None, verbose=False):
+    # Initialize. Regression starts at the mean; classification starts at the
+    # LOG-ODDS, because predictions live on the raw score scale and only become
+    # probabilities after sigmoid():
+    #     p = clip(mean(y), 1e-10, 1-1e-10);  base_score = log(p / (1 - p))
+    # (see _17_xgboost.py, the base-score branch inside fit)
+    self.base_score = np.mean(y)          # regression branch shown here
     predictions = np.full(n_samples, self.base_score)
     
     for iteration in range(self.n_estimators):
         # Calculate gradients and hessians
         gradient, hessian = self._compute_gradient_hessian(y, predictions)
         
-        # Row subsampling
+        # Row subsampling.
+        # replace=False: XGBoost's subsample draws WITHOUT replacement.
+        # numpy's default is replace=True, which would silently turn this into
+        # bootstrap sampling (a different algorithm - that is bagging).
         if self.subsample < 1.0:
-            indices = np.random.choice(n_samples, 
-                                      int(n_samples * self.subsample))
+            indices = np.random.choice(n_samples,
+                                      int(n_samples * self.subsample),
+                                      replace=False)
             X_sample = X[indices]
             gradient_sample = gradient[indices]
             hessian_sample = hessian[indices]
@@ -1353,8 +1521,12 @@ def fit(self, X, y, eval_set=None, early_stopping_rounds=None):
         
         # Early stopping logic
         if eval_set and early_stopping_rounds:
-            # Check validation score
-            # Stop if no improvement for early_stopping_rounds
+            # Add THIS round's tree to a running validation score, rather than
+            # re-predicting with every tree built so far. Re-predicting would
+            # make monitoring cost O(n_estimators^2) tree evaluations.
+            val_predictions += self.learning_rate * self._predict_tree(tree, X_val)
+            # Stop if no improvement for early_stopping_rounds, then trim:
+            #   self.trees = self.trees[:best_iteration + 1]
             ...
 ```
 
@@ -1415,11 +1587,37 @@ def get_feature_importance(self, importance_type='weight'):
         
         for tree in self.trees:
             accumulate_gain(tree)
-        
-        importance = importance / (counts + 1e-10)
-    
-    # Normalize
-    importance = importance / np.sum(importance)
+
+        # np.where, not "/ (counts + 1e-10)": a feature that was never used has
+        # counts == 0, and dividing 0 by 1e-10 is fine but dividing a stale
+        # non-zero numerator by it would explode. Be explicit instead.
+        importance = np.where(counts > 0, importance / counts, 0)
+
+    elif importance_type == 'cover':
+        # Average node cover = average sum of HESSIANS at the nodes that split
+        # on this feature (not the row count - see below)
+        importance = np.zeros(self.n_features)
+        counts = np.zeros(self.n_features)
+
+        def accumulate_cover(tree):
+            if tree['type'] == 'leaf':
+                return
+            importance[tree['feature']] += tree['hessian']
+            counts[tree['feature']] += 1
+            accumulate_cover(tree['left'])
+            accumulate_cover(tree['right'])
+
+        for tree in self.trees:
+            accumulate_cover(tree)
+
+        importance = np.where(counts > 0, importance / counts, 0)
+    else:
+        raise ValueError(f"Unknown importance_type: {importance_type}")
+
+    # Normalize. Guard the sum: an all-leaf ensemble (every gain <= gamma) makes
+    # every importance 0, and 0/0 would be nan.
+    if np.sum(importance) > 0:
+        importance = importance / np.sum(importance)
     return importance
 ```
 
@@ -1435,9 +1633,12 @@ def get_feature_importance(self, importance_type='weight'):
   - Accounts for quality of splits
   - Recommended for feature selection
   
-'cover': Average number of samples affected
-  - Measures how many samples are affected by feature
-  - Good for understanding feature reach
+'cover': Average sum of hessians at the nodes that split on this feature
+  - This is XGBoost's definition of "cover": second-order mass, not row count
+  - For squared error h = 1, so cover IS the average number of rows affected
+  - For logistic loss h = p(1-p), so cover measures how much *uncertain* data a
+    split touches - a split over 100 rows the model is already sure about has
+    much less cover than one over 100 borderline rows
 ```
 
 ---
@@ -1579,7 +1780,7 @@ High (1-10):
 ```
 Full (1.0):
   ✓ Uses all data
-  ✓ Deterministic
+  ✓ No row-level randomness
   ✗ No stochastic regularization
   
 High (0.8-0.9):
@@ -1597,6 +1798,14 @@ Low (< 0.5):
   ✗ Unstable
   ✗ Rarely beneficial
 ```
+
+`subsample=1.0` is not the same as *deterministic*, though. `_build_tree` draws a
+random feature permutation on every tree even at `colsample_bytree=1.0`, and since
+the split scan keeps only a strictly better gain, that permutation decides exact
+gain ties. Two unseeded fits on identical data can therefore differ - rare on
+continuous features, but it is what moves the depth-4 test figures in the
+verification table below (test R² `0.8511`-`0.8627` across five seeds). Call
+`np.random.seed(...)` immediately before `fit` when you need bit-identical runs.
 
 **colsample_bytree (column sampling):**
 ```
@@ -1700,6 +1909,12 @@ Acceptable: R² = 0.5-0.7
 Poor: R² < 0.5
 ```
 
+One edge case worth knowing: if `y_test` is *constant* there is no variance to
+explain, so `R² = 1 - 0/0` is undefined. `score()` detects that (against the scale
+of `y`, because float64 rounding leaves `ss_total ≈ 6e-29` rather than exactly `0`
+for something like `np.full(20, 9.9)`) and follows sklearn's convention: `1.0` if
+the constant is reproduced, `0.0` if it is not.
+
 **RMSE (Root Mean Squared Error):**
 ```python
 predictions = model.predict(X_test)
@@ -1765,6 +1980,8 @@ Poor: AUC < 0.7
 
 **How to implement:**
 ```python
+# X_val, y_val come from your own three-way split - see the Step-by-Step
+# section for a worked example. Only eval_set[0] is monitored.
 model = XGBoost(n_estimators=1000, learning_rate=0.1)
 
 model.fit(
@@ -1774,6 +1991,7 @@ model.fit(
     verbose=100
 )
 
+# best_iteration is 0-based, so the model keeps best_iteration + 1 trees
 print(f"Optimal trees: {len(model.trees)}")
 ```
 
@@ -1837,7 +2055,7 @@ for i, (name, imp) in enumerate(zip(feature_names, importance_gain)):
 
 ### Time Complexity
 
-**Training:**
+**Training (the library, with the quantile sketch):**
 ```
 O(M × N × F × K × log(N) + M × N × K)
 
@@ -1860,6 +2078,47 @@ Typical:
   M=100, N=10,000, F=20, K=6
   Time: ~5-30 seconds
 ```
+
+**Training (`_17_xgboost.py`, exact greedy) - read this before you scale up:**
+
+```
+Per node with n rows:
+  F features × (n-1) candidate midpoints × O(n) work per candidate
+  = O(F × n²)
+
+  The O(n) per candidate is the boolean masking and the four np.sum calls:
+      left_mask       = feature_values <= threshold      # O(n)
+      gradient_left   = np.sum(gradient[left_mask])      # O(n)
+      hessian_left    = np.sum(hessian[left_mask])       # O(n)
+      ...and the same two for the right child
+
+Per tree (a full level touches all n rows, K levels deep):
+  O(F × N² × K)
+
+Whole fit:
+  O(M × F × N² × K)
+```
+
+That `N²` is the single most important thing to know about this file. The library
+avoids it two ways: it pre-sorts each feature once and sweeps the split point,
+accumulating `G` and `H` incrementally in O(n) per *feature* rather than per
+*candidate*; and its weighted quantile sketch shrinks the candidate list from
+`n-1` values to a few hundred buckets. We do neither, on purpose - the naive scan
+is four readable lines and it is where the gain formula becomes visible.
+
+The practical consequence: **doubling `n_samples` roughly quadruples the runtime.**
+
+```
+Measured wall-clock for fit() on this implementation
+(8 features, max_depth=4, n_estimators=40, Python 3.13 / numpy 2.3):
+  100 rows   ->  1.42 s
+  200 rows   ->  5.76 s     (2x the rows, 4.1x the time)
+  400 rows   -> 20.81 s     (2x again, 3.6x the time)
+```
+
+This is why the USAGE EXAMPLE blocks in `_17_xgboost.py` use 150-300 rows rather
+than the 10,000 a real problem would have. For anything bigger, install the real
+library.
 
 **Prediction:**
 ```
@@ -1938,7 +2197,125 @@ Highly parallelizable:
 
 ---
 
+## Simplification vs. Canonical XGBoost
+
+`_17_xgboost.py` implements the *mathematics* of the XGBoost paper faithfully - the
+second-order objective, the regularized gain of Eq. (7), the L1 soft-threshold, the
+log-odds initialization, gamma pruning, `min_child_weight`, row and column
+subsampling, and early stopping. What it leaves out is the systems engineering and
+a handful of extras. This section states exactly what is missing, so that nothing
+elsewhere in this document reads as a claim the code cannot back up.
+
+**Verified equivalences (what the code *does* match):**
+
+| Check | Result |
+|---|---|
+| L1 leaf weight vs. brute-force minimiser of `G·w + ½(H+λ)w² + α·abs(w)` | agrees on all 8 test triples, e.g. `G=-100, H=10, α=5, λ=0` -> both `9.500000` |
+| Gain vs. a hand-coded paper Eq. (7), 5000 random `(G_L,H_L,G_R,H_R,λ,α,γ)` draws | max **relative** difference `1.3e-8`, all of it from the code's `1e-10` denominator guard; put that guard in the reference too and the max **absolute** difference is `2.2e-16`. Draw-dependent - see below |
+| Predictions vs. `sklearn.GradientBoostingRegressor` (with `λ=α=γ=0`, where the two are algorithmically equivalent), on USAGE EXAMPLE 3's dataset and its 180-row training split | max abs difference on **train** `1.1e-10 / 3.2e-10 / 2.2e-10` for 10/25/50 trees at depth 2/3/4; test R² `0.5840 / 0.8389 / 0.8627` vs. sklearn's `0.5840 / 0.8393 / 0.8545` |
+| Split threshold on gapped data | `6.0`, identical to `DecisionTreeRegressor` |
+| Classification `base_score` vs. `GradientBoostingClassifier`'s init (USAGE EXAMPLE 2's 150-row training split, 76 positives) | both `+0.026668` = `log(p/(1-p))` with `p = 76/150`; difference `1e-17` |
+| Training loss over 60 rounds | falls monotonically, every diff ≤ 0 |
+
+*Reading the gain row.* Those two figures are one specific draw, so reproduce them
+with it: `rng = np.random.default_rng(0)`, then per triple, **in this order**,
+`G_L, G_R = rng.normal(0, 10)` (sd 10), `H_L, H_R = rng.uniform(0, 100)`,
+`λ = rng.uniform(0, 10)`, `α = rng.uniform(0, 5)`, `γ = rng.uniform(0, 1)`. The
+relative figure is set by whichever single draw lands on the smallest gain, so it
+moves with the seed: `2.7e-9` (seed 3) to `4.5e-8` (seed 42) over the five seeds
+tried. What does *not* move is the cause - add the same `1e-10` to the reference's
+denominators and the whole discrepancy vanishes, leaving only float64 rounding at
+the `1e-16` level. (That `2.2e-16` assumes the reference writes `shrink` as
+`np.sign(G) * np.maximum(np.abs(G) - α, 0)`; write it with the same `if/elif`
+branches the code uses and the guarded difference is exactly `0.0`.)
+
+*Reading the sklearn row.* The **training** agreement is the evidence: matching to
+`~1e-10` on every training row means both builders induced the same training
+partitions and computed the same leaf weights. Individual **test** predictions can
+differ by much more (up to `1.69` in the depth-4 config, on a test target whose own
+std is `3.78`) without anything being wrong - the two break ties between equal-gain
+splits differently (partition-
+equivalent on the training rows, but a different feature or a different gap, so an
+unseen point is routed elsewhere), and sklearn casts `X` to `float32` internally,
+so a test point lying within `float32` resolution of a boundary also flips. Test R²
+stays comparable, which is the honest summary. To reproduce these exact figures you
+need `criterion='squared_error'` on the sklearn side (its default is `friedman_mse`,
+which breaks near-ties differently) and `np.random.seed(0)` immediately before each
+`fit` on ours: `_build_tree` draws a random feature permutation even at
+`colsample_bytree=1.0`, and that permutation decides the equal-gain ties. Only the
+**test** column depends on that seed - the train column is `1.1e-10 / 3.2e-10 /
+2.2e-10` under every seed tried, while at depth 4 the max test difference ranges
+`0.45`-`1.69` and our test R² `0.8511`-`0.8627` across seeds 0/1/2/3/12345. So the
+residual test-side gap is real, and it is tie-breaking, not a formula gap.
+
+**1. No weighted quantile sketch (approximate split finding)**
+
+*Canonical:* Algorithm 2 of the paper proposes candidate split points from a
+weighted quantile sketch of each feature, with the hessian as the weight, giving
+roughly `1/eps` candidates per feature instead of `n-1`.
+
+*Here:* the exact greedy scan of Algorithm 1 - every midpoint between consecutive
+distinct values.
+
+*Consequence:* results are exact (never *worse* than the sketch), but training is
+`O(M × F × N² × K)`. See [Computational Complexity](#computational-complexity).
+Fine to ~500 rows; unusable at 100,000.
+
+**2. No sparsity-aware split finding (missing values)**
+
+*Canonical:* Algorithm 3 learns a *default direction* per split by scoring "all
+missing go left" against "all missing go right" and keeping the better one.
+
+*Here:* no default direction is stored or searched. Since `np.nan <= threshold`
+evaluates to `False`, every `NaN` is routed **right** at every node, in `fit` and
+`predict` alike. No error and no warning is raised.
+
+*Consequence:* `NaN` is not a first-class value. Impute before fitting.
+
+**3. No `colsample_bylevel` / `colsample_bynode`**
+
+*Canonical:* three nested levels of column subsampling.
+
+*Here:* `colsample_bytree` only - features are drawn once per tree, in
+`_build_tree`, and the same `feature_indices` are passed down every recursion.
+
+**4. gamma is on the halved-gain scale**
+
+*Canonical:* the C++ library compares the *un-halved* loss change against
+`min_split_loss`.
+
+*Here:* the paper's Eq. (7) is used literally,
+`gain = 0.5 × [...] - gamma`.
+
+*Consequence:* a given numeric `gamma` prunes twice as hard here.
+`gamma=g` here corresponds to `min_split_loss=2g` in the library.
+
+**5. Only one validation set**
+
+*Canonical:* `eval_set` may hold several `(X, y)` pairs, each reported separately.
+
+*Here:* `fit` reads `eval_set[0]` and ignores any further tuples.
+
+**6. No built-in cross-validation, no `xgb.cv`, no multi-class**
+
+`objective` accepts `reg:squarederror` / `reg:linear` /
+`binary:logistic` / `reg:logistic` and raises `ValueError` on anything else. There
+is no `multi:softmax`, no ranking objective, and no custom-objective hook.
+
+**7. None of the systems work**
+
+No parallel split finding, no cache-aware column blocks, no out-of-core
+computation, no GPU, no distributed training, no sparse matrix input. This is
+what the "10-100x faster in practice" claim in the complexity section is about,
+and it is the reason to use the real library for anything real.
+
+---
+
 ## Advantages and Limitations
+
+> The advantages below describe **XGBoost the algorithm and the library**. Where an
+> item is a library feature this implementation does not have, it is marked. See
+> [Simplification vs. Canonical XGBoost](#simplification-vs-canonical-xgboost).
 
 ### Advantages ✅
 
@@ -1963,20 +2340,27 @@ Highly parallelizable:
    - Better handling of curvature
    ```
 
-4. **Handles Missing Values**
+4. **Handles Missing Values** *(library only - NOT implemented here)*
    ```
    Learns optimal direction for missing values
    - No need to impute
    - Automatic handling
    - Often better than manual imputation
+
+   In _17_xgboost.py: NaN is silently routed RIGHT at every node.
+   Impute before calling fit().
    ```
 
-5. **Built-in Cross-Validation**
+5. **Built-in Early Stopping**
    ```
-   Early stopping with validation set
+   Early stopping against a held-out validation set
    - Automatic optimal tree count
    - Prevents overfitting
    - Saves training time
+
+   Note: this is early stopping, not cross-validation. The library also
+   ships an xgb.cv() k-fold helper; this implementation has no CV of any
+   kind, and fit() monitors a single eval_set[0] validation split.
    ```
 
 6. **Feature Importance**
@@ -2255,11 +2639,18 @@ All work together to prevent overfitting!
 
 ### 3. **Regularized Gain Formula**
 ```
+Gain = 0.5 × [s(G_L,H_L) + s(G_R,H_R) - s(G_L+G_R, H_L+H_R)] - γ
+
+  where s(G,H) = shrink(G,α)² / (H + λ)
+  and   shrink(G,α) moves G toward zero by α (zero if |G| ≤ α)
+
+With α = 0 this is the familiar form:
 Gain = 0.5 × [G_L²/(H_L+λ) + G_R²/(H_R+λ) - (G_L+G_R)²/(H_L+H_R+λ)] - γ
 
 This ONE formula incorporates:
 - Second-order information (H)
 - L2 regularization (λ)
+- L1 regularization (α, via shrink)
 - Complexity penalty (γ)
 
 Beautiful mathematics!
@@ -2287,7 +2678,8 @@ Always use validation set + early stopping
 ```
 'weight': How often feature is used
 'gain': Average gain from feature (best for selection)
-'cover': Average samples affected
+'cover': Average sum of hessians at the splitting nodes
+         (= average samples affected only when h = 1, i.e. squared error)
 
 Use 'gain' for feature selection
 ```

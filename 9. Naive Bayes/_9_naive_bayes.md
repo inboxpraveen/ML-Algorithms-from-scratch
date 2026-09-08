@@ -3,14 +3,112 @@
 Welcome to the world of Naive Bayes! 🎯 In this comprehensive guide, we'll explore one of the most elegant and efficient machine learning algorithms. Think of it as the "assume the best, calculate probabilities" algorithm!
 
 ## Table of Contents
-1. [What is Naive Bayes?](#what-is-naive-bayes)
-2. [How Naive Bayes Works](#how-naive-bayes-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is Naive Bayes?](#what-is-naive-bayes)
+3. [How Naive Bayes Works](#how-naive-bayes-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Advantages and Limitations](#advantages-and-limitations)
+11. [Variants Comparison](#variants-comparison)
+12. [Simplifications vs. Canonical Naive Bayes](#simplifications-vs-canonical-naive-bayes)
+13. [Complete Usage Example](#complete-usage-example)
+14. [Tips for Better Performance](#tips-for-better-performance)
+15. [Key Concepts to Remember](#key-concepts-to-remember)
+16. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Naive Bayes from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _9_naive_bayes.py  (the __main__ block runs this)
+# Or copy the NaiveBayes class from _9_naive_bayes.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the NaiveBayes class here (from _9_naive_bayes.py) ----
+# class NaiveBayes: ...
+
+np.random.seed(42)
+
+# ------ GAUSSIAN NB: three blobs of continuous measurements ------
+X0 = np.random.randn(100, 3) + np.array([0, 0, 0])
+X1 = np.random.randn(100, 3) + np.array([3, 3, -3])
+X2 = np.random.randn(100, 3) + np.array([-3, 2, 2])
+X = np.vstack([X0, X1, X2])
+y = np.array([0] * 100 + [1] * 100 + [2] * 100)
+
+# Shuffle BEFORE splitting: the rows above are grouped by class, so a raw
+# X[:220] split would leave almost all of class 2 out of the training set.
+idx = np.random.permutation(300)
+X, y = X[idx], y[idx]
+
+X_train, X_test = X[:220], X[220:]
+y_train, y_test = y[:220], y[220:]
+
+model = NaiveBayes(variant='gaussian')
+model.fit(X_train, y_train)
+
+print("Gaussian NB")
+print(f"  Train Accuracy: {model.score(X_train, y_train):.2%}")
+print(f"  Test  Accuracy: {model.score(X_test,  y_test):.2%}")
+print(f"  Learned priors: {np.round(model.class_priors, 3)}")
+
+proba = model.predict_proba(X_test)
+pred = model.predict(X_test)
+for i in range(3):
+    print(f"    true={y_test[i]}  pred={pred[i]}  "
+          f"P(0)={proba[i,0]:.3f}  P(1)={proba[i,1]:.3f}  P(2)={proba[i,2]:.3f}")
+
+# ------ MULTINOMIAL NB: three planted document topics ------
+topic_word = np.random.dirichlet(np.ones(40) * 0.3, 3)   # 3 topics x 40 words
+doc_topic = np.random.randint(0, 3, 300)
+X_docs = np.array([np.random.multinomial(40, topic_word[t]) for t in doc_topic])
+
+idx = np.random.permutation(300)
+X_docs, y_docs = X_docs[idx], doc_topic[idx]
+
+text = NaiveBayes(variant='multinomial')
+text.fit(X_docs[:220], y_docs[:220])
+
+print("\nMultinomial NB")
+print(f"  Train Accuracy: {text.score(X_docs[:220], y_docs[:220]):.2%}")
+print(f"  Test  Accuracy: {text.score(X_docs[220:], y_docs[220:]):.2%}")
+for i, c in enumerate(text.classes):
+    top = np.argsort(text.feature_probs[i])[::-1][:3]
+    print(f"    topic {c} top word ids: {[int(j) for j in top]}")
+```
+
+Expected output:
+```
+Gaussian NB
+  Train Accuracy: 98.18%
+  Test  Accuracy: 97.50%
+  Learned priors: [0.336 0.355 0.309]
+    true=2  pred=2  P(0)=0.000  P(1)=0.000  P(2)=1.000
+    true=0  pred=0  P(0)=1.000  P(1)=0.000  P(2)=0.000
+    true=1  pred=1  P(0)=0.000  P(1)=1.000  P(2)=0.000
+
+Multinomial NB
+  Train Accuracy: 100.00%
+  Test  Accuracy: 100.00%
+    topic 0 top word ids: [20, 7, 32]
+    topic 1 top word ids: [0, 12, 29]
+    topic 2 top word ids: [1, 8, 4]
+```
+
+The second demo is a **known-answer test**: the documents really were generated from three
+hand-made word distributions, so a correct implementation should recover the topic almost
+perfectly. Getting 100% there is evidence the multinomial likelihood table is right, not luck.
 
 ---
 
@@ -192,6 +290,14 @@ P(Not Spam|features) ∝ P(Not Spam) × P("free"=yes|Not Spam) × P("meeting"=no
 Prediction: Spam (0.252 > 0.030)
 ```
 
+> **Note on this hand calculation**: it uses *presence/absence* probabilities — the
+> `(1 - 0.1)` term is "the probability that 'meeting' is **absent** from a spam email".
+> That is **Bernoulli** Naive Bayes, which is the easiest variant to work by hand but is
+> **not** one of the two variants this class implements. The variants you can actually run
+> are worked end-to-end in [Step-by-Step Example](#step-by-step-example) (Gaussian) and in
+> USAGE EXAMPLE 3 inside `_9_naive_bayes.py` (Multinomial). See
+> [Simplifications vs. Canonical Naive Bayes](#simplifications-vs-canonical-naive-bayes).
+
 ### Types of Naive Bayes
 
 #### 1. Gaussian Naive Bayes
@@ -231,7 +337,12 @@ For **discrete features** (e.g., word counts, frequencies):
 P(xᵢ|class) = (count of feature i in class + α) / (total count in class + α×n_features)
 ```
 
-Where α is a smoothing parameter (usually 1, called Laplace smoothing)
+Where α is a smoothing parameter (usually 1, called Laplace smoothing).
+
+**In this implementation α is hard-wired to 1**, so `fit` computes exactly
+`(feature_counts + 1) / (total_count + n_features)` — the same table as
+`sklearn.naive_bayes.MultinomialNB(alpha=1.0)`. There is no `alpha` argument; see
+[Simplifications vs. Canonical Naive Bayes](#simplifications-vs-canonical-naive-bayes).
 
 **Example**:
 ```python
@@ -258,12 +369,15 @@ Our implementation includes the following key components:
 ```python
 class NaiveBayes:
     def __init__(self, variant='gaussian'):
+        # Rejects anything other than 'gaussian' / 'multinomial' with a ValueError,
+        # so an unsupported variant fails immediately instead of at predict time.
         self.variant = variant
         self.classes = None
         self.class_priors = None
         self.means = None          # For Gaussian
         self.variances = None      # For Gaussian
         self.feature_probs = None  # For Multinomial
+        self.n_features = None     # Set by fit; used to validate predict inputs
 ```
 
 ### Core Methods
@@ -271,41 +385,58 @@ class NaiveBayes:
 1. **`__init__(variant)`** - Initialize model
    - variant: 'gaussian' or 'multinomial'
    - Determines which probability distribution to use
+   - Raises `ValueError` for any other value
 
 2. **`fit(X, y)`** - Train the model
    - Calculates prior probabilities P(class)
    - For Gaussian: learns mean and variance per feature per class
    - For Multinomial: learns feature probability distributions
+   - Returns `self`, so `model.fit(X, y).predict(X)` works
    - Time complexity: O(n×d) where n=samples, d=features
 
-3. **`_calculate_gaussian_likelihood(x, class_idx)`** - Private helper
+3. **`_as_2d(X)`** - Private helper
+   - Coerces plain Python lists into a float numpy array
+   - Reshapes a 1-D input: a row of length `n_features` becomes one sample,
+     anything else becomes a single-feature column
+   - After `fit`, raises `ValueError` if the feature count does not match
+     `n_features` — otherwise NumPy would silently broadcast a wrong-width row
+     against the stored means and return a confident, meaningless prediction
+   - Called at the top of `fit`, `predict` and `predict_proba`
+
+4. **`_check_is_fitted()`** - Private helper
+   - Raises a readable `ValueError` if `predict`/`predict_proba` is called before `fit`
+   - Without it the failure surfaces as `'NoneType' object is not subscriptable`
+
+5. **`_calculate_gaussian_likelihood(x, class_idx)`** - Private helper
    - Calculates P(features|class) using Gaussian distribution
    - Uses log probabilities to avoid numerical underflow
    - Returns log likelihood
 
-4. **`_calculate_multinomial_likelihood(x, class_idx)`** - Private helper
+6. **`_calculate_multinomial_likelihood(x, class_idx)`** - Private helper
    - Calculates P(features|class) for multinomial distribution
-   - Uses Laplace smoothing to avoid zero probabilities
+   - Relies on the Laplace smoothing applied in `fit`, which already guarantees
+     every probability is strictly positive - so no epsilon is needed inside the log
    - Returns log likelihood
 
-5. **`_predict_single(x)`** - Predict for one sample
+7. **`_predict_single(x)`** - Predict for one sample
    - Calculates posterior for each class
    - Returns class with highest posterior
    - Uses log probabilities for numerical stability
 
-6. **`predict(X)`** - Predict for multiple samples
+8. **`predict(X)`** - Predict for multiple samples
    - Calls _predict_single for each sample
    - Returns array of predictions
    - Main prediction interface
 
-7. **`predict_proba(X)`** - Get class probabilities
+9. **`predict_proba(X)`** - Get class probabilities
    - Returns posterior probability for each class
    - Probabilities sum to 1
    - Useful for confidence estimation
 
-8. **`score(X, y)`** - Calculate accuracy
-   - Accuracy = correct predictions / total predictions
-   - Returns value between 0 and 1
+10. **`score(X, y)`** - Calculate accuracy
+    - This is a classifier, so `score` returns **accuracy**, not R^2
+    - Accuracy = correct predictions / total predictions
+    - Returns value between 0 and 1
 
 ---
 
@@ -353,15 +484,26 @@ P(Orange) = 4/8 = 0.5
 
 For Apples (class 0):
 ```
-Weight: mean=155g, variance=150
-Diameter: mean=7.25cm, variance=0.31
+Weight: mean=155g, variance=125
+Diameter: mean=7.25cm, variance=0.3125
 ```
 
 For Oranges (class 1):
 ```
-Weight: mean=360g, variance=266.67
-Diameter: mean=9.05cm, variance=0.19
+Weight: mean=360g, variance=250
+Diameter: mean=9.05cm, variance=0.1325
 ```
+
+These are **population** variances (`np.var`, i.e. dividing by n, not n-1) — the
+same convention scikit-learn's `GaussianNB` uses. You can check the weight
+variance for Apples by hand: `mean((150-155)^2, (170-155)^2, (140-155)^2, (160-155)^2)`
+`= mean(25, 225, 225, 25) = 125`.
+
+If you print `model.variances` you will see `125.0000107` rather than exactly `125`.
+That extra `1.069e-05` is the **variance-smoothing floor** `fit()` adds:
+`epsilon = 1e-9 * max(var(X, axis=0))`. Here the largest feature variance across the
+whole training set is the weight variance, `10693.75`, so `epsilon = 1.069e-05`.
+Its job is explained in [Understanding the Code](#understanding-the-code).
 
 ### Making Predictions
 
@@ -371,15 +513,15 @@ X_test = np.array([[155, 7.2]])  # 155g, 7.2cm diameter
 
 # Calculate posterior for Apple (class 0)
 P(Apple) = 0.5
-P(weight=155|Apple) = Gaussian(155, mean=155, var=150) = high probability
-P(diameter=7.2|Apple) = Gaussian(7.2, mean=7.25, var=0.31) = high probability
+P(weight=155|Apple) = Gaussian(155, mean=155, var=125) = high probability
+P(diameter=7.2|Apple) = Gaussian(7.2, mean=7.25, var=0.3125) = high probability
 
 Posterior(Apple) ∝ 0.5 × high × high = VERY HIGH
 
 # Calculate posterior for Orange (class 1)
 P(Orange) = 0.5
-P(weight=155|Orange) = Gaussian(155, mean=360, var=266.67) = very low probability
-P(diameter=7.2|Orange) = Gaussian(7.2, mean=9.05, var=0.19) = very low probability
+P(weight=155|Orange) = Gaussian(155, mean=360, var=250) = very low probability
+P(diameter=7.2|Orange) = Gaussian(7.2, mean=9.05, var=0.1325) = very low probability
 
 Posterior(Orange) ∝ 0.5 × very_low × very_low = VERY LOW
 
@@ -397,7 +539,7 @@ X_test = np.array([
 
 predictions = model.predict(X_test)
 print("Predicted classes:", predictions)
-# Output: [0, 1] (Apple, Orange)
+# Output: [0 1]   (Apple, Orange)
 
 # Get probabilities
 probabilities = model.predict_proba(X_test)
@@ -405,9 +547,23 @@ print("\nProbabilities:")
 for i, probs in enumerate(probabilities):
     print(f"Sample {i+1}: Apple={probs[0]:.4f}, Orange={probs[1]:.4f}")
 # Output:
-# Sample 1: Apple=0.9999, Orange=0.0001
-# Sample 2: Apple=0.0001, Orange=0.9999
+# Sample 1: Apple=1.0000, Orange=0.0000
+# Sample 2: Apple=0.0000, Orange=1.0000
 ```
+
+Those are not exact 0s and 1s — `.4f` is just rounding. The raw posteriors are
+
+```
+[[1.0,          8.4446e-43],
+ [3.8485e-76,   1.0       ]]
+```
+
+A 155 g fruit is about 13 standard deviations away from the Orange weight mean
+(`sqrt(250) ~= 15.8 g`, and `|155 - 360| = 205 g`), and the two features multiply, so
+the losing probability collapses to `1e-43`. **This is the whole reason the
+implementation works in log space**: if you multiplied the raw densities instead of
+adding their logarithms, a handful of extra features would drive the product to exactly
+`0.0` in float64 and every class would tie at zero.
 
 ---
 
@@ -485,10 +641,13 @@ P(class=1) = 4/7 = 0.572
 ### 2. Learning Gaussian Parameters
 
 ```python
+# Computed ONCE from the full training matrix, before the per-class loop
+epsilon = 1e-9 * np.var(X, axis=0).max()
+
 for idx, c in enumerate(self.classes):
     X_c = X[y == c]  # Get all samples of class c
     self.means[idx, :] = np.mean(X_c, axis=0)
-    self.variances[idx, :] = np.var(X_c, axis=0)
+    self.variances[idx, :] = np.var(X_c, axis=0) + epsilon
 ```
 
 **Step-by-step**:
@@ -505,6 +664,34 @@ var_weight = mean((150-155)², (170-155)², (140-155)², (160-155)²)
            = mean(25, 225, 225, 25) = 125
 ```
 
+**Why the `+ epsilon`? (variance smoothing)**
+
+The likelihood divides by the variance. If a feature happens to be **constant inside one
+class** — say every patient diagnosed with allergy has `fever_days = 0` — then
+`np.var(X_c, axis=0)` is exactly `0` for that feature and the very next step divides by
+zero, producing `inf` and then `nan`. The epsilon is a floor that keeps the division
+finite.
+
+Why scale it by `np.var(X, axis=0).max()` instead of using a flat `1e-9`?
+Because "small" depends on units. A flat `1e-9` is invisible next to a weight measured in
+grams (variance ~10000) but is **enormous** next to a feature whose own variance is
+`1e-12`. Scaling the floor by the largest feature variance in the dataset makes it
+uniformly negligible in whatever units you happen to be using.
+
+This is exactly scikit-learn's rule:
+
+```
+GaussianNB.epsilon_ = var_smoothing * max(var(X, axis=0)),   var_smoothing = 1e-9
+```
+
+Matching it is not cosmetic. On the raw (unscaled) breast-cancer dataset,
+sklearn's `epsilon_` is `3.2154e-04`, roughly **100,000x larger** than a flat `1e-9`,
+and it nearly doubles the smallest per-class variance. With a flat `1e-9` this
+implementation scored 0.9649 against sklearn's 0.9737 and their `predict_proba` outputs
+differed by up to 0.77; with the scaled epsilon the two agree on every prediction and
+their probabilities differ by less than `1e-15`. See USAGE EXAMPLE 5 in
+`_9_naive_bayes.py`.
+
 ### 3. Calculating Gaussian Likelihood
 
 ```python
@@ -518,6 +705,51 @@ def _calculate_gaussian_likelihood(self, x, class_idx):
     
     return log_likelihood
 ```
+
+**Where do those two lines come from?**
+
+This is the step most readers skip past, so let's do it properly. Start from the naive
+independence assumption — the *only* thing that makes the whole algorithm tractable:
+
+```
+Step 1 - the naive assumption turns a joint density into a product:
+
+    P(x₁, x₂, ..., x_d | c) = P(x₁|c) × P(x₂|c) × ... × P(x_d|c)
+                            = ∏ⱼ P(xⱼ|c)
+
+Step 2 - for Gaussian NB each factor is a normal density:
+
+    P(xⱼ|c) = 1/√(2πσ²_cj) × exp( -(xⱼ - μ_cj)² / (2σ²_cj) )
+
+Step 3 - take logs. A logarithm turns the PRODUCT into a SUM,
+         and cancels the exp:
+
+    log P(x|c) = Σⱼ [ -½·log(2πσ²_cj)  -  (xⱼ - μ_cj)² / (2σ²_cj) ]
+
+Step 4 - split that single sum into two independent sums:
+
+    log P(x|c) =  -½ · Σⱼ log(2πσ²_cj)        <- normalizing constant,
+                                                 does not depend on x
+                  -½ · Σⱼ (xⱼ - μ_cj)²/σ²_cj   <- scaled squared distance
+                                                 to the class mean
+```
+
+Those two sums are, line for line, the two statements in the code:
+
+```python
+log_likelihood  = -0.5 * np.sum(np.log(2 * np.pi * variance))   # first sum
+log_likelihood -= 0.5 * np.sum(((x - mean) ** 2) / variance)    # second sum
+```
+
+Read the second term out loud and Naive Bayes stops being mysterious: it is a
+**variance-weighted squared distance from the sample to the class mean**. A class wins
+when the sample sits close to its mean *relative to how spread out that class is*. The
+first term is the price a class pays for being spread out at all — a wide class has large
+`sigma^2`, so `log(2*pi*sigma^2)` is large and gets subtracted.
+
+Note that `variance`, `mean` and `x` here are whole vectors of length `d`, so
+`np.sum(...)` *is* the "sum over j". The naive independence assumption is what allows
+that single `np.sum` to stand in for a d-dimensional joint density.
 
 **Why log probabilities?**
 ```python
@@ -558,6 +790,18 @@ P(feature|class) = (0 + 1) / (1000 + n_features)  # Non-zero!
 # Why it helps: Avoids saying "impossible" for unseen words
 ```
 
+Smoothing has a second, quieter benefit: because the numerator `(count + 1)` is always at
+least `1`, every probability is **strictly positive**, so `_calculate_multinomial_likelihood`
+can call `np.log(feature_probs)` directly with no `log(0)` risk and no epsilon fudge:
+
+```python
+log_likelihood = np.sum(x * np.log(feature_probs))   # sum_i  x_i * log(p_i)
+```
+
+An epsilon inside that log would not be "safe" — it would be a silent bias on every
+log-likelihood, and the bias grows as the vocabulary grows and the individual `p_i`
+shrink.
+
 ### 5. Making Predictions
 
 ```python
@@ -590,12 +834,45 @@ Prediction: 0
 
 ### 6. Converting to Probabilities
 
+**First: where did the evidence term go?**
+
+Bayes' theorem has a denominator that section 5 quietly dropped:
+
+```
+                P(x|class) × P(class)
+P(class|x)  =  ----------------------
+                        P(x)
+```
+
+`predict` never computes `P(x)` because **it is the same number for every class**.
+Dividing every score by the same positive constant cannot change which score is largest,
+and `predict` only needs `argmax`. That is what the `∝` ("proportional to") symbol
+throughout this document means.
+
+`predict_proba`, however, *does* need real probabilities that sum to 1 — and it gets
+`P(x)` for free. By the law of total probability, `P(x)` is just the sum of the
+numerators over all classes:
+
+```
+P(x) = Σ_k  P(x|class_k) × P(class_k)
+```
+
+So "divide by the evidence" and "normalize the class scores so they sum to 1" are the
+*same operation*. That is precisely the last line below.
+
 ```python
 # Convert log posteriors to probabilities
 posteriors = np.array(posteriors)
 posteriors = np.exp(posteriors - np.max(posteriors))  # Numerical stability
-posteriors = posteriors / np.sum(posteriors)  # Normalize to sum to 1
+posteriors = posteriors / np.sum(posteriors)  # Normalize to sum to 1 == divide by P(x)
 ```
+
+The `- np.max(posteriors)` is the **log-sum-exp trick**. The log posteriors can easily be
+-700 or lower (see the fruit example, where a raw posterior was `1e-76`), and
+`np.exp(-800)` underflows to `0.0`, which would make every class zero and the division
+`0/0`. Subtracting the maximum first guarantees the largest exponent is exactly `exp(0) = 1`,
+so nothing overflows and the denominator is never zero. Because the same constant is
+subtracted from every class, it cancels in the ratio and the answer is unchanged.
 
 **Example**:
 ```python
@@ -679,17 +956,51 @@ F1 = 2 × (0.904 × 0.940) / (0.904 + 0.940) = 0.922
 
 ### Cross-Validation
 
-Test model on multiple train/test splits:
+Test model on multiple train/test splits.
+
+Note that `sklearn.model_selection.cross_val_score` **cannot** be used on this class:
+it calls `sklearn.base.clone`, which requires a `get_params` method, so passing our
+`NaiveBayes` object raises
+`TypeError: Cannot clone object ... it does not seem to be a scikit-learn estimator`.
+Either subclass `sklearn.base.BaseEstimator`, or just write the K-fold loop — it is
+eight lines and uses nothing but the class's own API:
 
 ```python
-from sklearn.model_selection import cross_val_score
+import numpy as np
 
-scores = cross_val_score(model, X, y, cv=5)
-mean_accuracy = np.mean(scores)
-std_accuracy = np.std(scores)
+def cross_val_score_nb(X, y, k=5, variant='gaussian', seed=42):
+    """Plain K-fold cross-validation using only NaiveBayes.fit / .score."""
+    rng = np.random.RandomState(seed)          # private RNG, not the global one
+    order = rng.permutation(len(X))            # shuffle so folds are not class-sorted
+    folds = np.array_split(order, k)
 
-print(f"Accuracy: {mean_accuracy:.3f} (+/- {std_accuracy:.3f})")
+    scores = []
+    for i in range(k):
+        test_idx = folds[i]
+        train_idx = np.concatenate([folds[j] for j in range(k) if j != i])
+        model = NaiveBayes(variant=variant)
+        model.fit(X[train_idx], y[train_idx])
+        scores.append(model.score(X[test_idx], y[test_idx]))
+    return np.array(scores)
+
+# Example on three well-separated Gaussian blobs
+np.random.seed(0)
+X = np.vstack([np.random.randn(100, 3),
+               np.random.randn(100, 3) + 3,
+               np.random.randn(100, 3) - 3])
+y = np.array([0] * 100 + [1] * 100 + [2] * 100)
+
+scores = cross_val_score_nb(X, y, k=5)
+print("Fold scores:", np.round(scores, 3))
+print(f"Accuracy: {np.mean(scores):.3f} (+/- {np.std(scores):.3f})")
+# Output:
+# Fold scores: [1.    1.    0.983 0.983 1.   ]
+# Accuracy: 0.993 (+/- 0.008)
 ```
+
+Note `np.random.RandomState(seed)` rather than `np.random.seed(seed)`: the folds get their
+own private random stream instead of silently resetting the global NumPy RNG for the rest
+of your program.
 
 ---
 
@@ -718,13 +1029,18 @@ print(f"Accuracy: {mean_accuracy:.3f} (+/- {std_accuracy:.3f})")
    - Easy to understand and explain
    - Can see which features influence prediction
 
-6. **Handles Missing Data**
-   - Can ignore features with missing values
-   - Just don't include them in probability calculation
+6. **Handles Missing Data** *(property of the algorithm, not implemented in this class)*
+   - The algorithm can ignore features with missing values: just drop those terms
+     from the per-feature sum
+   - **This class does not do that.** Pass a `NaN` and it propagates silently through
+     `np.sum`, giving `NaN` likelihoods for every class. Impute or drop first.
 
-7. **Online Learning**
-   - Can update model with new data easily
-   - No need to retrain from scratch
+7. **Online Learning** *(property of the algorithm, not implemented in this class)*
+   - The learned statistics are just counts, sums and sums-of-squares, so they can be
+     updated incrementally without revisiting old data
+   - **This class has no `partial_fit`.** Calling `fit` again discards the previous
+     model completely. See
+     [Simplifications vs. Canonical Naive Bayes](#simplifications-vs-canonical-naive-bayes).
 
 ### Limitations ❌
 
@@ -811,6 +1127,14 @@ Example features:
 
 ### Bernoulli Naive Bayes
 
+> **Not implemented in this class.** It is described here for completeness because it is
+> the third standard variant and the easiest one to work by hand (the spam calculation in
+> [The Mathematical Foundation](#the-mathematical-foundation) is Bernoulli-style).
+> `NaiveBayes(variant='bernoulli')` raises
+> `ValueError: variant must be 'gaussian' or 'multinomial', got 'bernoulli'`.
+> For binary presence/absence features, use `variant='multinomial'` on 0/1 data as a
+> close stand-in, or `sklearn.naive_bayes.BernoulliNB`.
+
 ```
 Best for: Binary features (present/absent)
 Assumption: Features are binary
@@ -823,6 +1147,41 @@ Example features:
   - Contains "money": No (0)
   - Contains "urgent": Yes (1)
 ```
+
+What makes Bernoulli genuinely different from Multinomial (and why 0/1 Multinomial is
+only a stand-in): Bernoulli explicitly rewards a feature being **absent**. Its likelihood
+is
+
+```
+P(x|class) = ∏ⱼ [ pⱼ^xⱼ × (1 - pⱼ)^(1 - xⱼ) ]
+```
+
+so a document that lacks the word "free" gets an explicit `(1 - p_free)` factor.
+Multinomial simply contributes nothing for a zero count.
+
+---
+
+## Simplifications vs. Canonical Naive Bayes
+
+This implementation is deliberately small so the math stays visible. Everything the
+Gaussian and Multinomial variants *do* compute matches scikit-learn's `GaussianNB` and
+`MultinomialNB(alpha=1.0)` to floating-point noise (learned means, variances and priors
+agree exactly; `predict_proba` agrees to about `1e-15`). What follows is what canonical
+implementations offer that this one does not, and what it costs you.
+
+| Canonical feature | Here | Consequence |
+|---|---|---|
+| **Bernoulli / Complement / Categorical NB** | Only `'gaussian'` and `'multinomial'` | Binary presence/absence data has no dedicated variant; absence is not explicitly rewarded. Use 0/1 counts with `'multinomial'` as an approximation. |
+| **Tunable Laplace `alpha`** | Fixed at `alpha = 1` | You cannot weaken smoothing (`alpha=0.01`) on a huge vocabulary or strengthen it on a tiny corpus. sklearn exposes `MultinomialNB(alpha=...)`. |
+| **User-supplied class priors** | Always estimated as class frequency | No `priors=` argument. For imbalanced data you must override `model.class_priors` after `fit` (see [Tips](#tips-for-better-performance)). |
+| **Tunable `var_smoothing`** | Fixed at `1e-9` (scaled by `max(var(X, axis=0))`, sklearn's rule) | You cannot dial the variance floor up for very noisy features. The default value and the scaling rule are the same as sklearn's. |
+| **`partial_fit` / online updates** | Not implemented | Calling `fit` again replaces the model. Re-fit on the full dataset instead. |
+| **`sample_weight`** | Not implemented | Cannot weight individual training rows. |
+| **Missing-value handling** | Not implemented | `NaN` propagates to `NaN` likelihoods for every class. Impute before fitting. |
+| **Vectorized prediction** | One Python loop per sample | Slower than sklearn's matrix form by a large constant factor, but far easier to read. This repository's rule is clarity over performance. |
+
+Each of these is genuinely optional: none of them changes the decision rule
+`argmax_c [ log P(c) + log P(x|c) ]`, which is the thing you came here to understand.
 
 ---
 
@@ -918,12 +1277,26 @@ X_selected = selector.fit_transform(X, y)
 
 ### 4. Handle Imbalanced Classes
 
-Adjust priors:
+`__init__` has no `priors` argument (unlike sklearn's `GaussianNB(priors=...)`), so
+override the attribute on the instance. It must be done **after** `fit`, because `fit`
+computes and overwrites `class_priors` from the training class frequencies:
+
 ```python
-# Give equal weight to all classes
-n_classes = len(np.unique(y))
-self.class_priors = np.ones(n_classes) / n_classes
+model = NaiveBayes(variant='gaussian')
+model.fit(X_train, y_train)
+
+print("Estimated priors:", np.round(model.class_priors, 3))
+
+# Give equal weight to all classes, so a rare class is not drowned out
+model.class_priors = np.ones(len(model.classes)) / len(model.classes)
+
+print("Uniform priors  :", np.round(model.class_priors, 3))
+print("Accuracy with uniform priors:", model.score(X_test, y_test))
 ```
+
+On a 90/10 imbalanced two-class problem this typically trades a little overall accuracy
+for much better recall on the minority class — exactly the trade you usually want when
+the rare class is the one that matters (fraud, disease, defects).
 
 ### 5. Log Probabilities
 

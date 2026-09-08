@@ -3,14 +3,117 @@
 Welcome to the world of Logistic Regression! 🎯 In this comprehensive guide, we'll explore how to solve binary classification problems. Think of it as the go-to algorithm when you need to answer yes/no questions based on data!
 
 ## Table of Contents
-1. [What is Logistic Regression?](#what-is-logistic-regression)
-2. [Regression vs Classification](#regression-vs-classification)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is Logistic Regression?](#what-is-logistic-regression)
+3. [Regression vs Classification](#regression-vs-classification)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Hyperparameter Tuning](#hyperparameter-tuning)
+11. [Visualizing Logistic Regression](#visualizing-logistic-regression)
+12. [Key Concepts to Remember](#key-concepts-to-remember)
+13. [Simplifications vs scikit-learn](#simplifications-vs-scikit-learn)
+14. [Complete Usage Example](#complete-usage-example)
+15. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Logistic Regression from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _4_logistic_regression.py  (the __main__ block runs this)
+# Or copy the LogisticRegression class from _4_logistic_regression.py
+# and paste it above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the LogisticRegression class here ----
+# class LogisticRegression: ...
+
+np.random.seed(42)
+
+# ------ TWO OVERLAPPING GAUSSIAN BLOBS ------
+X0 = np.random.randn(100, 2) + np.array([-1, -1])   # class 0 cloud
+X1 = np.random.randn(100, 2) + np.array([ 1,  1])   # class 1 cloud
+X = np.vstack([X0, X1])
+y = np.array([0] * 100 + [1] * 100)
+
+# Shuffle before slicing: the rows are stacked class-0-then-class-1, so an
+# unshuffled split would hand the test set every single class-1 point.
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+
+X_train, X_test = X[:150], X[150:]   # [150:], NOT [50:] - no overlap
+y_train, y_test = y[:150], y[150:]
+
+model = LogisticRegression(learning_rate=0.1, iterations=1000)
+model.fit(X_train, y_train)
+
+print(f"Train accuracy: {model.score(X_train, y_train):.4f}")
+print(f"Test  accuracy: {model.score(X_test,  y_test):.4f}")
+print(f"Loss: {model.losses[0]:.4f} -> {model.losses[-1]:.4f}")
+
+proba = model.predict_proba(X_test)
+preds = model.predict(X_test)
+for i in range(3):
+    print(f"  true={y_test[i]}  P(y=1)={proba[i]:.4f}  pred={preds[i]}")
+
+# The threshold is a public argument: move it without refitting.
+for t in [0.3, 0.5, 0.7]:
+    p = model.predict(X_test, threshold=t)
+    print(f"  threshold={t:.1f} -> positives={int(p.sum())}  "
+          f"accuracy={np.mean(p == y_test):.4f}")
+
+# ------ STUDENT PASS/FAIL, WITH FEATURE SCALING ------
+X_stud = np.array([[1.0, 20], [2.0, 40], [3.0, 60], [4.0, 90], [5.0, 75],
+                   [1.5, 30], [2.5, 50], [3.5, 70], [4.5, 90]])
+y_stud = np.array([0, 0, 0, 1, 1, 0, 1, 1, 1])       # 0 = Fail, 1 = Pass
+
+# Attendance spans 20-100 while study hours span 1-5. Standardize, or the
+# attendance column dominates every gradient.
+mu, sd = X_stud.mean(axis=0), X_stud.std(axis=0)
+stud = LogisticRegression(learning_rate=0.5, iterations=5000)
+stud.fit((X_stud - mu) / sd, y_stud)
+
+c = stud.get_coefficients()
+print(f"\nStudent model accuracy: {stud.score((X_stud - mu) / sd, y_stud):.4f}")
+print(f"Intercept {c['intercept']:.4f}, coefficients {np.round(c['coefficients'], 4)}")
+print(f"Odds ratios per std dev: {np.round(np.exp(c['coefficients']), 2)}")
+
+X_new = np.array([[2, 30], [4, 85], [3, 55]])
+print(f"P(pass) for three new students: "
+      f"{np.round(stud.predict_proba((X_new - mu) / sd), 4)}")
+print(f"Predicted outcomes: {stud.predict((X_new - mu) / sd)}")
+```
+
+Expected output:
+```
+Train accuracy: 0.9400
+Test  accuracy: 0.9200
+Loss: 0.6931 -> 0.1522
+  true=1  P(y=1)=0.8839  pred=1
+  true=0  P(y=1)=0.0002  pred=0
+  true=1  P(y=1)=0.2590  pred=0
+  threshold=0.3 -> positives=25  accuracy=0.9000
+  threshold=0.5 -> positives=24  accuracy=0.9200
+  threshold=0.7 -> positives=20  accuracy=0.9200
+
+Student model accuracy: 0.7778
+Intercept 0.5558, coefficients [2.042  1.1856]
+Odds ratios per std dev: [7.71 3.27]
+P(pass) for three new students: [0.0804 0.9697 0.5962]
+Predicted outcomes: [0 1 1]
+```
+
+Running `python _4_logistic_regression.py` directly executes a slightly fuller version of this (three demos, about 1.4 seconds).
 
 ---
 
@@ -189,7 +292,7 @@ Since there's no closed-form solution (like the Normal Equation for linear regre
 
 **Algorithm**:
 ```
-1. Initialize coefficients randomly
+1. Initialize coefficients to ZERO
 2. For each iteration:
    a. Compute predictions: p = sigmoid(X @ θ)
    b. Compute error: error = p - y
@@ -198,11 +301,21 @@ Since there's no closed-form solution (like the Normal Equation for linear regre
 3. Repeat until convergence
 ```
 
+**Why zero and not random?** Neural networks must break symmetry with random
+weights, but binary cross-entropy with a *linear* model is a **convex** problem:
+there is exactly one minimum and every starting point rolls into it. Starting at
+zero makes every run of this file byte-for-byte reproducible, and it is what
+scikit-learn and statsmodels do. It also gives a memorable first loss - with all
+coefficients zero, every prediction is `sigmoid(0) = 0.5`, so the initial loss is
+always `-log(0.5) = log(2) = 0.6931`. You will see that number at the start of
+every loss curve in this guide.
+
 **Key Parameters**:
 - **Learning Rate (α)**: Step size for updates
   - Too large → Overshooting, unstable
   - Too small → Slow convergence
-  - Typical values: 0.001 to 0.1
+  - Typical values: 0.001 to 0.1 on raw features; up to 0.5 once the features
+    are standardized (scaling is what makes the larger steps safe)
 
 - **Iterations**: Number of update steps
   - More iterations → Better convergence
@@ -219,20 +332,30 @@ Our implementation includes the following key components:
 
 ```python
 class LogisticRegression:
-    def __init__(self, learning_rate=0.01, iterations=1000):
+    def __init__(self, learning_rate=0.01, iterations=1000, fit_intercept=True,
+                 reg_lambda=0.0):
         self.learning_rate = learning_rate
         self.iterations = iterations
+        self.fit_intercept = fit_intercept
+        self.reg_lambda = reg_lambda
         self.coefficients = None
         self.intercept = None
+        self.feature_coefficients = None
         self.losses = []  # Track training progress
 ```
 
 ### Core Methods
 
-1. **`__init__(learning_rate, iterations)`** - Initialize model
+1. **`__init__(learning_rate, iterations, fit_intercept, reg_lambda)`** - Initialize model
    - Set hyperparameters for training
-   - learning_rate: Controls step size
-   - iterations: Number of training steps
+   - `learning_rate`: Controls step size (0.01 on raw features, 0.1-0.5 on standardized ones)
+   - `iterations`: Number of training steps (typically 500-5000)
+   - `fit_intercept`: Whether to prepend a column of ones so the model learns a
+     bias term (default `True`). Set `False` only when the data is already
+     centered or a bias column is already in `X`.
+   - `reg_lambda`: L2 (ridge) penalty strength on the feature coefficients
+     (default `0.0` = no penalty). The intercept is never penalized.
+     Equivalent to scikit-learn's `C` through `reg_lambda = 1 / C`.
 
 2. **`_sigmoid(z)`** - Private helper method
    - Applies sigmoid activation function
@@ -243,11 +366,19 @@ class LogisticRegression:
    - Implements gradient descent optimization
    - Minimizes binary cross-entropy loss
    - Updates coefficients iteratively
+   - Rejects labels that are not 0/1, accepts plain Python lists and 1-D `X`
+   - Returns `self`, so `model = LogisticRegression().fit(X, y)` works
+   - Records `len(model.losses) == iterations + 1` values: one per iteration
+     plus a final one measured *after* the last update, so `losses[-1]` is the
+     loss of the model you actually get back
 
 4. **`predict_proba(X)`** - Get probabilities
    - Returns probabilities for class 1
    - Values between 0 and 1
    - Useful for understanding confidence
+   - **Shape note**: this returns a 1-D array of shape `(n_samples,)` holding
+     `P(y=1)` only. scikit-learn returns an `(n_samples, 2)` matrix instead;
+     here you write `1 - p` when you need `P(y=0)`.
 
 5. **`predict(X, threshold)`** - Get class labels
    - Converts probabilities to class labels
@@ -278,9 +409,9 @@ import numpy as np
 X_train = np.array([
     [1, 20],    # 1 hour study, 20% attendance → Fail
     [2, 40],    # 2 hours study, 40% attendance → Fail
-    [3, 60],    # 3 hours study, 60% attendance → Pass
-    [4, 80],    # 4 hours study, 80% attendance → Pass
-    [5, 100],   # 5 hours study, 100% attendance → Pass
+    [3, 60],    # 3 hours study, 60% attendance → Fail  (the hard case)
+    [4, 90],    # 4 hours study, 90% attendance → Pass
+    [5, 75],    # 5 hours study, 75% attendance → Pass
     [1.5, 30],  # Low effort → Fail
     [2.5, 50],  # Medium effort → Pass
     [3.5, 70],  # High effort → Pass
@@ -291,21 +422,55 @@ X_train = np.array([
 y_train = np.array([0, 0, 0, 1, 1, 0, 1, 1, 1])
 ```
 
+Two deliberate properties of this tiny dataset:
+
+- **The `[3, 60] → Fail` student is the hard case.** They studied *more* than the
+  `[2.5, 50] → Pass` student and *less* than the `[3.5, 70] → Pass` student, so
+  **no straight line can label all nine rows correctly**. That is realistic — real
+  data is not separable either.
+- **Attendance is *correlated with* study hours, not a copy of it.** If attendance
+  were exactly `20 × hours` in every row, the design matrix would be rank
+  deficient, the two coefficients would not be individually identifiable, and the
+  "Interpreting Results" section below would be meaningless. Note that `[4, 90]`
+  and `[5, 75]` break that exact relationship.
+
 ### Training the Model
 
 ```python
-model = LogisticRegression(learning_rate=0.01, iterations=1000)
-model.fit(X_train, y_train)
+# Standardize FIRST: attendance spans 20-100 while study hours span 1-5.
+# On the raw scale the attendance column dominates every gradient and the
+# default learning_rate=0.01 makes the loss climb instead of fall.
+mu, sd = X_train.mean(axis=0), X_train.std(axis=0)
+X_train_scaled = (X_train - mu) / sd
+
+model = LogisticRegression(learning_rate=0.5, iterations=5000)
+model.fit(X_train_scaled, y_train)
+
+print(f"Training accuracy: {model.score(X_train_scaled, y_train):.4f}")
+print(f"Loss: {model.losses[0]:.4f} -> {model.losses[-1]:.4f}")
+# Training accuracy: 0.7778
+# Loss: 0.6931 -> 0.2776
 ```
 
 **What happens internally**:
-1. Coefficients initialized randomly: θ = [0.003, -0.001, 0.002]
-2. For 1000 iterations:
+1. Coefficients initialized to zero: θ = [0.0, 0.0, 0.0], so every prediction
+   starts at `sigmoid(0) = 0.5` and the first loss is exactly `log(2) = 0.6931`
+2. For 5000 iterations:
    - Compute z = X @ θ
    - Apply sigmoid: p = 1/(1+e^(-z))
    - Compute loss and gradients
    - Update coefficients
-3. Final coefficients learned: θ = [intercept, coef₁, coef₂]
+3. Final coefficients learned: θ = [0.5558, 2.0420, 1.1856] = [intercept, coef₁, coef₂]
+
+The training accuracy of **0.7778 is 7 correct out of 9** — it misses both the
+`[3, 60]` and the `[2.5, 50]` student. And here is a subtlety worth pausing on:
+a straight line *can* get 8 of 9 on this data (drop the `[3, 60]` row and the
+remaining eight are cleanly separable at about 2.25 study hours). Gradient descent
+did not find that line because **it is not minimizing accuracy — it is minimizing
+log-loss**, and log-loss punishes a *confident* wrong answer far more harshly than
+accuracy does. Rather than place the boundary where `[3, 60]` gets a confidently
+wrong probability, the optimizer prefers a gentler boundary that hedges on two
+points. Minimizing log-loss and maximizing accuracy do not pick the same line.
 
 ### Making Predictions
 
@@ -317,16 +482,23 @@ X_test = np.array([
     [3, 55]    # Medium study, medium attendance
 ])
 
+# Scale new data with the TRAINING mu and sd - never recompute them on test data
+X_test_scaled = (X_test - mu) / sd
+
 # Get probabilities
-probabilities = model.predict_proba(X_test)
+probabilities = model.predict_proba(X_test_scaled)
 print("Probabilities of passing:", probabilities)
-# Output: [0.15, 0.92, 0.58]
+# Output: [0.08038779 0.96969598 0.59623216]
 
 # Get class predictions
-predictions = model.predict(X_test)
+predictions = model.predict(X_test_scaled)
 print("Predicted outcomes:", predictions)
-# Output: [0, 1, 1]  (Fail, Pass, Pass)
+# Output: [0 1 1]  (Fail, Pass, Pass)
 ```
+
+The middle student is a confident Pass (0.97), the first a confident Fail (0.08),
+and the third sits at 0.60 — barely over the 0.5 threshold. That last number is
+the model honestly telling you it is not sure.
 
 ### Interpreting Results
 
@@ -342,12 +514,64 @@ print(f"Attendance Coefficient: {coeffs['coefficients'][1]:.4f}")
 - **Negative coefficients** → Feature decreases probability of class 1
 - **Larger magnitude** → Stronger influence on prediction
 
-**Example**:
+**Actual output for the model trained above** (on standardized features):
 ```
-Intercept: -5.2
-Study Hours Coefficient: 0.8 (positive → more study = higher pass probability)
-Attendance Coefficient: 0.04 (positive → more attendance = higher pass probability)
+Intercept: 0.5558
+Study Hours Coefficient: 2.0420
+Attendance Coefficient: 1.1856
 ```
+
+### The Log-Odds (Logit) Interpretation
+
+"Larger magnitude means stronger influence" is vague. Logistic regression can do
+much better than that, because the coefficients have an *exact* meaning.
+
+Start from the model and solve for z:
+
+```
+        p = 1 / (1 + e^(-z))
+
+  =>  1/p = 1 + e^(-z)
+
+  =>  p / (1 - p) = e^z                     (a little algebra)
+
+  =>  log(p / (1 - p)) = z = b₀ + b₁x₁ + b₂x₂ + ... + bₙxₙ
+```
+
+The quantity `p / (1 - p)` is the **odds** (a probability of 0.75 is odds of 3, or
+"3 to 1"). Its logarithm is the **log-odds**, also called the **logit**. So:
+
+> **Logistic regression is a plain linear model — it is just linear in log-odds
+> space instead of in probability space.** The `z = X @ theta` that the code
+> computes on the line `linear_model = X_with_bias @ self.coefficients` *is* the
+> predicted log-odds. The sigmoid is only the last step that converts it back
+> into a probability.
+
+That gives every coefficient a precise reading:
+
+- A one-unit increase in xⱼ **adds bⱼ to the log-odds**.
+- Adding to a logarithm multiplies the thing itself, so it **multiplies the odds
+  by e^(bⱼ)**. That multiplier is called the **odds ratio**.
+
+For our student model (features are standardized, so "one unit" means "one
+standard deviation"):
+
+```python
+coeffs = model.get_coefficients()
+print("Odds ratios:", np.exp(coeffs['coefficients']))
+# Odds ratios: [7.70592527 3.27275116]
+```
+
+- Study hours: e^2.0420 = 7.71 → one extra standard deviation of study time
+  (about 1.3 hours here) multiplies the odds of passing by roughly **7.7**.
+- Attendance: e^1.1856 = 3.27 → one extra standard deviation of attendance
+  (about 24 percentage points) multiplies the odds by roughly **3.3**.
+
+Because both features were standardized, their coefficients are also directly
+comparable: study hours matters more than attendance in this dataset. On raw,
+unscaled features you could **not** make that comparison — a coefficient of 0.04
+per attendance-percent and 0.8 per study-hour say nothing about relative
+importance until you account for the very different units.
 
 ---
 
@@ -404,9 +628,15 @@ def _sigmoid(self, z):
 ```
 
 **Why clip values?**
-- Large negative z → e^(-z) becomes huge → overflow
-- Large positive z → e^(-z) becomes tiny → precision issues
-- Clipping to [-500, 500] prevents these problems
+- Large negative z → e^(-z) becomes huge. `np.exp` overflows float64 past
+  z = -709, returning `inf`, and `1 / (1 + inf)` then poisons the gradients with
+  `nan`. Clipping the **lower** end is what actually prevents this.
+- Large positive z → nothing overflows, but the sigmoid **saturates**: float64
+  runs out of resolution and `_sigmoid(z)` returns exactly `1.0` for any
+  z greater than about 37 — long before the clip at +500 would ever bite. That
+  is harmless here because `_compute_loss` clips probabilities to
+  `[1e-15, 1 - 1e-15]` before taking any logarithm, so `log(0)` never happens.
+- So the upper clip is cosmetic symmetry; the lower clip is the one doing work.
 
 **How it transforms data**:
 ```
@@ -467,6 +697,84 @@ self.coefficients -= self.learning_rate * gradients
 **Intuition**:
 - If prediction too high (p > y): Gradient is positive → decrease coefficients
 - If prediction too low (p < y): Gradient is negative → increase coefficients
+
+#### Where That Gradient Comes From (the derivation)
+
+The formula `(1/n) X^T (p - y)` is usually presented as something to memorize.
+It is not — it falls out of the chain rule, and the way it falls out is the most
+elegant thing about logistic regression. Take a single training example with
+label y, and write p = σ(z) where z = xᵀθ.
+
+**Step 1 — differentiate the loss with respect to the probability p.**
+```
+L = -[ y·log(p) + (1-y)·log(1-p) ]
+
+dL/dp = -y/p + (1-y)/(1-p)
+```
+
+**Step 2 — differentiate the sigmoid.** This is the identity that makes
+everything work:
+```
+σ(z) = 1 / (1 + e^(-z))
+
+σ'(z) = e^(-z) / (1 + e^(-z))²
+      = [1 / (1 + e^(-z))] · [e^(-z) / (1 + e^(-z))]
+      = σ(z) · (1 - σ(z))
+      = p(1 - p)
+```
+The derivative of the sigmoid is expressible in terms of the sigmoid itself.
+
+**Step 3 — chain them together and watch the cancellation.**
+```
+dL/dz = (dL/dp) · (dp/dz)
+
+      = [ -y/p + (1-y)/(1-p) ] · p(1-p)
+
+      = -y(1-p) + (1-y)p            <- the p and (1-p) denominators CANCEL
+
+      = -y + yp + p - yp
+
+      = p - y
+```
+Every trace of the sigmoid has vanished. The derivative of the loss with respect
+to the linear output is simply **the error, p - y**.
+
+**Step 4 — go the last step to the coefficients.** Since z = xᵀθ, we have
+dz/dθ = x, so for one example dL/dθ = (p - y)·x. Averaging over all n examples
+and stacking the rows into the matrix X gives exactly what the code computes:
+```
+grad = (1/n) · X^T (σ(Xθ) - y)     <-  gradients = (1/n) * X_with_bias.T @ error
+```
+
+**Why this matters**: that is the *same shape of formula* as the gradient of
+mean squared error in linear regression, `(1/n) X^T (Xθ - y)`. Swapping a
+squared-error loss for a cross-entropy loss and a linear output for a sigmoid
+output changes nothing about the update rule. This is not a coincidence — it is
+the defining property of a *canonical link function*, and it is precisely why
+binary cross-entropy is paired with the sigmoid instead of, say, MSE. Had we
+used MSE with a sigmoid, the `p(1-p)` factor from Step 2 would have survived,
+and it goes to zero whenever the model is confidently wrong (p near 0 or 1),
+stalling learning exactly when you most need it.
+
+#### Optional: the L2 regularization term
+
+With `reg_lambda > 0` the objective gains a penalty and the gradient gains one
+extra term:
+```
+objective = BCE(y, p) + (reg_lambda / 2n) · Σⱼ θⱼ²
+
+grad_j    = (1/n) X^T (p - y)_j + (reg_lambda / n) · θⱼ      (j != intercept)
+```
+which is these two lines in `fit()`:
+```python
+if self.reg_lambda > 0:
+    gradients[penalized] += (
+        (self.reg_lambda / n_samples) * self.coefficients[penalized]
+    )
+```
+`penalized` is a slice that skips index 0 when `fit_intercept=True`, because
+penalizing the bias would make the model's predictions depend on where you
+happened to put the origin.
 
 ### 4. Making Predictions
 
@@ -626,6 +934,24 @@ print(f"\nConfusion Matrix:\n{cm}")
 - Typical range: 500 - 5000 iterations
 - More iterations ≠ better (after convergence)
 
+### Regularization Strength (`reg_lambda`)
+
+| reg_lambda | Effect | When to Use |
+|------------|--------|-------------|
+| **0.0** | No penalty, plain maximum likelihood | Default. Plenty of data, no separation |
+| **0.1 - 1.0** | Mild shrinkage | Most real problems; `1.0` matches scikit-learn's default `C=1.0` |
+| **10 - 100** | Heavy shrinkage | Few samples relative to features, or perfectly separable classes |
+
+`reg_lambda` and scikit-learn's `C` are the same knob read from opposite ends:
+`reg_lambda = 1 / C`. Larger `reg_lambda` (or smaller `C`) means more
+regularization. Measured on 800 standardized samples with 5 features,
+`reg_lambda=1.0` reproduces `sklearn.linear_model.LogisticRegression(C=1.0)`'s
+weight vector to within 6e-09.
+
+**How to choose**: start at 0.0. If the coefficients come out implausibly large,
+or the training accuracy is 1.0000 while the test accuracy is much lower, or the
+loss keeps creeping toward zero without ever settling, raise it.
+
 ### Example: Finding Optimal Hyperparameters
 
 ```python
@@ -749,6 +1075,28 @@ scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 ```
 
+Or with plain NumPy, which is all this repo needs — fit the statistics on the
+**training** data only, then reuse them for the test data:
+```python
+mu, sd = X_train.mean(axis=0), X_train.std(axis=0)
+X_train_scaled = (X_train - mu) / sd
+X_test_scaled  = (X_test  - mu) / sd     # same mu, sd - do NOT refit
+```
+
+This is not optional advice you can skip. Gradient descent takes one step size
+for *all* coefficients, so a feature measured in the hundreds produces gradients
+hundreds of times larger than a feature measured in single digits. The step that
+is right for one is catastrophic for the other. On the raw student data of the
+Step-by-Step Example (attendance 20-100, hours 1-5) with the default
+`learning_rate=0.01`, the loss **rises instead of falling**: it starts at 0.6931,
+thrashes between 0.76 and 5.62, ends at 2.5968, and goes *up* on 555 of the 1000
+steps. The model settles on predicting Pass for all nine students and scores
+0.5556 — exactly the majority-class baseline, no better than always guessing
+Pass without looking at the features at all. Standardize first
+and the same data converges smoothly and monotonically from 0.6931 to 0.2776 for
+an accuracy of 0.7778. That is why every example in this guide scales before it
+fits.
+
 ### 4. **No Closed-Form Solution**
 Unlike linear regression, we must use iterative optimization (gradient descent)
 
@@ -756,14 +1104,77 @@ Unlike linear regression, we must use iterative optimization (gradient descent)
 Logistic regression assumes:
 - Binary outcome (can be extended to multiclass)
 - Linear decision boundary
-- Features are independent
+- **Observations are independent of one another** (this is *not* the Naive Bayes
+  assumption that the *features* are independent — logistic regression is
+  perfectly happy with correlated features)
+- No *perfect* multicollinearity among features. Two features that are exact
+  multiples of each other make the design matrix rank deficient and the
+  individual coefficients unidentifiable — the fit still works, but you can no
+  longer say what each feature contributed
 - Large sample size for reliable estimates
 
 ### 6. **Limitations**
-- Only works for linearly separable data
-- Assumes linear relationship between features and log-odds
+- Can only draw a **linear** decision boundary — it cannot separate classes that
+  need a curved boundary unless you engineer the features yourself (add x², x·y,
+  and so on)
+- Assumes a linear relationship between features and log-odds
 - Sensitive to outliers
-- May underperform with highly correlated features
+- May underperform with highly correlated features (the fit is fine; the
+  *interpretation* of individual coefficients becomes unstable)
+- **Perfectly separable data is a problem, not a gift.** If some straight line
+  splits the classes with no mistakes, the unregularized maximum-likelihood
+  solution has no finite optimum: pushing the coefficients larger always makes
+  the loss a little smaller, so they grow without bound. On the four-point set
+  `X = [[-2], [-1], [1], [2]]`, `y = [0, 0, 1, 1]` the coefficient reaches 8.5
+  after 20,000 iterations and is still climbing. This is exactly what the
+  `reg_lambda` (L2) option fixes — with `reg_lambda=1.0` the same fit settles at
+  1.01 and stops. Run `python _4_logistic_regression.py` to see DEMO 3 do this.
+
+---
+
+## Simplifications vs scikit-learn
+
+This implementation is deliberately small enough to read in one sitting. Here is
+exactly what it does and does not do, compared with
+`sklearn.linear_model.LogisticRegression`, so nothing on this page overpromises.
+
+**Implemented, and verified to match scikit-learn:**
+
+| Feature | Status | Measured agreement |
+|---------|--------|--------------------|
+| Unregularized binary MLE | Yes (`reg_lambda=0.0`) | max coefficient difference 1.1e-08 vs `penalty=None` on 800x5 standardized data |
+| L2 (ridge) penalty | Yes (`reg_lambda>0`) | max coefficient difference 5.8e-09 vs `penalty='l2', C=1.0` on the same data |
+| Intercept excluded from the penalty | Yes | matches scikit-learn's convention |
+| Probability output, thresholding, accuracy | Yes | identical predicted labels on every fit run to convergence; 98.25% label agreement on the breast-cancer example, where 2000 iterations stop short of convergence |
+
+**Not implemented here** (each is a deliberate simplification, not an oversight):
+
+1. **L1 (lasso) penalty and elastic net.** Real logistic regression can drive
+   coefficients to exactly zero for feature selection, using the
+   soft-thresholding operator `shrink(g, alpha) = sign(g)·max(|g| - alpha, 0)`.
+   Plain gradient descent cannot do this, because the L1 penalty is not
+   differentiable at zero — it needs a proximal or coordinate-descent solver, a
+   substantially different optimizer. Consequence: use `reg_lambda` (L2) when you
+   want shrinkage; reach for scikit-learn when you want sparsity.
+2. **Multinomial / softmax regression.** This class handles two classes only, and
+   `fit()` raises a `ValueError` if `y` contains anything but 0 and 1. The
+   canonical extension replaces the sigmoid with
+   `softmax(z)_k = e^(z_k) / Σⱼ e^(z_j)` and the binary cross-entropy with
+   categorical cross-entropy. Consequence: for K classes you would train K
+   one-vs-rest copies of this model yourself.
+3. **A second-order solver.** scikit-learn defaults to `lbfgs`, and statsmodels
+   uses Newton-Raphson / IRLS, both of which use curvature information (the
+   Hessian `X^T diag(p(1-p)) X`) and converge in tens of iterations rather than
+   thousands. First-order gradient descent is used here because it makes the
+   gradient formula visible in the code. Consequence: you must choose
+   `learning_rate` and `iterations` yourself, and you must standardize features.
+4. **A convergence check.** There is no `tol` and no early stopping — the loop
+   always runs exactly `iterations` times. Consequence: inspect `model.losses`
+   to see whether you converged; a flat tail means you can lower `iterations`.
+5. **Class weights and sample weights.** Every sample counts equally. On heavily
+   imbalanced data, scikit-learn's `class_weight='balanced'` would reweight the
+   loss; here you would resample the data or move the decision threshold instead
+   (see the threshold discussion above).
 
 ---
 
@@ -840,6 +1251,8 @@ for idx in top_features[::-1]:
 
 Logistic Regression is a fundamental and powerful algorithm for binary classification! By understanding:
 - How sigmoid transforms linear outputs to probabilities
+- Why the model is *linear in log-odds*, so every coefficient is an odds ratio
+- How the chain rule collapses the cross-entropy gradient to `(1/n) X^T (p - y)`
 - How gradient descent optimizes the model
 - How to interpret probabilities and make decisions
 - How to evaluate classification performance
@@ -849,8 +1262,8 @@ You've gained a crucial tool in your machine learning toolkit! 🎯
 **When to Use Logistic Regression**:
 - ✅ Binary classification problems
 - ✅ Need probability estimates
-- ✅ Want interpretable model
-- ✅ Linearly separable classes
+- ✅ Want interpretable model (coefficients are odds ratios)
+- ✅ Classes separable by a roughly linear boundary
 - ✅ Need fast training and predictions
 
 **When to Use Something Else**:
@@ -863,7 +1276,9 @@ You've gained a crucial tool in your machine learning toolkit! 🎯
 - Try with your own classification data
 - Experiment with different thresholds
 - Compare with scikit-learn's LogisticRegression
-- Learn about regularized logistic regression (L1/L2)
+- Experiment with `reg_lambda` — L2 regularization **is** implemented here
+  (`reg_lambda = 1 / C`); L1 / lasso is not, and the
+  [Simplifications](#simplifications-vs-scikit-learn) section explains why
 - Explore ROC curves and AUC scores
 - Study multinomial logistic regression for multi-class
 

@@ -3,14 +3,116 @@
 Welcome to the world of Gradient Boosting! 🚀 In this comprehensive guide, we'll explore one of the most powerful machine learning algorithms - Gradient Boosting. Think of it as training a team of specialists where each new member focuses on correcting the mistakes of the previous team!
 
 ## Table of Contents
-1. [What is Gradient Boosting?](#what-is-gradient-boosting)
-2. [How Gradient Boosting Works](#how-gradient-boosting-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is Gradient Boosting?](#what-is-gradient-boosting)
+3. [How Gradient Boosting Works](#how-gradient-boosting-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Computational Complexity](#computational-complexity)
+11. [Simplifications vs. Canonical Gradient Boosting](#simplifications-vs-canonical-gradient-boosting)
+12. [Advantages and Limitations](#advantages-and-limitations)
+13. [Comparing with Alternatives](#comparing-with-alternatives)
+14. [Key Concepts to Remember](#key-concepts-to-remember)
+15. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# Gradient Boosting from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _16_gradient_boosting.py  (the __main__ block runs this)
+# Or copy the GradientBoosting class from _16_gradient_boosting.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the GradientBoosting class here (from _16_gradient_boosting.py) ----
+# class GradientBoosting: ...
+
+np.random.seed(42)
+
+# ------ REGRESSION: predict y = x^2 + noise ------
+X = np.linspace(-3, 3, 200).reshape(-1, 1)
+y = X.ravel() ** 2 + np.random.randn(200) * 0.5
+
+# Shuffle before splitting: trees cannot extrapolate beyond the training range.
+# Without shuffling the last 50 x-values would all be above the training max.
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
+
+model = GradientBoosting(n_estimators=100, learning_rate=0.1, max_depth=3)
+model.fit(X_train, y_train)
+
+print(f"Train R2: {model.score(X_train, y_train):.4f}")
+print(f"Test  R2: {model.score(X_test,  y_test):.4f}")
+print(f"Training MSE: {model.train_loss_[0]:.4f} (1 tree) -> {model.train_loss_[-1]:.4f} (100 trees)")
+
+preds = model.predict(X_test)
+for i in range(3):
+    print(f"  x={X_test[i,0]:5.2f}  true={y_test[i]:5.2f}  pred={preds[i]:5.2f}")
+
+# ------ ROBUST REGRESSION: 'mae' leaves hold the MEDIAN residual ------
+y_dirty = y_train.copy()
+y_dirty[:8] += 60.0                      # 8 corrupted labels
+for loss_name in ['mse', 'mae']:
+    m = GradientBoosting(n_estimators=100, learning_rate=0.1,
+                         max_depth=3, loss=loss_name)
+    m.fit(X_train, y_dirty)
+    print(f"\nloss='{loss_name}' trained on corrupted labels -> clean Test R2: "
+          f"{m.score(X_test, y_test):.4f}")
+
+# ------ CLASSIFICATION: two Gaussian blobs ------
+X0 = np.random.randn(100, 2) + np.array([-2, -2])
+X1 = np.random.randn(100, 2) + np.array([ 2,  2])
+X_c = np.vstack([X0, X1])
+y_c = np.array([0]*100 + [1]*100)
+idx = np.random.permutation(200)
+X_c, y_c = X_c[idx], y_c[idx]
+
+cls = GradientBoosting(n_estimators=20, learning_rate=0.3,
+                       max_depth=3, loss='log_loss')
+cls.fit(X_c[:150], y_c[:150])
+
+print(f"\nClassification accuracy: {cls.score(X_c[150:], y_c[150:]):.2%}")
+proba = cls.predict_proba(X_c[150:])
+for i in range(3):
+    print(f"  true={y_c[150+i]}  P(0)={proba[i,0]:.4f}  P(1)={proba[i,1]:.4f}")
+```
+
+Expected output:
+```
+Train R2: 0.9917
+Test  R2: 0.9519
+Training MSE: 6.7362 (1 tree) -> 0.0676 (100 trees)
+  x=-2.88  true= 8.17  pred= 9.10
+  x= 0.23  true= 0.14  pred= 0.43
+  x= 2.55  true= 6.38  pred= 6.87
+
+loss='mse' trained on corrupted labels -> clean Test R2: -20.4280
+
+loss='mae' trained on corrupted labels -> clean Test R2: 0.9559
+
+Classification accuracy: 100.00%
+  true=1  P(0)=0.0011  P(1)=0.9989
+  true=0  P(0)=0.9989  P(1)=0.0011
+  true=1  P(0)=0.0011  P(1)=0.9989
+```
+
+Three things to notice:
+- **The shuffle is not optional.** `np.linspace` produces sorted x-values; slicing them directly hands the model a test set that lies entirely outside the range it was trained on, and a tree can only ever repeat the leaf value it learned at the edge.
+- **`loss='mae'` survives the corrupted labels and `loss='mse'` does not.** That is the terminal-region line search at work: an MAE leaf stores the *median* residual of its samples, so eight wild values cannot move it, while an MSE leaf stores the *mean* and gets dragged along.
+- **The probabilities are decisive (0.0011 / 0.9989), not timid.** That comes from the Newton leaf update for log loss. Both are explained in [The Mathematical Foundation](#the-mathematical-foundation).
 
 ---
 
@@ -48,7 +150,11 @@ This powerful principle works through:
 **1. Loss Function**: Measures how far predictions are from truth
 ```
 Regression: MSE = mean((y_true - y_pred)²)
-Classification: Log Loss = -mean(y_true × log(y_pred))
+            (the gradient derivation later uses the halved form ½(y - F)²;
+             the ½ only cancels the 2 in the derivative and does not move
+             the minimum - see The Mathematical Foundation)
+Classification: Log Loss = -mean(y·log(p) + (1-y)·log(1-p))
+                           where p = sigmoid(F(x))
 ```
 
 **2. Gradient (Residual)**: Direction to improve predictions
@@ -216,6 +322,21 @@ Negative gradient: y - F(x) = residuals
 → Fit trees to residuals!
 ```
 
+**Mind the ½ - there are two scales in play, and they are both correct.**
+The ½ is bookkeeping: it cancels the 2 that the derivative produces, which is the
+only reason `∂L/∂F` comes out as the clean `F(x) - y`. Halving a loss cannot move
+its minimiser, so the trees, the leaf values and every prediction are identical
+with or without it. But the *number you read* does change, so keep them straight:
+
+| Quantity | Formula | Where |
+|---|---|---|
+| the loss that is differentiated | `½(y - F)²` | `_mse_gradient` returns its `F - y` |
+| the loss that is reported | `mean((y - F)²)` | `_mse_loss`, stored in `train_loss_`, printed as "Training MSE" |
+
+The reported one is exactly **twice** `mean(½(y - F)²)`. Same minimiser, same
+argmin in every leaf, different constant - so do not be surprised when
+`train_loss_[-1]` is double what you get by evaluating `½(y - F)²` by hand.
+
 **Log Loss (Binary Classification)**:
 ```
 L(y, F(x)) = -y·log(p) - (1-y)·log(1-p)
@@ -275,21 +396,94 @@ Closer to true values!
 1. Initialize model with constant:
    F₀(x) = argmin_γ Σᵢ L(yᵢ, γ)
    
-   For regression: F₀(x) = mean(y)
-   For classification: F₀(x) = log(p/(1-p))
+   For squared error:   F₀(x) = mean(y)
+   For absolute error:  F₀(x) = median(y)
+   For classification:  F₀(x) = log(p/(1-p))
 
 2. For m = 1 to M:
    
    a. Compute negative gradient (pseudo-residuals):
       rᵢₘ = -[∂L(yᵢ, F(xᵢ))/∂F(xᵢ)]_{F=Fₘ₋₁}
    
-   b. Fit regression tree to {(xᵢ, rᵢₘ)}ⁿᵢ₌₁:
-      hₘ(x) = tree fitted to pseudo-residuals
+   b. Fit regression tree to {(xᵢ, rᵢₘ)}ⁿᵢ₌₁, giving terminal
+      regions (leaves) R₁ₘ, R₂ₘ, ..., R_Jm
    
-   c. Update model:
-      Fₘ(x) = Fₘ₋₁(x) + η · hₘ(x)
+   c. Terminal-region line search - for each leaf j, choose the
+      constant that minimises the ORIGINAL loss inside that leaf:
+      γⱼₘ = argmin_γ Σ_{xᵢ ∈ Rⱼₘ} L(yᵢ, Fₘ₋₁(xᵢ) + γ)
+   
+   d. Update model:
+      Fₘ(x) = Fₘ₋₁(x) + η · Σⱼ γⱼₘ · 1(x ∈ Rⱼₘ)
 
-3. Output: Fₘ(x)
+3. Output: F_M(x)
+```
+
+**Step 2c is the step people skip - and it matters.**
+
+The tree in step 2b decides *where* the boundaries go. Step 2c decides *how far to step* inside each region. Fitting a tree to the gradient and then just using the tree's own leaf averages is only correct when the loss is squared error, because that is the one case where "average of the negative gradient" and "argmin of the loss" are the same number.
+
+Solving the argmin in closed form for each of our three losses:
+
+```
+MSE      L = ½(y - F)²
+         d/dγ Σ ½(yᵢ - Fᵢ - γ)² = 0
+         γⱼₘ = mean(rᵢ)                  where rᵢ = yᵢ - Fₘ₋₁(xᵢ)
+         (the tree already stores this, so no correction is needed)
+
+MAE      L = |y - F|
+         Σ |rᵢ - γ| is minimised by the MIDDLE residual
+         γⱼₘ = median(rᵢ)
+         (NOT mean(sign(rᵢ)), which is what the tree's own leaf holds
+          and which is trapped in [-1, 1] no matter how large the errors)
+
+         With an even count, every value between the two central residuals
+         is an equally good minimiser - np.median's average of the two
+         included. The code takes the LOWER central residual,
+         sorted(r)[(n-1)//2], as a tie-break rather than as a better argmin:
+         it is an actually observed value, and it is what scikit-learn's
+         weighted 50th percentile returns, which is why the uniform-X 'mae'
+         reference check below matches sklearn to 0.0e+00.
+
+Log Loss L = -y·log(p) - (1-y)·log(1-p),  p = sigmoid(F)
+         no closed form, so take one Newton step from γ = 0:
+         γⱼₘ = -Σ(∂L/∂F) / Σ(∂²L/∂F²) = Σ rᵢ / Σ pᵢ(1 - pᵢ)
+         with rᵢ = yᵢ - pᵢ and pᵢ = sigmoid(Fₘ₋₁(xᵢ))
+```
+
+Read the log-loss formula as a confidence dial. The numerator `Σ rᵢ` is bounded by the leaf's sample count, but the denominator `Σ pᵢ(1 - pᵢ)` *shrinks* as the model grows confident (p near 0 or 1 makes p(1-p) tiny). So the step size grows exactly where the model is already sure, which is what drives log loss towards zero. Using the raw leaf mean `mean(y - p)` instead caps every step at 1 and leaves the model permanently under-confident.
+
+`_update_leaf_values()` in `_16_gradient_boosting.py` implements exactly these three lines, and `fit()` calls it right after `_create_decision_tree()` returns.
+
+**Why does a leaf hold a single constant at all?**
+
+Because a tree is not a function of `x` in any smooth sense - it is a *partition*. It
+carves the input space into J disjoint boxes and then has nothing left to say about
+where inside a box a point sits. So the only freedom left is one number per box, and
+step 2c picks that number optimally. This is also why boosting composes so well: one
+depth-3 tree can only produce 8 distinct values, but a hundred of them, each shifted
+by η, add up to a finely graded surface.
+
+It also explains the algorithm's blind spot. Every leaf constant was learned from
+training points that fell inside that box, so a test point outside the training range
+lands in an edge box and receives that box's constant - forever. Gradient boosting
+cannot extrapolate, which is precisely why every example in these files shuffles
+before splitting.
+
+**What the log-odds initialization buys you**
+
+For classification the model works in log-odds space, not probability space:
+`F(x)` is unbounded and `p = sigmoid(F(x))` squashes it into (0, 1). Setting
+`F₀ = log(p̄ / (1 - p̄))`, where `p̄` is the training base rate, means the model starts
+out predicting exactly the class balance and every subsequent tree spends its capacity
+on *deviations* from that base rate rather than rediscovering it. On a 5%-positive
+fraud dataset this is the difference between starting at `p = 0.05` and starting at
+`p = 0.5`, i.e. several wasted boosting rounds. It also keeps the additive update
+legal: adding a tree to a probability could push it past 1, but adding a tree to a
+log-odds score never leaves the valid range.
+
+```
+Base rate p̄ = 0.05  ->  F₀ = log(0.05 / 0.95) = -2.944  ->  sigmoid(F₀) = 0.05 ✓
+Base rate p̄ = 0.50  ->  F₀ = log(0.50 / 0.50) =  0.000  ->  sigmoid(F₀) = 0.50 ✓
 ```
 
 **Example Calculation**:
@@ -393,12 +587,15 @@ Our implementation includes the following key components:
 class GradientBoosting:
     def __init__(self, n_estimators=100, learning_rate=0.1, 
                  max_depth=3, min_samples_split=2, 
-                 loss='mse', subsample=1.0):
+                 loss='mse', subsample=1.0, random_state=None):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
         self.max_depth = max_depth
+        self.subsample = subsample
+        self.random_state = random_state
         self.trees = []
         self.init_prediction = None
+        self.train_loss_ = []
 ```
 
 ### Core Methods
@@ -408,42 +605,52 @@ class GradientBoosting:
    - learning_rate: Shrinkage parameter
    - max_depth: Tree complexity
    - loss: 'mse', 'mae', or 'log_loss'
+   - subsample: Row fraction per tree (stochastic gradient boosting)
+   - random_state: Seed for the subsampling draw, so `subsample < 1.0` is reproducible
 
 2. **`_get_gradient(y_true, y_pred)`** - Calculate gradients
-   - Returns negative gradient of loss function
+   - Returns ∂L/∂F, the gradient of the loss with respect to the current
+     prediction (e.g. `y_pred - y_true` for MSE)
+   - `fit()` negates it to get the pseudo-residuals the tree is fitted to
    - Different for each loss function
 
 3. **`_create_decision_tree(X, y, depth)`** - Build regression tree
    - Recursively splits to minimize variance
-   - Returns tree structure (dict)
+   - Candidate thresholds are midpoints between consecutive distinct values
+   - Returns tree structure (dict), each split node recording the gain it achieved
 
-4. **`_predict_tree(tree, X)`** - Predict with single tree
+4. **`_update_leaf_values(tree, X, y_true, current_predictions)`** - Line search
+   - Friedman's step 2c: replaces each leaf constant with the value that
+     minimises the original loss for the samples in that leaf
+   - median(r) for 'mae', Σr / Σp(1-p) for 'log_loss', no-op for 'mse'
+
+5. **`_predict_tree(tree, X)`** - Predict with single tree
    - Traverses tree structure
    - Returns predictions for all samples
 
-5. **`fit(X, y)`** - Train the ensemble
-   - Initialize with mean/log-odds
-   - Sequentially fit trees to gradients
-   - Update predictions each iteration
+6. **`fit(X, y)`** - Train the ensemble
+   - Initialize with mean / median / log-odds depending on the loss
+   - Sequentially fit trees to gradients, then run the leaf line search
+   - Update predictions each iteration and record the loss in `train_loss_`
 
-6. **`predict(X)`** - Make predictions
+7. **`predict(X)`** - Make predictions
    - Sum all tree predictions
    - Apply sigmoid for classification
 
-7. **`predict_proba(X)`** - Predict probabilities
+8. **`predict_proba(X)`** - Predict probabilities
    - For classification only
    - Returns P(class=0), P(class=1)
 
-8. **`score(X, y)`** - Evaluate performance
+9. **`score(X, y)`** - Evaluate performance
    - R² for regression
    - Accuracy for classification
 
-9. **`staged_predict(X)` / `staged_score(X, y)`** - Learning curves
-   - Predictions/scores after each tree
-   - Useful for finding optimal n_estimators
+10. **`staged_predict(X)` / `staged_score(X, y)`** - Learning curves
+    - Predictions/scores after each tree
+    - Useful for finding optimal n_estimators
 
-10. **`get_feature_importance()`** - Feature importance
-    - Based on split frequency
+11. **`get_feature_importance()`** - Feature importance
+    - Based on summed variance reduction (gain), not split counts
     - Normalized to sum to 1
 
 ---
@@ -462,15 +669,21 @@ np.random.seed(42)
 X = np.linspace(-3, 3, 100).reshape(-1, 1)
 y = X.ravel() ** 2 + np.random.randn(100) * 0.5
 
-# Split train/test
-X_train, X_test = X[:80], X[20:]
-y_train, y_test = y[:80], y[20:]
+# Shuffle first! np.linspace returns sorted x-values, so slicing straight
+# away would give a test set that lies entirely outside the training range.
+indices = np.random.permutation(100)
+X, y = X[indices], y[indices]
+
+# Split train/test - the two slices must not overlap
+X_train, X_test = X[:80], X[80:]
+y_train, y_test = y[:80], y[80:]
 ```
 
 ### Training the Model
 
 ```python
-from gradient_boosting import GradientBoosting
+# Paste the GradientBoosting class from _16_gradient_boosting.py above,
+# or import it if you have added the folder to your path.
 
 # Create model
 model = GradientBoosting(
@@ -485,50 +698,55 @@ model.fit(X_train, y_train)
 
 **What happens internally - Iteration 0**:
 
+All the numbers below were read out of an actual run of the snippet above
+(`model.init_prediction`, `y_train[:5]`, `model.trees[0]`).
+
 ```
 Initialize:
-  F₀(x) = mean(y_train) = 3.02
+  F₀(x) = mean(y_train) = 2.9504
 
-Current predictions: all samples = 3.02
-Residuals: y - F₀(x) = [calculated for each sample]
+Current predictions: all samples = 2.9504
+Residuals: y - F₀(x)
 
-Example for first 5 samples:
-  y:         [9.2, 4.1, 1.5, 0.3, 0.2]
-  F₀(x):     [3.0, 3.0, 3.0, 3.0, 3.0]
-  Residuals: [6.2, 1.1, -1.5, -2.7, -2.8]
+Example for first 5 shuffled training samples:
+  x:         [-1.18, 0.39, -2.21, -0.52, -2.58]
+  y:         [ 1.10, -0.26,  3.94,  0.35,  7.02]
+  F₀(x):     [ 2.95,  2.95,  2.95,  2.95,  2.95]
+  Residuals: [-1.85, -3.21,  0.99, -2.60,  4.07]
+
+(The shuffle is why the y-values jump around instead of descending
+ smoothly - x is no longer in sorted order.)
 ```
 
 **Iteration 1**: Fit first tree
 
 ```
-Gradients (MSE): F₀(x) - y = -residuals
-Negative gradients: residuals = [6.2, 1.1, -1.5, -2.7, -2.8, ...]
+Gradients (MSE): ∂L/∂F = F₀(x) - y = -residuals
+Negative gradients: residuals = [-1.85, -3.21, 0.99, -2.60, 4.07, ...]
 
-Fit tree₁ to these residuals:
-  Best split found: x ≤ 0.5
-    Left branch (x ≤ 0.5):  mean residual = -1.8
-    Right branch (x > 0.5): mean residual = 5.1
+Fit tree₁ to these residuals. Forcing max_depth=1 for readability, the
+single best split is:
+  Best split found: x ≤ -2.2424
+    Left branch  (x ≤ -2.2424): mean residual =  4.2091
+    Right branch (x > -2.2424): mean residual = -0.5336
 
-Tree₁(x) = -1.8 if x ≤ 0.5, else 5.1
+Tree₁(x) = 4.2091 if x ≤ -2.2424, else -0.5336
 
 Update predictions (learning_rate = 0.1):
   F₁(x) = F₀(x) + 0.1 × tree₁(x)
   
-  For x = -2.5: F₁ = 3.0 + 0.1 × (-1.8) = 2.82
-  For x = 2.5:  F₁ = 3.0 + 0.1 × (5.1) = 3.51
+  For x = -2.5: F₁ = 2.9504 + 0.1 × ( 4.2091) = 3.3713
+  For x =  0.4: F₁ = 2.9504 + 0.1 × (-0.5336) = 2.8970
 
-New residuals calculated...
+(The real model uses max_depth=3, so tree₁ has 8 leaves and splits at
+ x ≤ -2.2424 first - the same root, then six more splits below it.)
 ```
 
 **Iteration 2**: Fit second tree
 
 ```
-New residuals: [5.88, 0.90, -1.32, ...]
-
-Fit tree₂:
-  Different split found: x ≤ -1.2
-    Left:  mean = 5.2
-    Right: mean = -0.9
+Residuals shrink slightly everywhere, and the next tree finds a
+different root split because the largest remaining error has moved.
 
 Update:
   F₂(x) = F₁(x) + 0.1 × tree₂(x)
@@ -538,7 +756,10 @@ Update:
 
 ```
 Final model:
-  F₅₀(x) = 3.02 + 0.1 × [tree₁(x) + tree₂(x) + ... + tree₅₀(x)]
+  F₅₀(x) = 2.9504 + 0.1 × [tree₁(x) + tree₂(x) + ... + tree₅₀(x)]
+
+Training MSE fell from 5.8929 (after tree 1) to 0.0785 (after tree 50);
+model.train_loss_ holds the whole sequence.
 
 Predictions now closely follow y = x²!
 ```
@@ -551,7 +772,7 @@ predictions = model.predict(X_test)
 
 # Evaluate
 test_score = model.score(X_test, y_test)
-print(f"Test R²: {test_score:.4f}")
+print(f"Test R2: {test_score:.4f}")
 
 # Sample predictions
 print("\nSample Predictions:")
@@ -561,16 +782,16 @@ for i in range(5):
           f"Predicted: {predictions[i]:5.2f}")
 ```
 
-**Output**:
+**Output** (captured from an actual run, not hand-written):
 ```
-Test R²: 0.9823
+Test R2: 0.9713
 
 Sample Predictions:
-x: -2.70, True:  7.21, Predicted:  7.15
-x: -2.40, True:  5.98, Predicted:  5.89
-x: -2.10, True:  4.61, Predicted:  4.53
-x: -1.80, True:  3.09, Predicted:  3.18
-x: -1.50, True:  2.45, Predicted:  2.38
+x:  0.33, True:  0.58, Predicted:  0.25
+x: -2.88, True:  8.61, Predicted:  8.62
+x: -2.94, True:  8.57, Predicted:  9.07
+x: -0.70, True: -0.18, Predicted:  0.22
+x: -2.33, True:  5.21, Predicted:  5.45
 ```
 
 ### Visualizing Learning Progress
@@ -583,14 +804,24 @@ test_scores = model.staged_score(X_test, y_test)
 # Find optimal number of trees
 optimal_n = np.argmax(test_scores) + 1
 print(f"Optimal trees: {optimal_n}")
-print(f"Best test R²: {test_scores[optimal_n-1]:.4f}")
-
-# Shows improvement over iterations:
-# Tree 1:  R² = 0.72
-# Tree 10: R² = 0.91
-# Tree 30: R² = 0.98
-# Tree 50: R² = 0.98 (plateaus)
+print(f"Best test R2: {test_scores[optimal_n-1]:.4f}")
 ```
+
+Measured on this dataset:
+```
+Optimal trees: 39
+Best test R2: 0.9715
+
+           train R2   test R2
+after  1     0.1694    0.1608
+after 10     0.8206    0.8159
+after 30     0.9808    0.9700
+after 50     0.9889    0.9713   (plateaued)
+```
+
+Notice how small the train/test gap stays (0.9889 vs 0.9713). That is depth-3 trees
+plus a 0.1 learning rate doing their job - see [Detecting Overfitting](#detecting-overfitting)
+for what the same curves look like when they go wrong.
 
 ---
 
@@ -755,13 +986,19 @@ Let's break down the key parts of our implementation:
 
 ```python
 def _mse_gradient(self, y_true, y_pred):
-    """Gradient of MSE: negative residuals"""
+    """Gradient of L = (1/2)(y - F)^2: dL/dF = F - y, the negative residuals"""
     return y_pred - y_true
+
+def _mae_gradient(self, y_true, y_pred):
+    """Gradient of MAE: sign of residuals"""
+    return np.sign(y_pred - y_true)
 
 def _get_gradient(self, y_true, y_pred):
     """Calculate gradient based on loss function"""
     if self.loss == 'mse':
         return self._mse_gradient(y_true, y_pred)
+    elif self.loss == 'mae':
+        return self._mae_gradient(y_true, y_pred)
     elif self.loss == 'log_loss':
         return self._log_loss_gradient(y_true, y_pred)
 ```
@@ -799,7 +1036,12 @@ def _create_decision_tree(self, X, y, depth=0):
     
     # Find best split
     for feature_idx in range(n_features):
-        for threshold in np.unique(X[:, feature_idx]):
+        # Candidates are MIDPOINTS between consecutive distinct values,
+        # so the boundary never sits exactly on a training point
+        distinct_values = np.unique(X[:, feature_idx])
+        thresholds = (distinct_values[:-1] + distinct_values[1:]) / 2
+
+        for threshold in thresholds:
             # Calculate variance reduction
             left_mask = X[:, feature_idx] <= threshold
             gain = current_var - (left_var + right_var)
@@ -809,56 +1051,89 @@ def _create_decision_tree(self, X, y, depth=0):
                 # Store best split
 ```
 
-**Step-by-step example**:
+**Step-by-step example** (every number below is `np.var`'s actual output):
 ```python
 # Data to fit (gradients)
 X = [[1], [2], [3], [4], [5], [6]]
 y = [-2, -1, -1, 1, 2, 3]  # gradients to fit
 
-# Current variance
-var = np.var(y) = 3.5
+# Current (weighted) variance at this node
+np.var(y) = 3.2222
+current_variance = np.var(y) × 6 = 19.3333
 
-# Try split at x ≤ 3.5:
-left_y = [-2, -1, -1, 1]    # x ≤ 3.5
-right_y = [2, 3]            # x > 3.5
+# Try split at the midpoint x ≤ 3.5  (= (3 + 4) / 2):
+left_y  = [-2, -1, -1]      # x ≤ 3.5, i.e. x = 1, 2, 3
+right_y = [1, 2, 3]         # x > 3.5, i.e. x = 4, 5, 6
 
-left_var = np.var(left_y) × 4 = 1.25 × 4 = 5.0
-right_var = np.var(right_y) × 2 = 0.25 × 2 = 0.5
+left_var  = np.var(left_y)  × 3 = 0.2222 × 3 = 0.6667
+right_var = np.var(right_y) × 3 = 0.6667 × 3 = 2.0000
 
-total_var = 5.0 + 0.5 = 5.5
-gain = (3.5 × 6) - 5.5 = 15.5 (good split!)
+total_var = 0.6667 + 2.0000 = 2.6667
+gain = 19.3333 - 2.6667 = 16.6667 (good split!)
 
-# Create tree:
+# The loop scores every midpoint and keeps the best. The next candidate,
+# x ≤ 4.5, puts [-2,-1,-1,1] on the left and [2,3] on the right and scores
+#   19.3333 - (1.1875 × 4 + 0.25 × 2) = 19.3333 - 5.25 = 14.0833
+# which is worse, so 3.5 wins. The whole sweep, for thresholds
+# 1.5 / 2.5 / 3.5 / 4.5 / 5.5, is 6.5333 / 10.0833 / 16.6667 / 14.0833 / 8.5333.
+
+# Create tree (exactly what _create_decision_tree returns here at max_depth=1):
 {
   'type': 'split',
   'feature': 0,
   'threshold': 3.5,
-  'left': {'type': 'leaf', 'value': -0.75},  # mean of [-2,-1,-1,1]
-  'right': {'type': 'leaf', 'value': 2.5}    # mean of [2,3]
+  'gain': 16.6667,                             # used by get_feature_importance()
+  'left': {'type': 'leaf', 'value': -1.3333},  # mean of [-2,-1,-1]
+  'right': {'type': 'leaf', 'value': 2.0}      # mean of [1,2,3]
 }
 ```
+
+Note that the gain is *weighted* variance (`np.var(...) × n_samples`), not raw
+variance. Without the weight a two-sample leaf would count as much as a
+two-hundred-sample leaf, and the tree would happily chase tiny pockets of noise.
 
 ### 3. Fitting the Ensemble
 
 ```python
 def fit(self, X, y):
-    # Initialize with mean
-    self.init_prediction = np.mean(y)
+    # Initialize with the loss-minimising constant F_0
+    if self.loss == 'log_loss':
+        p = np.clip(np.mean(y), 1e-10, 1 - 1e-10)
+        self.init_prediction = np.log(p / (1 - p))   # log-odds
+    elif self.loss == 'mae':
+        self.init_prediction = np.median(y)          # median, not mean
+    else:
+        self.init_prediction = np.mean(y)
     current_predictions = np.full(n_samples, self.init_prediction)
     
     # Train trees sequentially
     for i in range(self.n_estimators):
-        # Calculate gradients
+        # Calculate negative gradients (pseudo-residuals)
         gradients = -self._get_gradient(y, current_predictions)
         
-        # Fit tree to gradients
+        # Fit tree to gradients -> this fixes the tree STRUCTURE
         tree = self._create_decision_tree(X, gradients)
+        
+        # Line search -> this fixes the leaf CONSTANTS (Friedman step 2c)
+        if self.loss != 'mse':
+            self._update_leaf_values(tree, X, y, current_predictions)
+        
         self.trees.append(tree)
         
         # Update predictions
         tree_predictions = self._predict_tree(tree, X)
         current_predictions += self.learning_rate * tree_predictions
+        
+        # Record the loss so the caller can watch it fall
+        self.train_loss_.append(self._compute_loss(y, current_predictions))
 ```
+
+**The two-phase split is the whole trick.** Phase one asks "where are the errors
+clustered?" and answers it with variance reduction on the gradient. Phase two asks
+"how big a correction does each cluster need?" and answers it with the closed-form
+argmin of the real loss. Because the structure search only ever sees the gradient,
+the same tree-growing code serves regression, robust regression and classification;
+only `_update_leaf_values` changes.
 
 **Detailed execution trace**:
 ```python
@@ -926,13 +1201,17 @@ pred ≈ 12.25 (true value: 3.5² = 12.25)  ✓
 
 ```python
 def fit(self, X, y):
+    # A private RandomState when random_state is given, otherwise the global
+    # RNG (so np.random.seed(...) still controls the run)
+    rng = np.random if self.random_state is None else np.random.RandomState(self.random_state)
+
     for i in range(self.n_estimators):
         gradients = -self._get_gradient(y, current_predictions)
         
         # Subsample data
         if self.subsample < 1.0:
             sample_size = int(n_samples * self.subsample)
-            indices = np.random.choice(n_samples, sample_size, replace=False)
+            indices = rng.choice(n_samples, sample_size, replace=False)
             X_sample = X[indices]
             gradients_sample = gradients[indices]
 ```
@@ -1259,7 +1538,7 @@ for name, imp in sorted(zip(feature_names, importance),
 
 ### Time Complexity
 
-**Training**:
+**Training** (canonical gradient boosting, as implemented by XGBoost/LightGBM/sklearn):
 ```
 O(M × N × F × K × log(N))
 
@@ -1269,14 +1548,27 @@ where:
   F = number of features
   K = max_depth (tree depth)
   log(N) = for sorting features when finding splits
+```
 
-Typical: Medium-sized dataset
-  M=100, N=10,000, F=20, K=3
-  Time: ~1-10 seconds
+**This teaching implementation is a factor of N/log(N) worse:**
+```
+O(M × N² × F × K)
 
-Large dataset:
-  M=1000, N=1,000,000, F=100, K=5
-  Time: ~10-60 minutes
+Why: _create_decision_tree rebuilds a boolean mask and calls np.var twice for
+EVERY candidate threshold, and there are O(N) candidates per feature per node.
+Optimized libraries pre-sort each feature once and sweep running sums instead.
+
+The slow version is kept deliberately - it puts the variance-reduction formula
+literally on screen. The practical consequence is that you must keep the data
+small: the USAGE EXAMPLE blocks use 120-400 rows for this reason.
+
+Measured on this machine (Python 3.13, numpy 2.3):
+  N=150,  F=1, M=100, K=3   ->   1.2 s
+  N=150,  F=6, M=50,  K=4   ->   4.6 s
+  N=300,  F=6, M=100, K=4   ->  19.1 s
+
+Doubling N alone roughly quadruples the time, because the split scan is quadratic
+in N. For anything larger, use scikit-learn's GradientBoostingRegressor or XGBoost.
 ```
 
 **Prediction**:
@@ -1297,7 +1589,7 @@ Very fast!
 **Comparison**:
 ```
 Training Time (N samples, F features):
-  Gradient Boosting: O(M × N × F × K × log(N))  [sequential]
+  Gradient Boosting: O(M × N × F × K × log(N))  [sequential, optimized libraries]
   Random Forest: O(M × N × F × log(N))          [parallelizable]
   Neural Network: O(epochs × N × layers × units) [varies greatly]
   
@@ -1350,6 +1642,85 @@ Highly parallelizable:
 
 ---
 
+## Simplifications vs. Canonical Gradient Boosting
+
+This implementation is faithful on the parts that define the algorithm - the
+initialization `F₀`, the pseudo-residuals, the variance-reduction split search, the
+terminal-region line search and the shrinkage update. On a shared synthetic dataset
+it reproduces `sklearn.ensemble.GradientBoostingRegressor`'s predictions to machine
+precision (see [Reference check](#reference-check-against-scikit-learn) below).
+
+What it deliberately leaves out, and what that costs you:
+
+| Canonical feature | Here | Consequence |
+|---|---|---|
+| **Huber / quantile / custom loss** | Only `'mse'`, `'mae'`, `'log_loss'` | No middle ground between squared and absolute error, and no way to plug in your own `L`. The *framework* admits any differentiable loss - `_get_gradient` and `_update_leaf_values` are the only two places that would need a new branch. |
+| **Multiclass classification** | Binary only | Canonical multiclass boosting grows K trees per round (one per class) and applies a softmax. Here `loss='log_loss'` expects `y ∈ {0, 1}`. |
+| **Early stopping / validation monitoring** | Not present | You must pick `n_estimators` yourself. `staged_score(X_val, y_val)` gives you the curve to pick it from - see [Visualizing Learning Progress](#visualizing-learning-progress). |
+| **Warm start / incremental training** | Not present | Every `fit()` call clears `self.trees` and rebuilds from scratch. There is no `partial_fit` and no way to append trees to a trained model. |
+| **Missing-value handling** | Not present | `np.nan` in `X` will silently fall to the right of every threshold. Impute before fitting. XGBoost instead learns a default direction per split. |
+| **Categorical features** | Not present | Encode as integers and the splits will treat them as ordered, which is usually wrong. CatBoost and LightGBM handle this properly. |
+| **L1/L2 leaf regularization, gamma pruning** | Not present | Leaves are unregularized argmins. This is standard Friedman gradient boosting; the regularized objective is what XGBoost adds on top - see `17. XGBoost`. |
+| **Pre-sorted O(N log N) split scan** | O(N²) rescan | Training is slow; keep the data under a few hundred rows. See [Computational Complexity](#computational-complexity). |
+| **Column subsampling (`colsample_bytree`)** | Row subsampling only | Every tree sees every feature. `subsample < 1.0` gives you Friedman's stochastic gradient boosting, but not Random-Forest-style feature decorrelation. |
+| **`min_samples_leaf`, `min_impurity_decrease`** | Only `min_samples_split` | Slightly less control over leaf size; a split is accepted whenever `gain > 0`. |
+
+### Reference check against scikit-learn
+
+Every test below uses `n_estimators=100`, `learning_rate=0.1`, `max_depth=3` on
+seeded synthetic data shared with the scikit-learn model. Each names its own dataset.
+
+```
+loss='mse'       y = x^2 + noise, 200 rows shuffled, 150/50 split
+                 vs GradientBoostingRegressor(criterion='squared_error')
+                 max |prediction difference| = 8.9e-16 on train
+                 (identical tree structures, identical thresholds, identical leaves)
+                 On the test set it is 0.94, not 8.9e-16: 10 of the 50 test
+                 x-values sit within 1e-7 of a threshold sklearn rounded to
+                 float32 and fall the other way. Snap X to the float32 grid
+                 (X.astype(np.float32).astype(float)) and both train and test
+                 agree to 8.9e-16 - see the caveat below.
+
+loss='log_loss'  two Gaussian blobs at (-2,-2) and (2,2), 200 rows, 150/50 split
+                 vs GradientBoostingClassifier
+                 train log loss  0.000022 both sides
+                 mean |P_ours - P_sklearn| on the test set = 0.000000
+
+loss='mae'       np.random.seed(42)
+                 X = np.random.uniform(-5, 5, (200, 1))     # on the float32 grid
+                 y = 100 * X.ravel() + np.random.randn(200) * 5
+                 fitted and scored on all 200 rows
+                 (a wide y-range is what exposes a broken leaf update: without
+                  the line search an 'mae' leaf holds mean(sign(r)) in [-1, 1],
+                  so 100 trees at lr 0.1 could move a prediction by at most 10)
+                 vs GradientBoostingRegressor(loss='absolute_error')
+                 R2   0.999684 both sides
+                 MAE  3.6496   both sides
+                 max |prediction difference| = 0.0e+00
+
+loss='mae'       same x^2 / 150-50 dataset as the first test
+                 test R2   0.9551 (ours) vs 0.9603 (sklearn)
+                 train MAE 0.2747 (ours) vs 0.2496 (sklearn)
+                 - within 0.006 R2, and the gap splits into two measured causes:
+                 - snapping X to the float32 grid lifts ours to 0.9595 while
+                   sklearn stays at 0.9603, so threshold rounding (the caveat
+                   below) accounts for ~0.0044 of the 0.0052 test-R2 gap
+                 - the remaining ~0.0008, and the whole train-MAE gap, starts at
+                   round 26 (0-indexed, i.e. the 27th tree): thresholds -2.7889 and
+                   2.8342 tie there at exactly equal gain (5929/900), but np.var
+                   evaluates them 2.8e-14 apart, so the two libraries take
+                   different - equally optimal - splits and never re-converge
+```
+
+The one caveat: scikit-learn stores `X` internally as `float32`, so its split
+thresholds are rounded to `float32`. Feed it data that is already on the `float32`
+grid and the `'mse'` run above agrees exactly; otherwise a handful of test points
+sitting within `~1e-7` of a threshold can land on opposite sides. Snapping the grid
+does not close the fourth row's `'mae'` gap, which has the separate cause listed
+with that row.
+
+---
+
 ## Advantages and Limitations
 
 ### Advantages ✅
@@ -1365,14 +1736,20 @@ Highly parallelizable:
    - No need for manual feature engineering
 
 3. **Flexible Loss Functions**
-   - Can optimize any differentiable loss
-   - Custom loss functions possible
+   - The *framework* can optimize any differentiable loss - you only need its
+     gradient and the argmin of the loss inside a leaf
    - Works for regression, classification, ranking
+   - *This implementation ships three:* `'mse'`, `'mae'`, `'log_loss'`. There is no
+     hook for a user-supplied loss - see
+     [Simplifications](#simplifications-vs-canonical-gradient-boosting)
 
 4. **Robust to Outliers** (with appropriate loss)
-   - MAE loss is robust
-   - Huber loss balances MSE and MAE
+   - `loss='mae'` is robust, and demonstrably so: in the
+     [Quick Start](#quick-start-plug-and-play-example), eight corrupted training
+     labels drop the `'mse'` model to Test R2 = -20.43 while `'mae'` holds 0.96
    - Doesn't require outlier removal
+   - *Huber loss (a squared-error/absolute-error hybrid) is the usual third option
+     in production libraries but is not implemented here*
 
 5. **Handles Mixed Data Types**
    - Numerical features: direct use
@@ -1384,10 +1761,12 @@ Highly parallelizable:
    - Helps model interpretation
    - Useful for feature selection
 
-7. **Incremental Learning**
-   - Can add more trees to existing model
-   - Continue training later
-   - Useful for production systems
+7. **Incremental Learning** (in production libraries)
+   - XGBoost, LightGBM and scikit-learn's `warm_start=True` let you append trees
+     to an already-trained model and continue later
+   - *Not available here:* every call to `fit()` starts with `self.trees = []` and
+     rebuilds the ensemble from scratch. Calling `fit()` twice with
+     `n_estimators=5` leaves you with 5 trees, not 10
 
 ### Limitations ❌
 

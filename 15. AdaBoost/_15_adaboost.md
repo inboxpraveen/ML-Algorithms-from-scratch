@@ -3,14 +3,104 @@
 Welcome to the world of Ensemble Learning! 🚀 In this comprehensive guide, we'll explore AdaBoost (Adaptive Boosting) - one of the most powerful and elegant boosting algorithms. Think of it as combining the wisdom of many "weak" experts to make incredibly strong predictions!
 
 ## Table of Contents
-1. [What is AdaBoost?](#what-is-adaboost)
-2. [How AdaBoost Works](#how-adaboost-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is AdaBoost?](#what-is-adaboost)
+3. [How AdaBoost Works](#how-adaboost-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Computational Complexity](#computational-complexity)
+11. [Advantages and Limitations](#advantages-and-limitations)
+12. [Comparing with Alternatives](#comparing-with-alternatives)
+13. [Key Concepts to Remember](#key-concepts-to-remember)
+14. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# AdaBoost from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _15_adaboost.py  (the __main__ block runs a fuller version)
+# Or copy the AdaBoost class from _15_adaboost.py and paste it below.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the AdaBoost class here (from _15_adaboost.py) ----
+# class AdaBoost: ...
+
+np.random.seed(42)
+
+# ------ Two Gaussian blobs. Labels MUST be -1 / +1. ------
+X0 = np.random.randn(100, 2) + np.array([-2, -2])
+X1 = np.random.randn(100, 2) + np.array([ 2,  2])
+X = np.vstack([X0, X1])
+y = np.array([-1] * 100 + [1] * 100)   # fit() raises ValueError on 0/1 labels
+
+# Shuffle before splitting: the rows were stacked class-by-class, so an
+# unshuffled X[:150] would be almost entirely class -1.
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+
+# Non-overlapping split. X[:150], X[50:] would leak 100 training rows.
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
+
+model = AdaBoost(n_estimators=50, learning_rate=1.0)
+model.fit(X_train, y_train)
+
+print(f"Train Accuracy: {model.score(X_train, y_train):.2%}")
+print(f"Test  Accuracy: {model.score(X_test,  y_test):.2%}")
+
+preds = model.predict(X_test)         # -1 / +1
+proba = model.predict_proba(X_test)   # P(class = +1), 1-D array
+for i in range(3):
+    print(f"  true={y_test[i]:+d}  pred={preds[i]:+.0f}  P(+1)={proba[i]:.4f}")
+
+# ------ Does boosting actually beat one stump? Ring vs. disk. ------
+Xr = np.random.randn(250, 2) * 2
+yr = np.where(Xr[:, 0] ** 2 + Xr[:, 1] ** 2 > 4, 1, -1)
+idx = np.random.permutation(250)
+Xr, yr = Xr[idx], yr[idx]
+
+one = AdaBoost(n_estimators=1).fit(Xr[:190], yr[:190])
+many = AdaBoost(n_estimators=50).fit(Xr[:190], yr[:190])
+print(f"\nSingle stump      test accuracy: {one.score(Xr[190:], yr[190:]):.2%}")
+print(f"AdaBoost 50 stumps test accuracy: {many.score(Xr[190:], yr[190:]):.2%}")
+
+# Watch the ensemble improve, learner by learner
+staged = many.staged_score(Xr[190:], yr[190:])
+print("Test accuracy after 1, 5, 10, 25, 50 learners:",
+      [f"{staged[k - 1]:.2%}" for k in (1, 5, 10, 25, 50)])
+
+print("Feature importance:", np.round(many.get_feature_importance(), 4))
+```
+
+Expected output:
+```
+Train Accuracy: 100.00%
+Test  Accuracy: 100.00%
+  true=+1  pred=+1  P(+1)=0.8808
+  true=-1  pred=-1  P(+1)=0.1192
+  true=+1  pred=+1  P(+1)=0.8808
+
+Single stump      test accuracy: 61.67%
+AdaBoost 50 stumps test accuracy: 93.33%
+Test accuracy after 1, 5, 10, 25, 50 learners: ['61.67%', '76.67%', '76.67%', '95.00%', '93.33%']
+Feature importance: [0.4632 0.5368]
+```
+
+Two things worth noticing straight away:
+
+- **`P(+1)` tops out at 0.8808, not 1.0.** That is not a bug. `predict_proba` maps the weighted vote through `1 / (1 + exp(-2 * F(x) / sum|alpha|))`, and the exponent is bounded by +/-2, so the output lives in `[0.1192, 0.8808]`. scikit-learn's SAMME returns exactly the same bound. Read it as a monotone confidence score, not a calibrated probability.
+- **One stump gets 61.67%, fifty get 93.33%.** The ring-vs-disk boundary cannot be drawn with one axis-aligned cut, but a *weighted sum* of axis-aligned cuts approximates it well. That is boosting doing its job.
 
 ---
 
@@ -277,32 +367,57 @@ Learner with 20% error:
 After each round, update weights to focus on mistakes:
 
 ```
-wₜ₊₁(i) = wₜ(i) × exp(αₜ × I[hₜ(xᵢ) ≠ yᵢ])
+wₜ₊₁(i) = wₜ(i) × exp(-αₜ × yᵢ × hₜ(xᵢ))
 
 Then normalize: wₜ₊₁(i) = wₜ₊₁(i) / Σⱼ wₜ₊₁(j)
 
-Simplified:
+Simplified (because yᵢ and hₜ(xᵢ) are both ±1, their product is +1 when the
+learner is right and -1 when it is wrong):
   - If correctly classified: wₜ₊₁(i) = wₜ(i) × e^(-αₜ)  (decrease)
   - If misclassified:       wₜ₊₁(i) = wₜ(i) × e^(αₜ)   (increase)
 ```
 
-**Example**:
+> **This is the one equation to get right.** A common mistake is to write
+> `wₜ₊₁(i) = wₜ(i) × exp(αₜ × I[hₜ(xᵢ) ≠ yᵢ])`, which leaves correct samples
+> untouched instead of shrinking them. The two rules differ by a square root:
+> the correct one changes the wrong-to-right weight ratio by **e^(2αₜ) = (1-εₜ)/εₜ**,
+> the mistaken one only by **e^(αₜ) = √((1-εₜ)/εₜ)**. For εₜ = 0.2 that is a
+> **4x** re-weighting versus a 2x one.
+>
+> Why it matters: only the correct rule makes hₜ's weighted error under the
+> **new** weights come out to exactly 0.5. That is AdaBoost's defining
+> invariant, and it is what stops round t+1 from simply re-selecting the same
+> stump. With the mistaken rule the measured errors drift (0.33, 0.39, 0.43, ...
+> instead of 0.50) and the ensemble wastes rounds re-picking learners it
+> already has.
+
+**Example** (a 4-sample dataset, so εₜ and αₜ must be derived from *these* four
+samples — do not reuse the 0.693 from the 10-sample illustration above):
 ```
-Current weights:  [0.1, 0.1, 0.1, 0.1]
-Alpha: 0.693
-Predictions:      [✓,   ✗,   ✓,   ✓  ]
+Current weights:  [0.25, 0.25, 0.25, 0.25]   (4 samples, uniform, sum = 1.0)
+Predictions:      [ ✓,    ✗,    ✓,    ✓   ]
+
+ε = 0.25 (one wrong sample carrying weight 0.25)
+α = 0.5 × ln((1 - 0.25) / 0.25) = 0.5 × ln(3) = 0.549
+    e^(-0.549) = 0.5774      e^(+0.549) = 1.7321
 
 After update:
-  Sample 0: 0.1 × e^(-0.693) = 0.1 × 0.5 = 0.05  (correct, reduced)
-  Sample 1: 0.1 × e^(0.693)  = 0.1 × 2.0 = 0.20  (wrong, increased)
-  Sample 2: 0.1 × e^(-0.693) = 0.1 × 0.5 = 0.05  (correct, reduced)
-  Sample 3: 0.1 × e^(-0.693) = 0.1 × 0.5 = 0.05  (correct, reduced)
+  Sample 0: 0.25 × 0.5774 = 0.1443  (correct, reduced)
+  Sample 1: 0.25 × 1.7321 = 0.4330  (wrong, increased)
+  Sample 2: 0.25 × 0.5774 = 0.1443  (correct, reduced)
+  Sample 3: 0.25 × 0.5774 = 0.1443  (correct, reduced)
 
-Before normalization: [0.05, 0.20, 0.05, 0.05]  Sum = 0.35
-After normalization:  [0.14, 0.57, 0.14, 0.14]  Sum = 1.0
+Before normalization: [0.1443, 0.4330, 0.1443, 0.1443]  Sum = 0.8660
+After normalization:  [0.1667, 0.5000, 0.1667, 0.1667]  Sum = 1.0
 
-→ Next learner focuses 57% attention on misclassified sample!
+→ Next learner focuses 50% attention on the misclassified sample!
 ```
+
+That 50% is not a coincidence — it *is* the invariant from the box above. This
+learner's weighted error under the new weights is exactly 0.500, so it is now no
+better than a coin flip on the re-weighted data. Whenever you work an example by
+hand, computing α from the same ε you use for the mistakes is what makes the
+check come out right.
 
 **Why exponential?**
 
@@ -326,8 +441,12 @@ where:
   - T = number of weak learners
   - αₜ = weight of learner t
   - hₜ(x) ∈ {-1, +1} = prediction of learner t
-  - sign(z) = +1 if z > 0, else -1
+  - sign(z) = +1 if z ≥ 0, else -1
 ```
+
+**A note on ties**: `np.sign(0)` is `0`, which is not a class label. `predict()`
+therefore uses `np.where(weighted_sum >= 0, 1, -1)`, breaking an exact tie
+toward +1 so the output only ever contains valid labels.
 
 **Example**:
 ```
@@ -388,8 +507,9 @@ class AdaBoost:
     def __init__(self, n_estimators=50, learning_rate=1.0):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
-        self.alphas = []
-        self.weak_learners = []
+        self.alphas = []          # one alpha per fitted weak learner
+        self.weak_learners = []   # one stump dict per fitted weak learner
+        self.n_features = None    # set by fit(); doubles as the "is fitted?" flag
 ```
 
 ### Core Methods
@@ -398,40 +518,84 @@ class AdaBoost:
    - n_estimators: Number of weak learners to train
    - learning_rate: Shrinks contribution of each classifier
 
-2. **`_create_decision_stump()`** - Create weak learner
-   - Returns a simple 1-level decision tree (stump)
-   - Best feature + threshold for weighted data
+2. **`_create_decision_stump(X, y, weights)`** - Create weak learner
+   - Searches every feature and every candidate threshold
+   - Tries **both polarities** at each threshold, so the returned error is always ≤ 0.5
+   - Returns `(stump_dict, error)` where `stump_dict` has the keys
+     `'feature'`, `'threshold'`, `'left_prediction'`, `'right_prediction'`
 
-3. **`_find_best_split(X, y, weights)`** - Find optimal split
-   - Searches all features and thresholds
-   - Minimizes weighted classification error
-
-4. **`_stump_predict(stump, X)`** - Predict with stump
+3. **`_stump_predict(stump, X)`** - Predict with stump
    - Apply threshold rule to make predictions
 
-5. **`fit(X, y)`** - Train AdaBoost ensemble
+4. **`fit(X, y)`** - Train AdaBoost ensemble
    - Main algorithm implementation
    - Iteratively trains weak learners
    - Updates sample weights adaptively
+   - Stops early if a stump classifies every training sample correctly
 
-6. **`predict(X)`** - Make predictions
+5. **`predict(X)`** - Make predictions
    - Combines all weak learners
-   - Returns weighted majority vote
+   - Returns weighted majority vote (-1 / +1)
 
-7. **`predict_proba(X)`** - Predict probabilities
-   - Returns confidence scores (0-1)
+6. **`predict_proba(X)`** - Predict probabilities
+   - Returns P(class = +1) as a 1-D array, bounded to about [0.12, 0.88]
    - Based on weighted sum of learners
 
-8. **`score(X, y)`** - Calculate accuracy
-   - Returns fraction of correct predictions
+7. **`score(X, y)`** - Calculate accuracy
+   - Returns fraction of correct predictions (accuracy, not R²)
 
-9. **`get_feature_importance()`** - Feature importance
+8. **`get_feature_importance()`** - Feature importance
    - Which features are most useful
-   - Based on learner usage and weights
+   - Sums `abs(alpha)` per feature, then normalizes to sum to 1
 
-10. **`staged_score(X, y)`** - Learning curve
-    - Accuracy after each learner
-    - Shows improvement over iterations
+9. **`staged_score(X, y)`** - Learning curve
+   - Accuracy after each learner
+   - Shows improvement over iterations
+
+10. **`print_learners(max_display=10)`** - Inspect the ensemble
+    - Prints a table of the fitted stumps: index, feature, threshold, alpha, and polarity
+    - The `L->R` column reads `-1->+1` for "predict -1 at or below the threshold, +1 above"
+
+### Label convention (read this first)
+
+`fit()` **requires labels in {-1, +1}** and rejects anything else:
+
+```python
+model.fit(X, np.array([0, 1, 1, 0]))
+# ValueError: Labels must be -1 or +1. Got: [0 1]
+```
+
+This is the first wall most people hit coming from scikit-learn, which happily
+accepts `0/1`. The conversion is one line:
+
+```python
+y = np.where(y == 0, -1, 1)
+```
+
+The ±1 convention is not arbitrary bookkeeping — the whole derivation depends on
+it. The product `yᵢ × hₜ(xᵢ)` is +1 exactly when the learner is right and -1
+when it is wrong, which is what lets a single `exp(-αₜ × yᵢ × hₜ(xᵢ))` express
+both the "shrink" and the "grow" branch of the weight update.
+
+### Simplification vs. canonical AdaBoost
+
+This implementation is deliberately the classic **binary discrete AdaBoost**
+(Freund & Schapire 1997, the SAMME special case for two classes). What a
+production library adds, and what it costs you here:
+
+| Canonical feature | Status here | Consequence |
+|---|---|---|
+| Multi-class via SAMME (`alpha = ln((1-e)/e) + ln(K-1)`) | **Not implemented** | Binary problems only. For K classes use one-vs-rest around this class, or sklearn. |
+| SAMME.R (real-valued, uses class probabilities) | **Not implemented** | Converges in fewer rounds in sklearn ≤1.5; removed in newer sklearn, so little is lost. |
+| AdaBoost.R2 for regression | **Not implemented** | Classification only. |
+| Arbitrary base estimator (`estimator=` in sklearn) | **Not implemented** | Depth-1 stumps only. Fine for teaching; deeper trees help on problems that need feature interactions. |
+| Per-sample `sample_weight` passed to `fit` | **Not implemented** | Initial weights are always uniform, `1/N`. |
+| `alpha = ln((1-e)/e)` (sklearn SAMME) | Uses `0.5 × ln((1-e)/e)` | Freund-Schapire convention. Every stored alpha is exactly **half** of sklearn's. Predictions are identical, because `predict` only takes the *sign* of the weighted sum and `predict_proba` divides by `Σ|α|`. |
+| Per-round sample-weight floor at machine epsilon (sklearn issue #20320) | **Not implemented** | Did not bite in any configuration measured inside the documented `learning_rate` range of 0.1–1.0 (three datasets × `learning_rate` ∈ {0.1, 0.5, 1.0}, `n_estimators=100`: no α ever reached the clip). Above that range the weights collapse until α pins at the value the `1e-10` error clip implies. On `make_classification(n_samples=150, n_features=4, random_state=3)` with `n_estimators=50` the pinning starts at `learning_rate=2.0` (18 of 50 alphas pinned, train accuracy still 100%) and is ruinous at `learning_rate=5.0`: train accuracy **96.67% after the first stump → 4.67% after all 50**, 48 of the 50 alphas pinned at 57.5646. sklearn's `AdaBoostClassifier` with depth-1 stumps at the same `learning_rate` and `n_estimators` scores 96.67%. |
+
+Everything else — the stump search over both polarities, the alpha formula, the
+weight update, the early stop on a perfect learner, the SAMME probability
+transform — matches the reference algorithm.
 
 ---
 
@@ -459,13 +623,19 @@ y = np.array([-1, -1, -1, -1, +1, +1, +1, +1])
 ### Training the Model
 
 ```python
-from adaboost import AdaBoost
+# Paste the AdaBoost class from _15_adaboost.py above this line,
+# or run that file directly with `python _15_adaboost.py`.
 
 # Create AdaBoost with 3 weak learners
 model = AdaBoost(n_estimators=3)
 
 # Train the model
 model.fit(X, y)
+
+print(f"Learners actually fitted: {len(model.alphas)}")   # 1
+print(f"Alphas: {[round(a, 4) for a in model.alphas]}")   # [11.5129]
+print(f"Stump : {model.weak_learners[0]}")
+# {'feature': 0, 'threshold': 4.5, 'left_prediction': -1, 'right_prediction': 1}
 ```
 
 **What happens internally - Round 1**:
@@ -475,53 +645,79 @@ Initial weights: [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125]
 (all equal, sum = 1.0)
 
 Find best split:
-  Feature 1, threshold 4.5:
+  Feature 0 has distinct values 1,2,3,4,5,6,7,8, so the candidate thresholds
+  are the MIDPOINTS 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5.
+
+  Feature 0, threshold 4.5:
     Samples [0,1,2,3] → predict -1 (correct!)
     Samples [4,5,6,7] → predict +1 (correct!)
     
   Weighted error = 0.0 (perfect split!)
   
-But wait! Error can't be 0, set to small value: 0.001
+But wait! Alpha needs ln((1-ε)/ε), and ε = 0 makes that infinite.
+The code clips: np.clip(0.0, 1e-10, 1 - 1e-10) = 1e-10
 
-Alpha₁ = 0.5 × ln((1 - 0.001) / 0.001) = 3.45
+Alpha₁ = 0.5 × ln((1 - 1e-10) / 1e-10) = 11.51
 
 Decision Stump 1:
-  if feature_1 ≤ 4.5: predict -1
+  if feature_0 ≤ 4.5: predict -1
   else: predict +1
 ```
 
 ```
 Update weights:
   All samples classified correctly
-  All weights × e^(-3.45) = weights × 0.032
+  All weights × e^(-11.51) = weights × 1e-5
   After normalization: all still equal [0.125, 0.125, ...]
 
-Since perfect split exists, subsequent learners won't improve much
+A perfect stump leaves nothing to boost, so fit() STOPS EARLY:
+1 learner is fitted even though n_estimators=3 was requested.
+(scikit-learn's AdaBoostClassifier does exactly the same.)
 ```
 
-**Round 2**: (If data wasn't perfectly separable)
+**Round 2**: *hypothetical* — this is what the next round would look like if the
+data were **not** perfectly separable. The 8-sample dataset above never reaches
+it; the numbers below imagine a first learner that got samples 2 and 5 wrong
+(2 of 8, so ε = 0.25 and α = 0.549).
 
 ```
-Suppose learner 1 made mistakes on samples 2 and 5:
+Suppose learner 1 made mistakes on samples 2 and 5.
 
-Update weights:
-  Sample 2: 0.125 × e^(0.693) = 0.25   (increased!)
-  Sample 5: 0.125 × e^(0.693) = 0.25   (increased!)
-  Others:   0.125 × e^(-0.693) = 0.063 (decreased)
-  
-After normalization: [0.1, 0.1, 0.27, 0.1, 0.1, 0.27, 0.1, 0.1]
+Its weighted error is ε = 0.125 + 0.125 = 0.25, so
+  α = 0.5 × ln((1 - 0.25) / 0.25) = 0.5 × ln(3) = 0.549
+  e^(+0.549) = 1.732      e^(-0.549) = 0.577
+
+Update weights  (w × e^(-α·y·h), i.e. shrink the 6 right, grow the 2 wrong):
+  Sample 2: 0.125 × 1.732 = 0.2165  (increased!)
+  Sample 5: 0.125 × 1.732 = 0.2165  (increased!)
+  Others:   0.125 × 0.577 = 0.0722  (decreased)
+
+Before normalization: [0.0722, 0.0722, 0.2165, 0.0722, 0.0722, 0.2165, 0.0722, 0.0722]
+Sum = 6 × 0.0722 + 2 × 0.2165 = 0.866
+
+After normalization: [0.083, 0.083, 0.250, 0.083, 0.083, 0.250, 0.083, 0.083]
+Sum = 1.000  (a normalized weight vector must sum to exactly 1 - check it)
+
+THE INVARIANT, visible: learner 1's weighted error under these NEW weights is
+  0.250 + 0.250 = 0.500  exactly.
+Learner 1 is now no better than a coin flip on the re-weighted data, so
+learner 2 has no incentive to copy it. That is the whole trick.
 
 Learner 2 focuses on samples 2 and 5!
 Finds different split optimized for these hard cases
 ```
 
-**Round 3**: More fine-tuning
+**Round 3**: More fine-tuning (still hypothetical)
 
 ```
 Each learner specializes:
-  Learner 1: General patterns (alpha: 0.693)
-  Learner 2: Previous mistakes (alpha: 0.549)
-  Learner 3: Remaining errors (alpha: 0.420)
+  Learner 1: General patterns  (alpha: 0.549, from the eps = 0.25 above)
+  Learner 2: Previous mistakes (alpha: 0.470)
+  Learner 3: Remaining errors  (alpha: 0.420)
+
+Alphas need not shrink like this - see the worked run at the end of this
+section, where they RISE (0.97 -> 1.28 -> 1.61) because each re-weighted
+problem turned out easier than the last.
 ```
 
 ### Making Predictions
@@ -532,30 +728,33 @@ X_test = np.array([[4, 3]])
 
 # Get prediction
 prediction = model.predict(X_test)
-print(f"Prediction: {prediction[0]}")  # -1 or +1
+print(f"Prediction: {prediction[0]}")   # -1.0
 
-# Get confidence
+# Get confidence = P(class = +1)
 proba = model.predict_proba(X_test)
-print(f"Confidence: {proba[0]:.2f}")  # 0.0 to 1.0
+print(f"P(+1): {proba[0]:.4f}")         # 0.1192
 ```
 
 **Internal calculation**:
 
 ```
-For test point [4, 3]:
+For test point [4, 3], with the ONE learner that was actually fitted:
 
-Learner 1 (feature_1 ≤ 4.5 → -1): predicts -1, alpha: 0.693
-Learner 2 (feature_2 > 2.5 → +1): predicts +1, alpha: 0.549
-Learner 3 (feature_1 ≤ 3.8 → -1): predicts -1, alpha: 0.420
+Learner 1 (feature_0 ≤ 4.5 → -1): predicts -1, alpha = 11.5129
 
-Weighted sum = 0.693×(-1) + 0.549×(+1) + 0.420×(-1)
-             = -0.693 + 0.549 - 0.420
-             = -0.564
+Weighted sum F(x) = 11.5129 × (-1) = -11.5129
 
-sign(-0.564) = -1
-
+sign(-11.5129) = -1
 Final prediction: -1 (blue class)
-Confidence: 0.364 (based on normalized weighted sum)
+
+P(+1) = 1 / (1 + exp(-2 × F(x) / Σ|α|))
+      = 1 / (1 + exp(-2 × (-11.5129) / 11.5129))
+      = 1 / (1 + exp(2))
+      = 0.1192
+
+Read that as "confidently -1". Because Σ|α| normalizes the exponent, a
+single-learner ensemble always lands on the extreme of the achievable range,
+[0.1192, 0.8808] - the same bound scikit-learn's SAMME reports.
 ```
 
 ### Model Evaluation
@@ -571,10 +770,45 @@ for i, acc in enumerate(staged_scores, 1):
     print(f"After {i} learner(s): {acc:.2%}")
 
 # Output:
-# After 1 learner(s): 75.00%
+# Training Accuracy: 100.00%
+# After 1 learner(s): 100.00%
+```
+
+Only **one** line, and it is already at 100%. That is the honest result for this
+dataset, and it is worth understanding rather than hiding: the 8 points are
+perfectly separable by `feature_0 ≤ 4.5`, the very first stump finds that split,
+its weighted error is 0, and `fit()` stops early. Requesting `n_estimators=3`
+does not force three learners when one is already perfect.
+
+To see a real multi-step learning curve you need data a single stump *cannot*
+solve — flip one label and re-run:
+
+```python
+y_hard = y.copy()
+y_hard[5] = -1          # sample [6, 2] is now a mislabeled point inside the +1 cluster
+
+model = AdaBoost(n_estimators=3)
+model.fit(X, y_hard)
+
+print(f"Learners fitted: {len(model.alphas)}")
+print([f"{a:.4f}" for a in model.alphas])
+for i, acc in enumerate(model.staged_score(X, y_hard), 1):
+    print(f"After {i} learner(s): {acc:.2%}")
+
+# Output:
+# Learners fitted: 3
+# ['0.9730', '1.2825', '1.6094']
+# After 1 learner(s): 87.50%
 # After 2 learner(s): 87.50%
 # After 3 learner(s): 100.00%
 ```
+
+Now the numbers tell a real story. Learner 1 gets 7 of 8 right, so
+ε = 1/8 = 0.125 and α = 0.5 × ln(0.875 / 0.125) = 0.5 × ln(7) = **0.973** —
+exactly the first value printed. Learner 2 does not improve accuracy on its own,
+but it shifts the weighted vote; learner 3 finally flips the stubborn point and
+the ensemble reaches 100%. Note the alphas *rising* (0.97 → 1.28 → 1.61): each
+learner is solving an easier re-weighted problem than the last.
 
 ---
 
@@ -735,30 +969,86 @@ weights = np.ones(8) / 8
 
 ### 2. Training Weak Learner (Decision Stump)
 
+The real helper is called **`_create_decision_stump`**, and it returns a stump
+*dictionary* plus the error — not a `(feature, threshold, error)` triple:
+
 ```python
-def _find_best_split(self, X, y, weights):
+def _create_decision_stump(self, X, y, weights):
+    n_samples, n_features = X.shape
     best_error = float('inf')
-    best_feature = None
-    best_threshold = None
-    
-    for feature_idx in range(X.shape[1]):
-        thresholds = np.unique(X[:, feature_idx])
-        
+    best_stump = None
+    total_weight = np.sum(weights)
+
+    for feature_idx in range(n_features):
+        feature_values = X[:, feature_idx]
+        unique_values = np.unique(feature_values)
+
+        # Candidate thresholds are MIDPOINTS between consecutive distinct
+        # values, as sklearn's tree splitter does.
+        if len(unique_values) == 1:
+            thresholds = unique_values          # constant feature: no gap
+        else:
+            thresholds = (unique_values[:-1] + unique_values[1:]) / 2.0
+            # ... plus sklearn's midpoint guard, explained under the snippet
+            rounded_up = thresholds >= unique_values[1:]
+            overflowed = ~np.isfinite(thresholds)
+            thresholds = np.where(rounded_up | overflowed,
+                                  unique_values[:-1], thresholds)
+
         for threshold in thresholds:
-            # Try split: feature <= threshold
-            predictions = np.where(X[:, feature_idx] <= threshold, -1, 1)
-            
-            # Calculate weighted error
-            errors = (predictions != y).astype(float)
-            weighted_error = np.sum(weights * errors)
-            
-            if weighted_error < best_error:
-                best_error = weighted_error
-                best_feature = feature_idx
-                best_threshold = threshold
-    
-    return best_feature, best_threshold, best_error
+            # Polarity A: predict -1 at or below the threshold, +1 above
+            predictions = np.ones(n_samples)
+            predictions[feature_values <= threshold] = -1
+
+            misclassified = (predictions != y).astype(float)
+            error = np.sum(weights * misclassified)
+
+            if error < best_error:
+                best_error = error
+                best_stump = {'feature': feature_idx, 'threshold': threshold,
+                              'left_prediction': -1, 'right_prediction': 1}
+
+            # Polarity B is the mirror image. Every sample A got right, B gets
+            # wrong, so its error is total_weight - error.
+            error_flipped = total_weight - error
+
+            if error_flipped < best_error:
+                best_error = error_flipped
+                best_stump = {'feature': feature_idx, 'threshold': threshold,
+                              'left_prediction': 1, 'right_prediction': -1}
+
+    return best_stump, best_error
 ```
+
+Three details that are easy to miss:
+
+- **Both polarities are searched.** Many textbook implementations only try
+  "≤ threshold → -1". Trying the mirror too guarantees the returned error is
+  never worse than half the total weight (0.5 for the normalized weights `fit()`
+  passes), so α is never negative and every learner contributes.
+- **Polarity B costs nothing.** Polarity B is wrong on exactly the samples
+  polarity A got right, so its weighted error is `total_weight - error`.
+  Recomputing it from scratch would double the innermost loop for no new
+  information. Subtract from `total_weight`, not from a literal `1.0`: the
+  weights only sum to 1 up to floating-point rounding, so `1.0 - error` leaves a
+  residue of up to `2e-16` for a *flawless* mirrored stump instead of `0.0`, and
+  it is simply wrong for any weight vector that is not normalized.
+- **The midpoint is guarded.** For two feature values one ULP apart,
+  `(v[i] + v[i+1]) / 2` rounds *up* onto `v[i+1]` — that happens for half of all
+  adjacent double pairs — and for values near `1e308` the sum overflows to
+  `inf`. Since the rule is `col <= threshold`, either case drags the upper value
+  to the **left** and the intended split becomes unreachable: a perfectly
+  separable two-value feature would score 0.5 error and α = 0. Falling back to
+  `v[i]` restores it. sklearn's tree splitter carries the same guard
+  (`if threshold == Xf[p]: threshold = Xf[p-1]`), and on ordinary data it never
+  fires.
+
+One thing the midpoints *do* change: the old raw-value candidate list also
+contained `threshold = max(v)`, which sends every sample left and is therefore a
+constant classifier. Midpoints drop it, so the stump family here is one
+candidate smaller per feature. That is deliberate — sklearn's depth-1 tree
+cannot emit a constant classifier either — but it means the best achievable
+weighted error is occasionally a little higher than raw values would allow.
 
 **Step-by-step example**:
 ```python
@@ -767,25 +1057,33 @@ X = [[1], [2], [3], [4], [5], [6]]
 y = [-1, -1, -1, +1, +1, +1]
 weights = [0.2, 0.2, 0.1, 0.1, 0.2, 0.2]
 
+# Distinct values 1..6 -> candidate thresholds 1.5, 2.5, 3.5, 4.5, 5.5
+
 # Try threshold 3.5
 predictions = [X[i] <= 3.5 ? -1 : +1]
             = [-1, -1, -1, +1, +1, +1]  (perfect!)
 
 errors = [False, False, False, False, False, False]
-weighted_error = 0.0
+weighted_error = 0.0        # polarity A
+error_flipped  = 1.0        # polarity B: total_weight - 0.0, and here
+                            # total_weight = sum(weights) = 1.0
 
-# This is the best split!
+# Polarity A at threshold 3.5 is the best split!
 ```
 
-### 3. Calculating Learner Weight (Alpha)
+### 3. Inside fit(): calculating alpha
+
+There is no `_calculate_alpha` method — the computation lives inline in the
+`fit()` loop:
 
 ```python
-def _calculate_alpha(self, error):
-    # Prevent division by zero and log of zero
-    error = np.clip(error, 1e-10, 1 - 1e-10)
-    
-    alpha = 0.5 * np.log((1 - error) / error)
-    return alpha * self.learning_rate
+# Prevent error from being 0 or 1 (numerical stability)
+error = np.clip(error, 1e-10, 1 - 1e-10)
+
+# Calculate learner weight (alpha)
+# Higher alpha = lower error = more trust
+alpha = 0.5 * np.log((1 - error) / error)
+alpha = alpha * self.learning_rate  # Apply learning rate
 ```
 
 **Why the clipping?**
@@ -818,47 +1116,100 @@ alpha = 0.693 * 0.5 = 0.347
 #         Helps prevent overfitting!
 ```
 
-### 4. Updating Sample Weights
+Because the learning rate scales α *before* it enters the weight update, the
+wrong-to-right re-weighting ratio becomes `e^(2α) = ((1-ε)/ε)^learning_rate` —
+identical to scikit-learn's SAMME, which computes `exp(learning_rate × ln((1-ε)/ε))`.
+
+**The early stop**:
+```python
+# ... right after the stump's predictions are computed:
+perfect = bool(np.all(predictions == y))
+
+# ... and after the weights are updated and the learner is stored:
+self.weak_learners.append(stump)
+self.alphas.append(alpha)
+
+if perfect:
+    # Zero training error -- stop early rather than appending
+    # n_estimators-1 identical copies of this stump.
+    break
+```
+
+Why stopping is the right move: a stump that gets *everything* right multiplies
+every weight by the same `e^(-α)`, and normalizing then hands back the exact
+weight vector the round started with. Round t+1 would re-select the identical
+stump, forever. Without the break, a perfectly separable dataset produces
+`n_estimators` copies of the *same* stump, each with α ≈ 11.51, and
+`get_feature_importance()` reports 100% for whichever feature it used.
+scikit-learn's `AdaBoostClassifier` breaks out of the loop the same way.
+
+Note **what** is tested: the predictions, not the weighted error. The two agree
+whenever the weights still carry real mass, which is why `ε_t == 0` is the
+textbook way to state the condition. But at a large `learning_rate` the easy
+samples' weights collapse toward `0` and the misclassified mass collapses with
+them — long before any weight is literally `0`, and it never has to get there.
+On `make_moons(n_samples=120, noise=0.25, random_state=1)` at
+`learning_rate=3.0` the smallest weight is `4.3e-22` by round 5, and there a
+tolerance of `error <= 1e-10` fires on a stump
+that reports `ε = 1e-13` while getting 19 of 120 samples wrong — ending training
+at 84.17% where boosting on to 60 learners reaches 100%. Thirteen rounds later
+the reported error is exactly `0.0` on a stump with 79 of 120 wrong (the
+ensemble is at 69.17% there): its true misclassified mass, `9.5e-18`, disappears
+into the `total_weight - error` subtraction that scores the mirrored polarity.
+Testing the predictions cannot be fooled either way.
+scikit-learn arrives at the same predicate from the other side: it floors every
+sample weight at machine epsilon before each round, so its `error <= 0` test can
+only fire on a genuinely flawless learner.
+
+### 4. Inside fit(): updating sample weights
+
+There is no `_update_weights` method either — this is also inline in `fit()`:
 
 ```python
-def _update_weights(self, weights, alpha, y, predictions):
-    # Calculate weight updates
-    # Correct: multiply by e^(-alpha)
-    # Wrong: multiply by e^(alpha)
-    updates = np.exp(alpha * (predictions != y).astype(float))
-    weights = weights * updates
-    
-    # Normalize so sum = 1
-    weights = weights / np.sum(weights)
-    
-    return weights
+# Make predictions with this stump
+predictions = self._stump_predict(stump, X)
+
+# Update sample weights: w_i <- w_i * exp(-alpha * y_i * h_t(x_i))
+# y * predictions is +1 where the stump is right, -1 where it is wrong:
+#   Correct: multiply by e^(-alpha) (decrease weight)
+#   Wrong:   multiply by e^(+alpha) (increase weight)
+weights = weights * np.exp(-alpha * y * predictions)
+
+# Normalize weights to sum to 1
+weights = weights / np.sum(weights)
 ```
+
+Note the exponent: **`-alpha * y * predictions`**, not `alpha * (predictions != y)`.
+See the boxed warning in [The Mathematical Foundation](#the-mathematical-foundation)
+for why the difference is not cosmetic.
 
 **Detailed example**:
 ```python
-weights = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-alpha = 0.693
+weights = np.array([1/6] * 6)              # 0.1667 each, summing to 1
 y = np.array([-1, -1, -1, +1, +1, +1])
 predictions = np.array([-1, -1, +1, +1, +1, +1])
-#                            ✓   ✓   ✗   ✓   ✓   ✓
+#                        ✓   ✓   ✗   ✓   ✓   ✓
 
-# Calculate updates
-errors = (predictions != y)  # [False, False, True, False, False, False]
-errors_float = [0, 0, 1, 0, 0, 0]
+# The learner's weighted error: one wrong sample carrying weight 1/6
+eps = 1/6 = 0.1667
+alpha = 0.5 * ln((1 - 0.1667) / 0.1667) = 0.5 * ln(5) = 0.8047
 
-updates = np.exp(0.693 * errors_float)
-        = [e^0, e^0, e^0.693, e^0, e^0, e^0]
-        = [1.0, 1.0, 2.0, 1.0, 1.0, 1.0]
+# y * predictions = [+1, +1, -1, +1, +1, +1]
+updates = np.exp(-0.8047 * y * predictions)
+        = [e^-0.8047, e^-0.8047, e^+0.8047, e^-0.8047, e^-0.8047, e^-0.8047]
+        = [0.4472, 0.4472, 2.2361, 0.4472, 0.4472, 0.4472]
 
 # Update weights
-weights = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1] * [1.0, 1.0, 2.0, 1.0, 1.0, 1.0]
-        = [0.1, 0.1, 0.2, 0.1, 0.1, 0.1]
+weights = 0.1667 * [0.4472, 0.4472, 2.2361, 0.4472, 0.4472, 0.4472]
+        = [0.0745, 0.0745, 0.3727, 0.0745, 0.0745, 0.0745]
 
 # Normalize
-sum = 0.7
-weights = [0.14, 0.14, 0.29, 0.14, 0.14, 0.14]
+sum = 0.7454
+weights = [0.1000, 0.1000, 0.5000, 0.1000, 0.1000, 0.1000]
 
-# Misclassified sample now has 2x weight!
+# The misclassified sample now carries 0.5 of ALL the weight - a 5x jump from
+# 0.1667, and exactly the ratio (1-eps)/eps = 5 that the theory predicts.
+# Check the invariant: this learner's error under the new weights is 0.5. ✓
 ```
 
 ### 5. Making Final Predictions
@@ -872,8 +1223,9 @@ def predict(self, X):
         predictions = self._stump_predict(stump, X)
         weighted_sum += alpha * predictions
     
-    # Return sign of weighted sum
-    return np.sign(weighted_sum)
+    # Return sign of weighted sum, with ties broken toward +1
+    # (np.sign(0) would return 0, which is not a class label)
+    return np.where(weighted_sum >= 0, 1.0, -1.0)
 ```
 
 **Example**:
@@ -892,7 +1244,7 @@ weighted_sum = 0.693 * [+1, -1] + 0.420 * [+1, +1] + 0.549 * [-1, +1]
              = [0.564, 0.276]
 
 # Final predictions
-final = np.sign([0.564, 0.276])
+final = np.where([0.564, 0.276] >= 0, 1.0, -1.0)
       = [+1, +1]
 ```
 
@@ -904,10 +1256,13 @@ def get_feature_importance(self):
     
     for alpha, stump in zip(self.alphas, self.weak_learners):
         feature_idx = stump['feature']
-        importance[feature_idx] += alpha
+        importance[feature_idx] += abs(alpha)   # abs(): a negative alpha still
+                                                # means the feature was USED
     
-    # Normalize
-    importance = importance / np.sum(importance)
+    # Normalize (guarded: every alpha could be 0 if every stump scored
+    # exactly 0.5 error, and 0/0 would be nan)
+    if np.sum(importance) > 0:
+        importance = importance / np.sum(importance)
     
     return importance
 ```
@@ -959,18 +1314,33 @@ Large (200-500+):
 ```
 
 **How to choose**:
+
 ```python
-# Use learning curves
-from sklearn.model_selection import cross_val_score
+# Hand-rolled k-fold. sklearn's cross_val_score CANNOT be used here:
+#   cross_val_score(AdaBoost(), X, y, cv=5)
+#   -> TypeError: Cannot clone object '<AdaBoost object>': it does not seem to
+#      be a scikit-learn estimator as it does not implement a 'get_params' method
+# Writing the loop yourself is 8 lines and shows exactly what a fold is.
 
-scores = []
-for n in [10, 25, 50, 100, 200]:
-    model = AdaBoost(n_estimators=n)
-    score = cross_val_score(model, X, y, cv=5).mean()
-    scores.append(score)
+def cross_val_accuracy(make_model, X, y, k=5, seed=0):
+    rng = np.random.RandomState(seed)
+    idx = rng.permutation(len(X))
+    folds = np.array_split(idx, k)
+    scores = []
+    for i in range(k):
+        test_idx = folds[i]
+        train_idx = np.concatenate([folds[j] for j in range(k) if j != i])
+        model = make_model()                       # a FRESH model per fold
+        model.fit(X[train_idx], y[train_idx])
+        scores.append(model.score(X[test_idx], y[test_idx]))
+    return np.array(scores)
 
-# Plot scores vs n_estimators
-# Choose where curve plateaus
+for n in [10, 25, 50, 100]:
+    s = cross_val_accuracy(lambda n=n: AdaBoost(n_estimators=n), X, y, k=5)
+    print(f"n_estimators={n:3d}: {s.mean():.2%} (+/- {s.std() * 2:.2%})")
+
+# Choose where the curve plateaus - more estimators past that point only
+# costs training time.
 ```
 
 #### Learning Rate
@@ -1002,7 +1372,11 @@ Examples:
   learning_rate=0.5, n_estimators=100  (similar performance)
   learning_rate=0.1, n_estimators=500  (similar performance)
 
-Lower learning rate + more estimators = better generalization
+Lower learning rate + more estimators = comparable fit, reached in smaller
+steps. USAGE EXAMPLE 5 in the .py runs exactly this trade-off on 200 points
+and gets 96.88% train / 90.00% test on all three rows. A low rate is not
+automatically better - it just needs proportionally more estimators. The
+benefit shows up on noisy data, where smaller steps overfit more slowly.
 ```
 
 ### Performance Metrics
@@ -1093,41 +1467,81 @@ plt.show()
 
 ### Comparing with Base Learner
 
+You do not need sklearn for this — `AdaBoost(n_estimators=1)` *is* a single
+decision stump, fitted by exactly the same search:
+
 ```python
-# Train single decision stump
-stump = DecisionTreeClassifier(max_depth=1)
-stump.fit(X_train, y_train)
-stump_accuracy = stump.score(X_test, y_test)
+# Ring vs. disk: 250 points, target y = +1 outside the circle of radius 2
+np.random.seed(42)
+X = np.random.randn(250, 2) * 2
+y = np.where(X[:, 0] ** 2 + X[:, 1] ** 2 > 4, 1, -1)
 
-# Train AdaBoost with 50 stumps
-adaboost = AdaBoost(n_estimators=50)
-adaboost.fit(X_train, y_train)
-adaboost_accuracy = adaboost.score(X_test, y_test)
+idx = np.random.permutation(250)
+X, y = X[idx], y[idx]
+X_train, X_test = X[:190], X[190:]
+y_train, y_test = y[:190], y[190:]
 
-print(f"Single Stump: {stump_accuracy:.2%}")
-print(f"AdaBoost (50): {adaboost_accuracy:.2%}")
+# One stump vs. 50 boosted stumps
+stump = AdaBoost(n_estimators=1).fit(X_train, y_train)
+adaboost = AdaBoost(n_estimators=50).fit(X_train, y_train)
 
-# Typical result:
-# Single Stump: 58.00%
-# AdaBoost (50): 92.00%
-# → 34% improvement!
+print(f"Single Stump : {stump.score(X_test, y_test):.2%}")
+print(f"AdaBoost (50): {adaboost.score(X_test, y_test):.2%}")
+
+# Output:
+# Single Stump : 45.00%
+# AdaBoost (50): 95.00%
+# -> +50.00 percentage points
 ```
+
+A single axis-aligned cut has essentially no purchase on a radially symmetric
+target — on this 60-row test set it lands *below* chance, at 45%. Fifty of them,
+weighted, box in the circle well enough for 95%. (The Quick Start at the top of
+this page runs the same experiment at a different point in the random stream and
+gets 61.67% → 93.33%; the gap is large either way, but the single-stump number
+is noisy because it is one arbitrary cut.)
+
+Report the gap in **percentage points**, not with `:.2%`. Formatting the
+*difference* of two proportions as a percentage invites the reader to hear
+"50% improvement", which is a different quantity — the relative gain here is
+95.00/45.00 - 1 = 111%.
 
 ### Cross-Validation
 
+Reusing `cross_val_accuracy` from above (again: sklearn's `cross_val_score`
+raises `TypeError` on this class, because it is not an sklearn estimator):
+
 ```python
-from sklearn.model_selection import cross_val_score
+# 5-fold cross-validation on the two overlapping blobs from Example 2
+np.random.seed(42)
+X = np.vstack([np.random.randn(50, 2) + np.array([-1, -1]),
+               np.random.randn(50, 2) + np.array([ 1,  1])])
+y = np.array([-1] * 50 + [1] * 50)
 
-# 5-fold cross-validation
-scores = cross_val_score(model, X, y, cv=5)
+scores = cross_val_accuracy(lambda: AdaBoost(n_estimators=50), X, y, k=5)
 
-print(f"Scores: {scores}")
+print(f"Scores: {np.round(scores, 4)}")
 print(f"Mean: {scores.mean():.2%} (+/- {scores.std() * 2:.2%})")
 
 # Output:
-# Scores: [0.88 0.92 0.85 0.91 0.89]
-# Mean: 89.00% (+/- 5.00%)
+# Scores: [0.9  0.85 0.9  0.85 1.  ]
+# Mean: 90.00% (+/- 10.95%)
 ```
+
+Running the `n_estimators` sweep from the previous section on this same data
+gives:
+
+```
+n_estimators= 10: 93.00% (+/- 8.00%)
+n_estimators= 25: 91.00% (+/- 9.80%)
+n_estimators= 50: 90.00% (+/- 10.95%)
+n_estimators=100: 90.00% (+/- 10.95%)
+```
+
+The curve is flat-to-slightly-falling: on 100 overlapping points, 10 stumps are
+already enough, and adding 90 more only fits noise. This is exactly the
+"plateau" you are looking for — and a useful reminder that more estimators is
+not automatically better.
 
 ---
 
@@ -1145,7 +1559,26 @@ where:
   M = number of unique values per feature (for finding splits)
   F = number of features
 
-Typical: O(T × N × F × log(N))
+This implementation: O(T × N² × F) for continuous features.
+With continuous data every value is distinct, so M = N - 1 midpoints, and
+each candidate threshold is scored against all N samples.
+
+Measured wall clock on this code, T = 50:
+    200 samples ×  2 features:   0.13 s
+    500 samples ×  5 features:   0.93 s
+   1000 samples × 10 features:   4.91 s
+
+Doubling N alone (F = 2, T = 10) shows the N² term emerging as NumPy's
+per-call overhead stops dominating:
+     250 ->  500:  1.84x
+     500 -> 1000:  2.59x
+    1000 -> 2000:  2.72x
+    2000 -> 4000:  3.18x   (approaching the 4.00x that N² predicts)
+Doubling F alone is exactly linear: 1.95x, 1.98x.
+
+Library implementations pre-sort each feature once and sweep the split point,
+reaching O(T × N × F × log(N)). That is the right complexity to quote for
+scikit-learn; it is not what the readable loop in this file does.
 ```
 
 **Prediction**:
@@ -1163,8 +1596,9 @@ Typical: O(T × N)
 **Comparison with other algorithms**:
 ```
 Training Time (for N samples, F features):
-  AdaBoost: O(T × N × F × log(N))
-  Random Forest: O(T × N × F × log(N))  [similar]
+  AdaBoost (this file):  O(T × N² × F)          [exhaustive threshold scan]
+  AdaBoost (sklearn):    O(T × N × F × log(N))  [pre-sorted split sweep]
+  Random Forest: O(T × N × F × log(N))  [similar to sklearn's AdaBoost]
   Deep Neural Net: O(epochs × N × hidden_units × layers)  [usually slower]
   Linear SVM: O(N² × F) to O(N³ × F)  [slower for large N]
 
@@ -1225,10 +1659,12 @@ Feature search: ✅ Parallelizable (within each estimator)
    - Feature importance readily available
    - Individual weak learners are interpretable
 
-3. **Versatile**
+3. **Versatile** (the algorithm, not this file)
    - Works with various weak learners
-   - Can handle binary and multi-class classification
+   - Can handle binary and multi-class classification (via SAMME)
    - Variant for regression (AdaBoost.R2)
+   - **This implementation is binary-only, with decision stumps as the only
+     weak learner.** See [Simplification vs. canonical AdaBoost](#simplification-vs-canonical-adaboost).
 
 4. **Few Hyperparameters**
    - Mainly: n_estimators and learning_rate
@@ -1376,7 +1812,7 @@ When to choose:
 AdaBoost:
   ✓ Simpler to understand
   ✓ Fewer hyperparameters
-  ✓ Works with any loss function
+  ✗ Locked to exponential loss (that IS the alpha/re-weighting derivation)
   ✗ Less flexible
   ✗ Sample weighting can be extreme
   
@@ -1424,8 +1860,9 @@ Each learner focuses on previous mistakes, creating specialized expertise that c
 
 ### 2. **Weak Learners + Weighted Voting = Strong Learner**
 ```
-Single stump: 60% accuracy
-50 stumps (AdaBoost): 95% accuracy
+Measured in this repo, on the ring-vs-disk target:
+  Single stump:          45% test accuracy
+  50 stumps (AdaBoost):  95% test accuracy
 
 The whole is greater than the sum of its parts!
 ```
@@ -1468,9 +1905,11 @@ Solution: Clean data first!
 ### 7. **Learning Rate Controls Fitting Speed**
 ```
 learning_rate = 1.0: Aggressive learning, fast convergence, risk overfitting
-learning_rate = 0.1: Conservative, slower, better generalization
+learning_rate = 0.1: Conservative, slower, smaller steps
 
-Lower rate needs more estimators but often performs better
+Lower rate needs proportionally more estimators to reach the same fit
+(learning_rate x n_estimators ~= constant). It helps on noisy data, where
+small steps overfit more slowly - not on every dataset.
 ```
 
 ---

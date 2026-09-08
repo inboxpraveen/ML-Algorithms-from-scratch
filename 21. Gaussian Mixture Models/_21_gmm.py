@@ -20,15 +20,44 @@ class GaussianMixtureModel:
     
     Key Concepts:
         Components: Individual Gaussian distributions in the mixture
-        Mixing Coefficients (π): Weight/probability of each component
-        Mean (μ): Center of each Gaussian component
-        Covariance (Σ): Shape/spread of each Gaussian component
+        Mixing Coefficients (pi_k): Weight/probability of each component
+        Mean (mu_k): Center of each Gaussian component
+        Covariance (Sigma_k): Shape/spread of each Gaussian component
         Soft Assignment: Each point belongs to all clusters with different probabilities
         EM Algorithm: Expectation-Maximization for parameter estimation
+
+    The EM update formulas this class implements (N = n_samples, K = n_components):
+        E-step:  gamma(z_nk) = pi_k * N(x_n | mu_k, Sigma_k)
+                               / sum_j pi_j * N(x_n | mu_j, Sigma_j)
+        M-step:  N_k      = sum_n gamma(z_nk)
+                 pi_k     = N_k / N
+                 mu_k     = sum_n gamma(z_nk) * x_n / N_k
+                 Sigma_k  = sum_n gamma(z_nk) * (x_n - mu_k)(x_n - mu_k)^T / N_k
+        Objective: log L = sum_n log( sum_k pi_k * N(x_n | mu_k, Sigma_k) )
+        Every EM iteration is guaranteed not to decrease log L.
+
+    Numerical stability:
+        Densities are evaluated through the Cholesky factor P = L^-T of each
+        precision matrix (Sigma = L L^T), so that
+            (x - mu)^T Sigma^-1 (x - mu) = ||(x - mu) @ P||^2
+            log|Sigma|                   = -2 * sum(log(diag(P)))
+        and responsibilities are normalised with the log-sum-exp trick.
+
+    Simplification vs. canonical scikit-learn GaussianMixture:
+        - Initialisation: scikit-learn's default init_params='kmeans' runs a full
+          k-means to convergence and derives the initial responsibilities from its
+          labels. This class does a single k-means++ D^2 seeding pass for the means
+          and seeds every covariance with the data's own scatter cov(X). The result
+          is usually the same optimum (verified against sklearn on 4 covariance
+          types), but sklearn's start is slightly better conditioned.
+        - score(X) returns the TOTAL log-likelihood, not sklearn's per-sample mean
+          (see score()).
+        - No Bayesian / variational variant, no warm_start, no precisions_init.
     """
-    
-    def __init__(self, n_components=3, max_iter=100, tol=1e-4, 
-                 covariance_type='full', random_state=None, reg_covar=1e-6):
+
+    def __init__(self, n_components=3, max_iter=100, tol=1e-4,
+                 covariance_type='full', random_state=None, reg_covar=1e-6,
+                 n_init=1):
         """
         Initialize the Gaussian Mixture Model
         
@@ -49,7 +78,12 @@ class GaussianMixtureModel:
             Convergence threshold (change in log-likelihood)
             - Smaller values: More precise convergence
             - Larger values: Faster convergence
-            
+            Note on scale: this is compared against the change in the TOTAL
+            (summed) log-likelihood, not the per-sample mean that sklearn's
+            GaussianMixture uses. So tol=1e-4 here behaves like sklearn's
+            tol=1e-4/n_samples - it is a stricter stopping rule on large data.
+            Typical values: 1e-3 to 1e-6
+
         covariance_type : {'full', 'diag', 'spherical', 'tied'}, default='full'
             Type of covariance matrix:
             - 'full': Each component has its own general covariance matrix
@@ -59,9 +93,25 @@ class GaussianMixtureModel:
             
         random_state : int, optional
             Random seed for reproducibility
-            
+            - Seeds NumPy's global RNG (the convention used across this repo)
+            - Re-applied at the start of every fit(), so refitting the same
+              object on the same data reproduces the same result
+
         reg_covar : float, default=1e-6
             Regularization added to covariance diagonal for numerical stability
+            - Stops a component that has collapsed onto a handful of points from
+              producing a singular (non-invertible) covariance matrix
+            - Raise it to 1e-4 or 1e-3 if you hit LinAlgError or exploding
+              log-likelihoods
+            Typical values: 1e-6 to 1e-3
+
+        n_init : int, default=1
+            Number of independent EM restarts; the run with the highest final
+            log-likelihood is kept
+            - EM only ever reaches a LOCAL maximum, so more restarts means a
+              better chance of finding the global one
+            - Cost grows linearly: n_init=10 takes ~10x as long
+            Typical values: 1 (default, same as sklearn) to 10 on hard data
         """
         self.n_components = n_components
         self.max_iter = max_iter
@@ -69,85 +119,134 @@ class GaussianMixtureModel:
         self.covariance_type = covariance_type
         self.random_state = random_state
         self.reg_covar = reg_covar
-        
+        self.n_init = n_init
+
         # Model parameters (learned during fit)
-        self.weights_ = None      # Mixing coefficients (π)
-        self.means_ = None        # Component means (μ)
-        self.covariances_ = None  # Component covariances (Σ)
+        self.weights_ = None      # Mixing coefficients (pi_k)
+        self.means_ = None        # Component means (mu_k)
+        self.covariances_ = None  # Component covariances (Sigma_k)
         self.converged_ = False   # Whether EM converged
         self.n_iter_ = 0          # Number of iterations performed
         self.lower_bound_ = None  # Log-likelihood of best fit
-        
+        self.labels_ = None       # Hard cluster labels of the training data
+
         if random_state is not None:
             np.random.seed(random_state)
     
     def _initialize_parameters(self, X):
         """
         Initialize GMM parameters using K-means++ strategy
-        
+
         Strategy:
-        1. Randomly select k samples as initial means
+        1. Pick the first mean uniformly at random from the data, then pick each
+           remaining mean with probability proportional to its squared distance to
+           the nearest already-chosen mean (k-means++ D^2 sampling). Only the first
+           centre is uniform; the rest are spread out on purpose.
         2. Initialize weights uniformly (1/k for each component)
-        3. Initialize covariances as identity matrices (or variants)
-        
+        3. Initialize every covariance from the DATA's OWN SCATTER (np.cov(X)),
+           not from the identity matrix.
+
+        Why the data scatter and not I? The identity says "every component starts
+        with unit variance in every direction". On a feature measured in dollars
+        with std 500 that Gaussian is ~500x too narrow, so almost every point gets
+        a responsibility of essentially 0 or 1 on the very first E-step and EM is
+        already trapped in a bad local optimum before it takes a single real step.
+        Seeding with cov(X) makes the starting Gaussians as wide as the data, which
+        is what scikit-learn achieves by deriving its initial covariances from a
+        k-means responsibility pass. On unstandardised data this is the single
+        biggest quality difference in the whole file.
+
         Parameters:
         -----------
         X : np.ndarray, shape (n_samples, n_features)
             Training data
         """
         n_samples, n_features = X.shape
-        
+
         # Initialize weights uniformly
         self.weights_ = np.ones(self.n_components) / self.n_components
-        
+
         # Initialize means using k-means++ style
         # Select first center randomly
         indices = [np.random.randint(n_samples)]
-        
+
         # Select remaining centers with probability proportional to distance
         for _ in range(1, self.n_components):
             distances = np.array([
                 min([np.sum((X[i] - X[j])**2) for j in indices])
                 for i in range(n_samples)
             ])
-            probs = distances / distances.sum()
+            total = distances.sum()
+            if total > 0:
+                probs = distances / total
+            else:
+                # Every point coincides with an already-chosen centre
+                # (e.g. duplicated rows) -> fall back to uniform sampling
+                probs = np.ones(n_samples) / n_samples
             next_idx = np.random.choice(n_samples, p=probs)
             indices.append(next_idx)
-        
+
         self.means_ = X[indices].copy()
-        
-        # Initialize covariances based on type
+
+        # Initialize covariances from the data's own scatter, so the starting
+        # Gaussians live on the same scale as the data (see docstring above).
+        # np.atleast_2d keeps the (1, 1) shape when X has a single feature.
+        data_cov = np.atleast_2d(np.cov(X, rowvar=False))
+        data_cov = data_cov + self.reg_covar * np.eye(n_features)
+
         if self.covariance_type == 'full':
             # Full covariance matrix for each component
             self.covariances_ = np.array([
-                np.eye(n_features) for _ in range(self.n_components)
+                data_cov.copy() for _ in range(self.n_components)
             ])
         elif self.covariance_type == 'diag':
-            # Diagonal covariance (only variances)
-            self.covariances_ = np.ones((self.n_components, n_features))
+            # Diagonal covariance (only variances, one row per component)
+            self.covariances_ = np.tile(np.diag(data_cov), (self.n_components, 1))
         elif self.covariance_type == 'spherical':
-            # Single variance per component
-            self.covariances_ = np.ones(self.n_components)
+            # Single variance per component: average variance across features
+            self.covariances_ = np.full(self.n_components, np.mean(np.diag(data_cov)))
         elif self.covariance_type == 'tied':
-            # Single covariance matrix for all components
-            self.covariances_ = np.eye(n_features)
-    
+            # Single covariance matrix shared by all components
+            self.covariances_ = data_cov.copy()
+        else:
+            raise ValueError(
+                "Unknown covariance_type: %r. Expected one of "
+                "'full', 'diag', 'spherical', 'tied'." % (self.covariance_type,)
+            )
+
     def _compute_precision_cholesky(self, covariances):
         """
-        Compute precision matrix using Cholesky decomposition
-        
-        Precision matrix = Inverse of covariance matrix
-        Using Cholesky decomposition for numerical stability
-        
+        Compute the Cholesky factor of each precision (inverse covariance) matrix
+
+        Write Sigma = L L^T with L lower-triangular (that is the Cholesky factor of
+        the covariance). Then
+
+            Sigma^-1 = (L L^T)^-1 = L^-T L^-1 = P P^T   where   P = L^-T
+
+        so P is "the Cholesky factor of the precision" and is what this method
+        returns. Working with P instead of Sigma^-1 is more numerically stable and
+        it makes both quantities the Gaussian log-density needs cheap:
+
+            (x - mu)^T Sigma^-1 (x - mu) = || (x - mu) @ P ||^2
+            log|Sigma|                   = -2 * sum(log(diag(P)))
+
+        This is the same convention scikit-learn stores in precisions_cholesky_.
+        _estimate_log_gaussian_prob calls this method for 'full' and 'tied'. For
+        'diag' and 'spherical' the covariance is already diagonal, so no
+        factorisation is needed - the factor is simply 1/sqrt(variance), returned
+        here for completeness, and those density branches work with the variances
+        directly instead.
+
         Parameters:
         -----------
         covariances : np.ndarray
-            Covariance matrices
-            
+            Covariance matrices (shape depends on covariance_type)
+
         Returns:
         --------
         precision_cholesky : np.ndarray
-            Cholesky decomposition of precision matrices
+            P = L^-T for each component (full/tied), or 1/sqrt(variance)
+            (diag/spherical)
         """
         if self.covariance_type == 'full':
             n_components, n_features, _ = covariances.shape
@@ -157,16 +256,18 @@ class GaussianMixtureModel:
                 # Add regularization for numerical stability
                 cov_k = covariances[k] + self.reg_covar * np.eye(n_features)
                 
-                # Cholesky decomposition of precision matrix
+                # Cholesky factor L of the COVARIANCE: Sigma = L L^T
                 try:
                     cov_chol = np.linalg.cholesky(cov_k)
                 except np.linalg.LinAlgError:
-                    # If Cholesky fails, use eigenvalue decomposition
+                    # Not positive-definite (a collapsed component): add ten times
+                    # the ridge and try once more
                     cov_k = cov_k + self.reg_covar * 10 * np.eye(n_features)
                     cov_chol = np.linalg.cholesky(cov_k)
                 
-                precision_cholesky[k] = np.linalg.solve(cov_chol, np.eye(n_features))
-            
+                # solve(L, I) is L^-1; transpose it to get P = L^-T
+                precision_cholesky[k] = np.linalg.solve(cov_chol, np.eye(n_features)).T
+
             return precision_cholesky
         
         elif self.covariance_type == 'diag':
@@ -182,14 +283,16 @@ class GaussianMixtureModel:
             n_features = covariances.shape[0]
             cov = covariances + self.reg_covar * np.eye(n_features)
             cov_chol = np.linalg.cholesky(cov)
-            return np.linalg.solve(cov_chol, np.eye(n_features))
+            # solve(L, I) is L^-1; transpose it to get P = L^-T
+            return np.linalg.solve(cov_chol, np.eye(n_features)).T
     
     def _estimate_log_gaussian_prob(self, X):
         """
         Estimate log probability of samples under each Gaussian component
         
         For each sample x and component k, compute:
-        log N(x | μ_k, Σ_k) = -0.5 * [(x-μ_k)^T Σ_k^(-1) (x-μ_k) + log|Σ_k| + d*log(2π)]
+        log N(x | mu_k, Sigma_k) = -0.5 * [ (x-mu_k)^T Sigma_k^-1 (x-mu_k)
+                                            + log|Sigma_k| + d*log(2*pi) ]
         
         Parameters:
         -----------
@@ -202,24 +305,26 @@ class GaussianMixtureModel:
             Log probability of each sample under each component
         """
         n_samples, n_features = X.shape
-        log_prob = np.empty((n_samples, self.n_components))
-        
+        log_prob = np.zeros((n_samples, self.n_components))
+
         if self.covariance_type == 'full':
+            # P[k] = L_k^-T, the Cholesky factor of the precision matrix
+            precisions_chol = self._compute_precision_cholesky(self.covariances_)
+
             for k in range(self.n_components):
                 diff = X - self.means_[k]
-                cov_k = self.covariances_[k] + self.reg_covar * np.eye(n_features)
-                
-                # Compute log determinant
-                sign, logdet = np.linalg.slogdet(cov_k)
-                
-                # Compute Mahalanobis distance
-                precision = np.linalg.inv(cov_k)
-                mahalanobis = np.sum(diff @ precision * diff, axis=1)
-                
+                P = precisions_chol[k]
+
+                # log|Sigma_k| = -2 * sum(log(diag(P)))  (since diag(P) = 1/diag(L))
+                logdet = -2.0 * np.sum(np.log(np.diag(P)))
+
+                # (x-mu)^T Sigma^-1 (x-mu) = ||(x-mu) @ P||^2, because Sigma^-1 = P P^T
+                mahalanobis = np.sum((diff @ P) ** 2, axis=1)
+
                 # Log probability
-                log_prob[:, k] = -0.5 * (n_features * np.log(2 * np.pi) + 
+                log_prob[:, k] = -0.5 * (n_features * np.log(2 * np.pi) +
                                         logdet + mahalanobis)
-        
+
         elif self.covariance_type == 'diag':
             for k in range(self.n_components):
                 diff = X - self.means_[k]
@@ -239,23 +344,31 @@ class GaussianMixtureModel:
                                         n_features * np.log(2 * np.pi))
         
         elif self.covariance_type == 'tied':
-            cov = self.covariances_ + self.reg_covar * np.eye(n_features)
-            sign, logdet = np.linalg.slogdet(cov)
-            precision = np.linalg.inv(cov)
-            
+            # One shared precision Cholesky factor P for every component
+            P = self._compute_precision_cholesky(self.covariances_)
+            logdet = -2.0 * np.sum(np.log(np.diag(P)))
+
             for k in range(self.n_components):
                 diff = X - self.means_[k]
-                mahalanobis = np.sum(diff @ precision * diff, axis=1)
-                log_prob[:, k] = -0.5 * (n_features * np.log(2 * np.pi) + 
+                mahalanobis = np.sum((diff @ P) ** 2, axis=1)
+                log_prob[:, k] = -0.5 * (n_features * np.log(2 * np.pi) +
                                         logdet + mahalanobis)
-        
+
+        else:
+            raise ValueError(
+                "Unknown covariance_type: %r. Expected one of "
+                "'full', 'diag', 'spherical', 'tied'." % (self.covariance_type,)
+            )
+
         return log_prob
     
     def _e_step(self, X):
         """
         E-step: Estimate responsibilities (posterior probabilities)
         
-        Compute γ(z_nk) = P(z_k | x_n) = (π_k * N(x_n | μ_k, Σ_k)) / Σ_j(π_j * N(x_n | μ_j, Σ_j))
+        Compute gamma(z_nk) = P(z_k | x_n)
+                            = pi_k * N(x_n | mu_k, Sigma_k)
+                              / sum_j pi_j * N(x_n | mu_j, Sigma_j)
         
         This is the probability that sample n belongs to component k.
         
@@ -293,9 +406,10 @@ class GaussianMixtureModel:
         M-step: Update parameters to maximize expected log-likelihood
         
         Update formulas:
-        - π_k = (1/N) * Σ_n γ(z_nk)
-        - μ_k = Σ_n (γ(z_nk) * x_n) / Σ_n γ(z_nk)
-        - Σ_k = Σ_n (γ(z_nk) * (x_n - μ_k)(x_n - μ_k)^T) / Σ_n γ(z_nk)
+        - N_k     = sum_n gamma(z_nk)          (effective count for component k)
+        - pi_k    = N_k / N
+        - mu_k    = sum_n gamma(z_nk) * x_n / N_k
+        - Sigma_k = sum_n gamma(z_nk) * (x_n - mu_k)(x_n - mu_k)^T / N_k
         
         Parameters:
         -----------
@@ -346,72 +460,168 @@ class GaussianMixtureModel:
         """
         Compute log(sum(exp(arr))) in numerically stable way
         
-        Uses the log-sum-exp trick: log(Σ exp(x_i)) = max(x) + log(Σ exp(x_i - max(x)))
+        Uses the log-sum-exp trick: log(sum_i exp(x_i)) = m + log(sum_i exp(x_i - m))
+        with m = max(x). Subtracting the max keeps the largest exponent at exp(0) = 1,
+        so nothing overflows and the smallest terms simply underflow to 0 harmlessly.
+
+        Parameters:
+        -----------
+        arr : np.ndarray
+            Values in log space
+        axis : int or None, default=None
+            Axis to reduce over (None reduces the whole array)
+        keepdims : bool, default=False
+            Keep the reduced axis with length 1 (handy for broadcasting a
+            normalisation back onto the original array)
+
+        Returns:
+        --------
+        out : np.ndarray or float
+            log(sum(exp(arr))) reduced over `axis`
         """
+        # Always reduce with keepdims=True first: that shape broadcasts against
+        # `arr` no matter which axis was reduced, then squeeze at the very end.
         arr_max = np.max(arr, axis=axis, keepdims=True)
-        
-        if not keepdims and arr_max.ndim > 0:
-            arr_max = np.squeeze(arr_max, axis=axis)
-        
-        out = np.log(np.sum(np.exp(arr - (arr_max if keepdims else 
-                                          arr_max[..., np.newaxis] if axis is not None 
-                                          else arr_max)), axis=axis, keepdims=keepdims))
-        out += arr_max if keepdims else (arr_max if axis is None else arr_max)
-        
+
+        out = np.log(np.sum(np.exp(arr - arr_max), axis=axis, keepdims=True))
+        out = out + arr_max
+
+        if not keepdims:
+            out = np.squeeze(out, axis=axis) if axis is not None else out.reshape(())[()]
+
         return out
-    
+
+    def _check_array(self, X):
+        """
+        Coerce input into a float 2-D array of shape (n_samples, n_features)
+
+        Accepts NumPy arrays and plain Python lists. A 1-D input is read as
+        n_samples of a SINGLE feature - i.e. reshaped to (n_samples, 1) - which is
+        the natural reading for 1-D density estimation.
+        """
+        X = np.asarray(X, dtype=float)
+
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        if X.ndim != 2:
+            raise ValueError(
+                "X must be 1-D or 2-D, got a %d-dimensional array." % X.ndim
+            )
+
+        return X
+
+    def _check_is_fitted(self):
+        """Raise a clear error if the model has not been fitted yet"""
+        if self.means_ is None or self.weights_ is None or self.covariances_ is None:
+            raise ValueError(
+                "This GaussianMixtureModel instance is not fitted yet. "
+                "Call fit(X) before using predict / predict_proba / score / "
+                "score_samples / sample / bic / aic."
+            )
+
     def fit(self, X, y=None):
         """
         Estimate GMM parameters using Expectation-Maximization (EM) algorithm
-        
+
         EM Algorithm:
         1. Initialize parameters (means, covariances, weights)
         2. E-step: Compute responsibilities (which component generated each point)
         3. M-step: Update parameters based on responsibilities
         4. Repeat until convergence (log-likelihood stops improving)
-        
+
+        Steps 1-4 are repeated n_init times from different random starts and the
+        run with the highest final log-likelihood wins, because EM only ever finds
+        a local maximum.
+
         Parameters:
         -----------
         X : np.ndarray or list, shape (n_samples, n_features)
-            Training data
+            Training data. A 1-D input is treated as n_samples x 1 feature.
         y : ignored
             Not used, present for API consistency
-            
+
         Returns:
         --------
         self : GaussianMixtureModel
-            Fitted model
+            Fitted model (also sets labels_, weights_, means_, covariances_,
+            converged_, n_iter_ and lower_bound_)
         """
-        X = np.array(X, dtype=float)
+        X = self._check_array(X)
         n_samples, n_features = X.shape
-        
-        # Initialize parameters
-        self._initialize_parameters(X)
-        
-        prev_log_likelihood = -np.inf
-        
-        # EM iterations
-        for iteration in range(self.max_iter):
-            # E-step: Compute responsibilities
-            responsibilities, log_likelihood = self._e_step(X)
-            
-            # M-step: Update parameters
-            self._m_step(X, responsibilities)
-            
-            # Check convergence
-            change = log_likelihood - prev_log_likelihood
-            
-            if abs(change) < self.tol:
-                self.converged_ = True
-                break
-            
-            prev_log_likelihood = log_likelihood
-        
-        self.n_iter_ = iteration + 1
-        self.lower_bound_ = log_likelihood
-        
+
+        if self.covariance_type not in ('full', 'diag', 'spherical', 'tied'):
+            raise ValueError(
+                "Unknown covariance_type: %r. Expected one of "
+                "'full', 'diag', 'spherical', 'tied'." % (self.covariance_type,)
+            )
+
+        if self.n_components > n_samples:
+            raise ValueError(
+                "n_components=%d cannot exceed n_samples=%d - there are not enough "
+                "points to seed that many Gaussians."
+                % (self.n_components, n_samples)
+            )
+
+        # Re-apply the seed here (not only in __init__) so that calling fit() twice
+        # on the same object gives the same answer twice.
+        if self.random_state is not None:
+            np.random.seed(self.random_state)
+
+        # converged_ is a property of THIS fit, so clear any previous fit's verdict
+        self.converged_ = False
+
+        best_log_likelihood = -np.inf
+        best_params = None
+
+        # n_init independent restarts (n_init=1 by default = a single EM run)
+        for _ in range(self.n_init):
+            # Initialize parameters
+            self._initialize_parameters(X)
+
+            prev_log_likelihood = -np.inf
+            log_likelihood = -np.inf
+            converged = False
+            iteration = -1  # stays -1 if max_iter == 0, so n_iter_ becomes 0
+
+            # EM iterations
+            for iteration in range(self.max_iter):
+                # E-step: Compute responsibilities
+                responsibilities, log_likelihood = self._e_step(X)
+
+                # M-step: Update parameters
+                self._m_step(X, responsibilities)
+
+                # Check convergence
+                change = log_likelihood - prev_log_likelihood
+
+                if abs(change) < self.tol:
+                    converged = True
+                    break
+
+                prev_log_likelihood = log_likelihood
+
+            # Keep this restart only if it beat every previous one
+            if best_params is None or log_likelihood > best_log_likelihood:
+                best_log_likelihood = log_likelihood
+                best_params = (
+                    np.array(self.weights_, copy=True),
+                    np.array(self.means_, copy=True),
+                    np.array(self.covariances_, copy=True),
+                    converged,
+                    iteration + 1,
+                )
+
+        # Restore the parameters of the best restart
+        (self.weights_, self.means_, self.covariances_,
+         self.converged_, self.n_iter_) = best_params
+        self.lower_bound_ = best_log_likelihood
+
+        # Clustering-family convenience attribute: labels of the training data
+        self.labels_ = self.predict(X)
+
         return self
-    
+
     def predict(self, X):
         """
         Predict component labels for samples (hard assignment)
@@ -428,10 +638,33 @@ class GaussianMixtureModel:
         labels : np.ndarray, shape (n_samples,)
             Component labels (0 to n_components-1)
         """
-        X = np.array(X, dtype=float)
+        self._check_is_fitted()
+        X = self._check_array(X)
         responsibilities, _ = self._e_step(X)
         return np.argmax(responsibilities, axis=1)
-    
+
+    def fit_predict(self, X, y=None):
+        """
+        Fit the model and return the component labels of the training data
+
+        Convenience method of the clustering family - equivalent to
+        `model.fit(X).predict(X)`, and identical to `model.fit(X).labels_`.
+
+        Parameters:
+        -----------
+        X : np.ndarray or list, shape (n_samples, n_features)
+            Training data
+        y : ignored
+            Not used, present for API consistency
+
+        Returns:
+        --------
+        labels : np.ndarray, shape (n_samples,)
+            Component labels (0 to n_components-1)
+        """
+        self.fit(X)
+        return self.labels_
+
     def predict_proba(self, X):
         """
         Predict posterior probabilities for each component (soft assignment)
@@ -449,32 +682,71 @@ class GaussianMixtureModel:
         probabilities : np.ndarray, shape (n_samples, n_components)
             Posterior probabilities for each component
         """
-        X = np.array(X, dtype=float)
+        self._check_is_fitted()
+        X = self._check_array(X)
         responsibilities, _ = self._e_step(X)
         return responsibilities
-    
+
+    def score_samples(self, X):
+        """
+        Compute the log-likelihood of EACH sample under the mixture
+
+        This is the per-point density, not a per-component one:
+
+            log p(x_n) = log( sum_k pi_k * N(x_n | mu_k, Sigma_k) )
+
+        computed with the log-sum-exp trick. score(X) is exactly the sum of this
+        vector. Low values mark points the model finds surprising, which is what
+        makes GMM usable as an anomaly detector.
+
+        Parameters:
+        -----------
+        X : np.ndarray or list, shape (n_samples, n_features)
+            Data to evaluate
+
+        Returns:
+        --------
+        log_prob : np.ndarray, shape (n_samples,)
+            Log-likelihood of each sample
+        """
+        self._check_is_fitted()
+        X = self._check_array(X)
+
+        # log(pi_k * N(x | mu_k, Sigma_k)) for every sample and component ...
+        weighted_log_prob = self._estimate_log_gaussian_prob(X) + np.log(self.weights_)
+
+        # ... then marginalise over the components, stably.
+        return self._log_sum_exp(weighted_log_prob, axis=1)
+
     def score(self, X, y=None):
         """
         Compute log-likelihood of data under the model
-        
+
         Higher values indicate better fit.
-        
+
         Parameters:
         -----------
         X : np.ndarray or list, shape (n_samples, n_features)
             Data to evaluate
         y : ignored
             Not used, present for API consistency
-            
+
         Returns:
         --------
         log_likelihood : float
-            Log-likelihood of data
+            The TOTAL (summed) log-likelihood over all samples,
+            sum_n log( sum_k pi_k * N(x_n | mu_k, Sigma_k) ).
+            NOTE: scikit-learn's GaussianMixture.score returns the per-sample
+            MEAN instead, so compare this against sk.score(X) * len(X); divide by
+            len(X) yourself if you want a figure that is comparable across
+            datasets of different sizes. bic(), aic() and the tol convergence
+            check all rely on this summed convention.
         """
-        X = np.array(X, dtype=float)
+        self._check_is_fitted()
+        X = self._check_array(X)
         _, log_likelihood = self._e_step(X)
         return log_likelihood
-    
+
     def sample(self, n_samples=1):
         """
         Generate random samples from the fitted Gaussian mixture
@@ -495,9 +767,8 @@ class GaussianMixtureModel:
         y : np.ndarray, shape (n_samples,)
             Component labels for generated samples
         """
-        if self.means_ is None:
-            raise ValueError("Model must be fitted before sampling")
-        
+        self._check_is_fitted()
+
         n_features = self.means_.shape[1]
         
         # Select components based on weights
@@ -553,8 +824,10 @@ class GaussianMixtureModel:
         bic : float
             BIC score
         """
+        self._check_is_fitted()
+        X = self._check_array(X)
         n_samples, n_features = X.shape
-        
+
         # Count parameters
         if self.covariance_type == 'full':
             cov_params = self.n_components * n_features * (n_features + 1) / 2
@@ -590,8 +863,10 @@ class GaussianMixtureModel:
         aic : float
             AIC score
         """
+        self._check_is_fitted()
+        X = self._check_array(X)
         n_features = X.shape[1]
-        
+
         # Count parameters
         if self.covariance_type == 'full':
             cov_params = self.n_components * n_features * (n_features + 1) / 2
@@ -785,16 +1060,16 @@ y_true = np.array([0] * 400 + [1] * 20)  # 0=normal, 1=anomaly
 gmm = GaussianMixtureModel(n_components=2, random_state=42)
 gmm.fit(X_normal)  # Train only on normal data
 
-# Compute log-likelihood for all points
-log_likelihoods = []
-for i in range(len(X)):
-    responsibilities, log_likelihood = gmm._e_step(X[i:i+1])
-    log_likelihoods.append(log_likelihood)
+# Calibrate the threshold on the TRAINING (normal) data only.
+# Thresholding over all of X would let the injected anomalies help choose the
+# cut-off that is supposed to catch them, and would pin the number of detections
+# at exactly 5% of X by construction instead of learning it.
+# score_samples returns log p(x_n) for every row in one vectorised call.
+normal_log_likelihoods = gmm.score_samples(X_normal)
+threshold = np.percentile(normal_log_likelihoods, 5)  # bottom 5% of normal data
 
-log_likelihoods = np.array(log_likelihoods)
-
-# Set threshold (e.g., bottom 5 percentile)
-threshold = np.percentile(log_likelihoods, 5)
+# Now score every point (normal + anomalies) against that fixed threshold
+log_likelihoods = gmm.score_samples(X)
 
 # Predict anomalies
 predictions = (log_likelihoods < threshold).astype(int)
@@ -915,7 +1190,6 @@ print("Image Segmentation with GMM:")
 print("="*60)
 
 # Analyze segments
-segment_names = {0: "Unknown", 1: "Unknown", 2: "Unknown"}
 for segment_id in range(3):
     mask = labels == segment_id
     segment_rgb = np.mean(X[mask], axis=0)
@@ -1019,10 +1293,17 @@ for i in range(3):
 
 # Show soft assignments for ambiguous sounds
 probabilities = gmm.predict_proba(X)
-ambiguous_mask = np.max(probabilities, axis=1) < 0.6
-ambiguous_count = np.sum(ambiguous_mask)
+confidence = np.max(probabilities, axis=1)
+ambiguous_count = np.sum(confidence < 0.6)
 
 print(f"\nAmbiguous sounds (confidence < 60%): {ambiguous_count}")
+
+# Always show the least-confident frames, even when none crosses the 60% bar -
+# they are the soft assignments the hard labels above throw away.
+print("\nThree least-confident frames (soft assignment in action):")
+for i in np.argsort(confidence)[:3]:
+    print(f"  Frame {i}: probabilities {np.round(probabilities[i], 4)} "
+          f"-> cluster {labels[i]}")
 print("These may represent transitional sounds between phonemes")
 """
 
@@ -1104,5 +1385,132 @@ regime_uncertainty = 1 - np.max(probabilities, axis=1)
 transition_periods = np.where(regime_uncertainty > 0.4)[0]
 
 print(f"\nPotential regime transition periods: {len(transition_periods)}")
+
+# Always surface the most uncertain days, even if none crosses the 0.4 bar
+print("\nThree most uncertain days (best candidates for a regime change):")
+for i in np.argsort(regime_uncertainty)[-3:][::-1]:
+    print(f"  Day {i}: regime probabilities {np.round(probabilities[i], 4)} "
+          f"-> uncertainty {regime_uncertainty[i]:.4f}")
 print("(High uncertainty indicates market conditions are changing)")
 """
+
+
+if __name__ == "__main__":
+    # ----------------------------------------------------------------
+    # Plug-and-Play Demo: run this file directly with
+    #   python _21_gmm.py
+    # Requires numpy only. All output is ASCII.
+    # ----------------------------------------------------------------
+    np.random.seed(42)
+
+    # --- Build three genuinely elliptical, correlated Gaussian blobs ---
+    # Elliptical on purpose: this is exactly what separates GMM from k-Means,
+    # which can only ever draw spherical clusters. The centres are also placed
+    # close enough that the blobs genuinely overlap, so that some points really
+    # do belong to two components - otherwise every posterior would be 1.000 and
+    # the "soft" in soft clustering would never be visible.
+    mu_list = [np.array([0.0, 0.0]), np.array([3.5, 3.5]), np.array([3.5, 0.0])]
+    cov_list = [
+        np.array([[1.0, 0.7], [0.7, 0.8]]),    # tilted, positively correlated
+        np.array([[2.0, -0.9], [-0.9, 1.0]]),  # tilted the other way
+        np.array([[0.6, 0.0], [0.0, 1.5]]),    # axis-aligned, tall and thin
+    ]
+    blobs = [np.random.multivariate_normal(mu_list[k], cov_list[k], 100)
+             for k in range(3)]
+    X = np.vstack(blobs)
+    y_true = np.array([0] * 100 + [1] * 100 + [2] * 100)
+
+    # Shuffle before slicing so train and test cover the same region of space
+    order = np.random.permutation(len(X))
+    X, y_true = X[order], y_true[order]
+    X_train, X_test = X[:225], X[225:]
+    y_train, y_test = y_true[:225], y_true[225:]
+
+    print("=" * 58)
+    print("DEMO 1 - Soft clustering: 3 elliptical Gaussian blobs")
+    print("=" * 58)
+
+    gmm = GaussianMixtureModel(
+        n_components=3,
+        covariance_type='full',
+        random_state=42,
+        max_iter=200
+    )
+    gmm.fit(X_train)
+
+    train_ll = gmm.score(X_train)
+    test_ll = gmm.score(X_test)
+
+    print(f"Converged : {gmm.converged_} after {gmm.n_iter_} EM iterations")
+    print(f"Train log-likelihood : {train_ll:10.3f} "
+          f"({train_ll / len(X_train):7.3f} per sample)")
+    print(f"Test  log-likelihood : {test_ll:10.3f} "
+          f"({test_ll / len(X_test):7.3f} per sample)")
+    print("  (score() returns the TOTAL; sklearn returns the per-sample mean)")
+
+    print("\nMixing weights pi_k :", np.round(gmm.weights_, 3))
+    print("Component means mu_k :")
+    for k, mean in enumerate(gmm.means_):
+        print(f"  component {k}: [{mean[0]:6.3f} {mean[1]:6.3f}]")
+
+    # The whole point of GMM: some points genuinely belong to two components.
+    proba = gmm.predict_proba(X_test)
+    least_sure = np.argsort(proba.max(axis=1))[:5]
+    print("\n5 least-confident held-out points (this is 'soft' clustering):")
+    print("       (x, y)         ->  P(comp 0)  P(comp 1)  P(comp 2)  hard")
+    for i in least_sure:
+        print(f"  ({X_test[i, 0]:6.2f}, {X_test[i, 1]:6.2f})  ->  "
+              f"{proba[i, 0]:9.3f}  {proba[i, 1]:9.3f}  {proba[i, 2]:9.3f}"
+              f"  -> {np.argmax(proba[i])}")
+
+    # Cluster purity: cluster labels are arbitrary, so score each cluster by the
+    # true class that dominates it. 100% means every cluster is pure.
+    def purity(labels, truth, n_clusters):
+        correct = 0
+        for k in range(n_clusters):
+            members = truth[labels == k]
+            if len(members) > 0:
+                correct += np.bincount(members).max()
+        return correct / len(truth)
+
+    print(f"\nTrain cluster purity : {purity(gmm.labels_, y_train, 3):.2%}")
+    print(f"Test  cluster purity : {purity(gmm.predict(X_test), y_test, 3):.2%}")
+
+    # --- Demo 2: how many components? Let BIC decide. ---
+    print("\n" + "=" * 58)
+    print("DEMO 2 - Choosing K with BIC / AIC")
+    print("=" * 58)
+    print(f"{'K':>3} {'BIC':>12} {'AIC':>12} {'log-lik':>12}")
+    print("-" * 42)
+
+    bic_scores = []
+    for k in range(1, 6):
+        m = GaussianMixtureModel(n_components=k, covariance_type='full',
+                                 random_state=42, max_iter=200)
+        m.fit(X_train)
+        bic_scores.append(m.bic(X_train))
+        print(f"{k:>3} {m.bic(X_train):>12.2f} {m.aic(X_train):>12.2f} "
+              f"{m.score(X_train):>12.2f}")
+
+    best_k = int(np.argmin(bic_scores)) + 1
+    print(f"\nBIC is minimised at K = {best_k} (true K = 3) -> lower BIC is better")
+
+    # --- Demo 3: GMM is generative, k-Means is not ---
+    print("\n" + "=" * 58)
+    print("DEMO 3 - GMM is generative: sample from the fitted model")
+    print("=" * 58)
+
+    X_gen, comp_gen = gmm.sample(n_samples=300)
+    shares = np.bincount(comp_gen, minlength=3) / len(comp_gen)
+
+    print("Component share of 300 generated points vs the fitted weights:")
+    print("  generated shares :", np.round(shares, 3))
+    print("  fitted weights   :", np.round(gmm.weights_, 3))
+    print("\nFeature statistics, real training data vs generated data:")
+    print(f"  real  mean {np.round(X_train.mean(axis=0), 2)}   "
+          f"std {np.round(X_train.std(axis=0), 2)}")
+    print(f"  fake  mean {np.round(X_gen.mean(axis=0), 2)}   "
+          f"std {np.round(X_gen.std(axis=0), 2)}")
+    print("\nThe generated cloud matches the real one because GMM learned the "
+          "whole density,")
+    print("not just the cluster centres - that is what k-Means cannot do.")

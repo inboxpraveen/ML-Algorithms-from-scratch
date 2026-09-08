@@ -3,14 +3,113 @@
 Welcome to the world of K-Nearest Neighbors! 🎯 In this comprehensive guide, we'll explore one of the simplest yet most powerful machine learning algorithms. Think of it as the "birds of a feather flock together" algorithm!
 
 ## Table of Contents
-1. [What is K-Nearest Neighbors?](#what-is-k-nearest-neighbors)
-2. [How KNN Works](#how-knn-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is K-Nearest Neighbors?](#what-is-k-nearest-neighbors)
+3. [How KNN Works](#how-knn-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Choosing the Right k](#choosing-the-right-k)
+11. [Feature Scaling: Critical for KNN](#feature-scaling-critical-for-knn)
+12. [Advantages and Limitations](#advantages-and-limitations)
+13. [Complete Usage Example](#complete-usage-example)
+14. [Optimizations and Variants](#optimizations-and-variants)
+15. [Key Concepts to Remember](#key-concepts-to-remember)
+16. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# KNN from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _5_knn.py  (the __main__ block runs this)
+# Or copy the KNearestNeighbors class from _5_knn.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the KNearestNeighbors class here (from _5_knn.py) ----
+# class KNearestNeighbors: ...
+
+np.random.seed(42)
+
+# ------ CLASSIFICATION: three overlapping Gaussian blobs ------
+centers = np.array([[0.0, 0.0], [4.0, 4.0], [8.0, 0.0]])
+n_per_class = 60
+spread = 1.8
+X = np.vstack([np.random.randn(n_per_class, 2) * spread + c for c in centers])
+y = np.repeat([0, 1, 2], n_per_class)
+
+# Shuffle BEFORE slicing, or the test set would be one whole class
+idx = np.random.permutation(len(X))
+X, y = X[idx], y[idx]
+X_train, X_test = X[:135], X[135:]
+y_train, y_test = y[:135], y[135:]
+
+clf = KNearestNeighbors(k=5, distance_metric='euclidean', task='classification')
+clf.fit(X_train, y_train)
+
+print(f"Train accuracy : {clf.score(X_train, y_train):.4f}")
+print(f"Test  accuracy : {clf.score(X_test, y_test):.4f}")
+
+# Column j of predict_proba corresponds to clf.classes_[j]
+probas = clf.predict_proba(X_test)
+preds = clf.predict(X_test)
+print(f"\nprobability columns map to classes_ = {clf.classes_}")
+for i in range(5):
+    print(f"  true={y_test[i]}  pred={preds[i]}  "
+          f"P0={probas[i,0]:.2f}  P1={probas[i,1]:.2f}  P2={probas[i,2]:.2f}")
+
+# ------ REGRESSION: y = 3*sin(x) + noise ------
+X_r = np.random.uniform(-3, 3, size=(200, 1))   # uniform, so a plain slice is safe
+y_r = 3 * np.sin(X_r.ravel()) + np.random.randn(200) * 0.3
+
+reg = KNearestNeighbors(k=5, task='regression')
+reg.fit(X_r[:150], y_r[:150])
+
+print(f"\nTrain R2 : {reg.score(X_r[:150], y_r[:150]):.4f}")
+print(f"Test  R2 : {reg.score(X_r[150:], y_r[150:]):.4f}")
+
+reg_preds = reg.predict(X_r[150:])
+for i in range(5):
+    print(f"  x={X_r[150+i,0]:5.2f}  true={y_r[150+i]:6.2f}  pred={reg_preds[i]:6.2f}")
+```
+
+Expected output:
+```
+Train accuracy : 0.9481
+Test  accuracy : 0.9556
+
+probability columns map to classes_ = [0 1 2]
+  true=0  pred=0  P0=1.00  P1=0.00  P2=0.00
+  true=1  pred=1  P0=0.00  P1=1.00  P2=0.00
+  true=0  pred=1  P0=0.40  P1=0.60  P2=0.00
+  true=0  pred=1  P0=0.40  P1=0.60  P2=0.00
+  true=2  pred=2  P0=0.00  P1=0.00  P2=1.00
+
+Train R2 : 0.9828
+Test  R2 : 0.9806
+  x=-0.70  true= -1.94  pred= -1.96
+  x= 0.26  true=  1.31  pred=  0.55
+  x= 2.44  true=  1.75  pred=  2.02
+  x= 0.75  true=  2.58  pred=  2.06
+  x=-2.30  true= -2.03  pred= -2.09
+```
+
+Notice rows 3 and 4 of the classification output: `P0=0.40, P1=0.60` means 2 of the
+5 neighbors were class 0 and 3 were class 1. Those two points sit in the overlap
+between the blobs, and the model gets them wrong — but it tells you it is unsure.
+That is exactly what `predict_proba` is for.
+
+Running `python _5_knn.py` directly also prints a third demo sweeping `k`, the
+distance metric and the weighting scheme side by side.
 
 ---
 
@@ -251,6 +350,79 @@ P(B) = 1/5 = 0.20 (20%)
 P(C) = 1/5 = 0.20 (20%)
 ```
 
+### Why Does Averaging Neighbors Work At All?
+
+The rules above can look like folk wisdom — "similar things are similar, so take
+the average". They are not. KNN is a **local, non-parametric estimator of a
+conditional expectation**, and that is where its rules come from.
+
+**What we actually want.** The best possible prediction at a point x, under
+squared error, is the conditional mean:
+
+```
+f(x) = E[y | X = x]
+```
+
+For classification the same quantity, applied to the indicator of class c,
+is the conditional class probability:
+
+```
+P(y = c | X = x) = E[ 1{y = c} | X = x ]
+```
+
+**Why we cannot compute it.** That expectation averages over all examples having
+*exactly* the value x. In continuous feature space we have exactly zero such
+examples — every training point is unique. The quantity we want is unobservable.
+
+**KNN's move.** Relax "exactly at x" to "near x". If we assume f is reasonably
+smooth — that points close together have similar targets — then averaging over a
+small neighborhood approximates averaging at the point:
+
+```
+f̂(x) = (1/k) × Σ y_i  for x_i in N_k(x)     ≈  E[y | X = x]
+```
+
+where `N_k(x)` is the set of the k nearest training points. **That is exactly the
+regression rule** `prediction = np.mean(k_nearest_labels)`. Apply the same
+substitution to the class indicator and you get
+`P(class=c|x) = (count of c among neighbors) / k` — **exactly `predict_proba`** —
+and taking the most probable class gives the majority vote. All three rules the
+implementation uses are the same idea applied to different targets.
+
+**Why k controls bias and variance, precisely.** The approximation makes two
+errors, and `k` trades one against the other:
+
+| | Small k | Large k |
+|---|---|---|
+| **Neighborhood size** | tiny — genuinely local | wide — includes far-off points |
+| **Bias** (is the neighborhood really "at x"?) | low | **high**: averages in regions where `f` differs |
+| **Variance** (how noisy is the average?) | **high**: averaging k values cuts noise by only 1/√k | low |
+
+That is the bias-variance story of KNN, derived rather than asserted. At `k=1`
+the neighborhood is as local as possible (minimum bias) but the estimate is a
+single noisy observation (maximum variance) — which is precisely why `k=1` scores
+1.0000 on training data and worse on test data.
+
+**Why it converges.** This is the theoretical result that justifies the whole
+algorithm:
+
+```
+as n → ∞,  if  k → ∞  and  k/n → 0,  then  f̂(x) → E[y | X = x]
+```
+
+The two conditions are the two errors above. `k → ∞` kills the variance (we
+average more points); `k/n → 0` keeps the neighborhood shrinking relative to the
+data, so the bias vanishes too. Note they must hold *together* — k growing, but
+more slowly than n. Satisfy both and KNN is **universally consistent** — it converges to the optimal
+predictor for *any* underlying function, with no assumptions about its form. That
+is a remarkably strong guarantee for such a simple rule, and it is what
+"non-parametric" buys you.
+
+The catch is the rate, not the guarantee: reaching a given accuracy needs a
+number of samples that grows exponentially in the number of features. That is the
+[curse of dimensionality](#seeing-the-curse-of-dimensionality), and it is the
+price of assuming nothing.
+
 ---
 
 ## Implementation Details
@@ -261,20 +433,26 @@ Our implementation includes the following key components:
 
 ```python
 class KNearestNeighbors:
-    def __init__(self, k=5, distance_metric='euclidean', task='classification'):
+    def __init__(self, k=5, distance_metric='euclidean', task='classification',
+                 weights='uniform'):
+        # ... validation of k, distance_metric, task, weights ...
         self.k = k
         self.distance_metric = distance_metric
         self.task = task
+        self.weights = weights
         self.X_train = None
         self.y_train = None
+        self.classes_ = None   # set by fit() for classification
 ```
 
 ### Core Methods
 
-1. **`__init__(k, distance_metric, task)`** - Initialize model
-   - k: Number of neighbors to consider
+1. **`__init__(k, distance_metric, task, weights)`** - Initialize model
+   - k: Number of neighbors to consider (must be >= 1)
    - distance_metric: 'euclidean' or 'manhattan'
    - task: 'classification' or 'regression'
+   - weights: 'uniform' (every neighbor equal) or 'distance' (w = 1/d)
+   - Invalid values are rejected **here**, not later inside `predict`
 
 2. **`_calculate_distance(x1, x2)`** - Private helper method
    - Computes distance between two points
@@ -282,29 +460,53 @@ class KNearestNeighbors:
    - Returns a single float value
 
 3. **`fit(X, y)`** - "Train" the model
-   - Simply stores the training data
+   - Stores the training data as a **float copy** (see note below)
    - No actual learning happens (lazy learning)
    - O(1) time complexity
+   - Sets `classes_` and rejects `k > n_samples`
 
-4. **`_predict_single(x)`** - Predict for one sample
-   - Calculates distances to all training points
-   - Finds k nearest neighbors
+4. **`_get_neighbors(x)`** - Private helper: the neighbor search
+   - Distances from `x` to every training row, then the k smallest
+   - Returns `(k_indices, k_distances)`
+   - Shared by `_predict_single` and `predict_proba`, so the two can never disagree
+
+5. **`_neighbor_weights(k_distances)`** - Private helper: voting weights
+   - `'uniform'` -> all 1.0; `'distance'` -> 1/d, with d=0 taking all the weight
+
+6. **`_predict_single(x)`** - Predict for one sample
+   - Calls `_get_neighbors`, then votes (classification) or averages (regression)
    - Returns single prediction
 
-5. **`predict(X)`** - Predict for multiple samples
+7. **`predict(X)`** - Predict for multiple samples
    - Calls _predict_single for each sample
    - Returns array of predictions
    - Main prediction interface
 
-6. **`predict_proba(X)`** - Get class probabilities
+8. **`predict_proba(X)`** - Get class probabilities
    - Only for classification tasks
    - Returns probability distribution over classes
    - Based on neighbor label frequencies
+   - **Column `j` corresponds to `model.classes_[j]`** (the sorted unique labels).
+     Never guess this ordering from context - read it off `classes_`.
 
-7. **`score(X, y)`** - Calculate performance
+9. **`score(X, y)`** - Calculate performance
    - Accuracy for classification
    - R² score for regression
-   - Returns value between 0 and 1
+   - Accuracy is in [0, 1]; R² is at most 1 and **can be negative** when the model
+     predicts worse than the mean of `y`
+
+### Why `fit` copies into a float array
+
+`fit` does `self.X_train = np.array(X, dtype=float)` rather than storing `X`
+directly. Both halves of that line fix a real bug:
+
+- **`dtype=float`**: integer inputs would wrap around during `(x1 - x2)`. With
+  `uint8` pixel data (the digit-recognition use case!), `255 - 240` is fine but
+  `240 - 255` wraps to `241` instead of `-15`, so a far-away image looks like a
+  near neighbor and the prediction is silently wrong.
+- **`np.array` rather than `np.asarray`**: `np.array` always copies. Without the
+  copy, editing your own array after calling `fit` would quietly change the
+  model's predictions, because the model would be pointing at your memory.
 
 ---
 
@@ -357,7 +559,7 @@ distances = [
     dist([160,8], [150,8]) = 10.0,    # Apple 1
     dist([160,8], [170,9]) = 10.05,   # Apple 2
     dist([160,8], [140,7]) = 20.02,   # Apple 3
-    dist([160,8], [350,4]) = 195.92,  # Orange 1
+    dist([160,8], [350,4]) = 190.04,  # Orange 1
     ...
 ]
 
@@ -391,8 +593,40 @@ for i, probs in enumerate(probabilities):
 # Output:
 # Sample 1: Apple=1.00, Orange=0.00, Strawberry=0.00
 # Sample 2: Apple=0.00, Orange=1.00, Strawberry=0.00
-# Sample 3: Apple=0.00, Orange=0.00, Strawberry=1.00
+# Sample 3: Apple=0.33, Orange=0.00, Strawberry=0.67
 ```
+
+**Why isn't Sample 3 a clean 1.00?** This is a distance tie, and it is worth
+tracing by hand. For the query `[185, 9]` the distances are:
+
+| Training point | Label | Distance |
+|---|---|---|
+| `[180, 10]` | Strawberry | 5.0990 |
+| `[190, 8]` | Strawberry | 5.0990 |
+| `[170, 9]` | **Apple** | **15.0000** |
+| `[200, 9]` | **Strawberry** | **15.0000** |
+
+The first two neighbors are unambiguous, but the third slot is a **tie at exactly
+15.0000** between an Apple and a Strawberry. Only one of them can be the third
+neighbor, so the answer is 2 Strawberries + 1 Apple = `0.33 / 0.00 / 0.67`.
+
+Which one wins? `np.argsort` is a **stable** sort, so it keeps the tied points in
+their original array order, and `[170, 9]` (index 1) comes before `[200, 9]`
+(index 6). The Apple takes the slot.
+
+This is not a defect — it is what every KNN implementation must do, and the rule
+has to be *deterministic* so that repeated runs agree. It is worth knowing that
+even scikit-learn's own backends split on this exact query: `algorithm='kd_tree'`
+and `'ball_tree'` return `0.33 / 0.00 / 0.67` (matching ours), while
+`algorithm='brute'` returns `0.00 / 0.00 / 1.00`. Both backends compute the tied
+distance as exactly `15.0` — the difference is not rounding. It is that brute's
+k-smallest selection is not a *stable* sort, so it simply makes no promise about
+which of two exactly-tied points it keeps. Ours does, because `argsort` is stable.
+
+**The real lesson**: when a query is equidistant from two classes, the prediction
+rests on a tie-break rather than on evidence. An even `k`, or duplicated points,
+makes this more likely. Prefer odd `k` for binary problems, and treat a
+`predict_proba` row that is nearly split as "the model does not know".
 
 ---
 
@@ -478,6 +712,10 @@ distance = sum([3, 3, 3]) = 9
 
 ### 2. Finding Nearest Neighbors
 
+This is the body of `_get_neighbors(x)`. Both `_predict_single` and
+`predict_proba` call it, so there is exactly one neighbor-search implementation
+and the two paths cannot drift apart:
+
 ```python
 # Calculate all distances
 distances = []
@@ -485,8 +723,12 @@ for x_train in self.X_train:
     distance = self._calculate_distance(x, x_train)
     distances.append(distance)
 
+distances = np.array(distances)
+
 # Sort and get k smallest
 k_indices = np.argsort(distances)[:self.k]
+
+return k_indices, distances[k_indices]
 ```
 
 **Step-by-step**:
@@ -500,6 +742,13 @@ sorted_indices = [3, 1, 5, 4, 0, 2]
 # Take first k=3
 k_indices = [3, 1, 5]  # Points with distances 1.5, 2.1, 3.2
 ```
+
+**A note on cost and on ties**: `np.argsort` sorts *all* n distances, which is
+O(n log n), even though we only need the k smallest. `np.argpartition` would do
+it in O(n), but `argsort` reads more clearly and this repo prefers clarity over
+speed, so the code keeps `argsort` with a comment saying so. The sort being
+**stable** is not incidental, though: it is what makes a distance tie break
+toward the earlier training row, deterministically, every run.
 
 ### 3. Making Classification Predictions
 
@@ -525,19 +774,32 @@ argmax(counts) = 0  # Index of maximum count
 prediction = unique_labels[0] = 0
 ```
 
+**What happens on a vote tie?** With `k=4` and labels `[0, 0, 1, 1]` both counts
+are 2. `np.unique` returns `unique_labels` in **sorted** order and `np.argmax`
+returns the **first** maximum, so the tie goes to the smallest class label — here,
+class 0. That is the same rule scikit-learn uses, and it is why odd `k` is
+recommended for binary classification: it makes the tie impossible.
+
 ### 4. Making Regression Predictions
 
 ```python
 # Get values of k nearest neighbors
-k_nearest_values = self.y_train[k_indices]
+# (same variable as the classification branch - it holds values, not labels, here)
+k_nearest_labels = self.y_train[k_indices]
 
-# Calculate mean
-prediction = np.mean(k_nearest_values)
+# w comes from self._neighbor_weights(k_distances):
+#   weights='uniform'  -> all 1.0
+#   weights='distance' -> 1/d
+w = self._neighbor_weights(k_distances)
+
+# Calculate mean. With uniform weights np.average IS np.mean;
+# with weights='distance' it becomes sum(w_j * y_j) / sum(w_j).
+prediction = np.average(k_nearest_labels, weights=w)
 ```
 
 **Example**:
 ```python
-k_nearest_values = [100, 150, 125]
+k_nearest_labels = [100, 150, 125]
 
 prediction = (100 + 150 + 125) / 3 = 125
 ```
@@ -545,11 +807,17 @@ prediction = (100 + 150 + 125) / 3 = 125
 ### 5. Computing Probabilities
 
 ```python
-# For each class, calculate proportion
+# For each class, sum the weight sitting on that class
+# (with weights='uniform' every w is 1.0, so this is just a count)
+total_weight = np.sum(w)
 for c in classes:
-    prob = np.sum(k_nearest_labels == c) / self.k
+    prob = np.sum(w[k_nearest_labels == c]) / total_weight
     class_probs.append(prob)
 ```
+
+Note the divisor is `total_weight` — the weight actually collected — and **not**
+`self.k`. Under uniform weights the two are the same number, but dividing by the
+real total is what guarantees every row sums to exactly 1.0 in all cases.
 
 **Example**:
 ```python
@@ -691,21 +959,65 @@ k=20: Very Simple Boundary
 
 ### Example: Finding Optimal k
 
+Here is the full, runnable version. Note the **three-way split**: `k` is a
+hyperparameter, so it must be chosen on a validation set. Tuning `k` on the test
+set and then reporting that same test score is a classic way to fool yourself.
+
 ```python
-from sklearn.model_selection import cross_val_score
+import numpy as np
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+X, y = load_iris(return_X_y=True)
+
+# Three-way split: train / validation / test.
+# k is chosen on the VALIDATION set, never on the test set.
+X_train, X_temp, y_train, y_temp = train_test_split(
+    X, y, test_size=0.4, random_state=42, stratify=y)
+X_val, X_test, y_val, y_test = train_test_split(
+    X_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_val = scaler.transform(X_val)
+X_test = scaler.transform(X_test)
 
 k_values = range(1, 31)
 scores = []
 
 for k in k_values:
     model = KNearestNeighbors(k=k, task='classification')
-    # Imagine we have a cross_val_score implementation
-    score = model.score(X_test, y_test)
-    scores.append(score)
+    model.fit(X_train, y_train)               # fit() must be called for every k
+    scores.append(model.score(X_val, y_val))  # score on validation, not test
 
-best_k = k_values[np.argmax(scores)]
-print(f"Best k: {best_k}")
+best_k = list(k_values)[int(np.argmax(scores))]
+print(f"Best k on validation: {best_k}  (val accuracy = {max(scores):.4f})")
+
+# Only now, with k fixed, touch the test set once for an unbiased estimate
+final = KNearestNeighbors(k=best_k, task='classification')
+final.fit(X_train, y_train)
+print(f"Test accuracy with k={best_k}: {final.score(X_test, y_test):.4f}")
 ```
+
+Output:
+```
+Best k on validation: 1  (val accuracy = 0.9667)
+Test accuracy with k=1: 0.9333
+```
+
+**Read that result sceptically.** It says `k=1` — but eleven different values
+(`k = 1, 3, 4, 6, 7, 9, 10, 11, 12, 14, 16`) *all* score exactly 0.9667 on the
+validation set, and `np.argmax` simply returned the first of them. The validation
+set has only 30 rows, so one sample is worth 3.3 percentage points and it cannot
+distinguish these values at all.
+
+Two lessons, and they matter more than the number itself:
+1. With small data, prefer **k-fold cross-validation** over a single validation
+   split; averaging over folds gives a far less noisy estimate.
+2. When several `k` values tie, do not take `argmax` at its word — prefer the
+   **largest** `k` among the tied values, since larger `k` means a smoother
+   boundary and less variance for the same measured accuracy.
 
 ---
 
@@ -811,6 +1123,8 @@ x_scaled = (x - min) / (max - min)
 4. **Curse of Dimensionality**
    - Performance degrades in high dimensions
    - Distances become meaningless when d is large
+   - See [the demonstration below](#seeing-the-curse-of-dimensionality) — this is
+     usually asserted and rarely shown, but you can measure it in five lines
 
 5. **Sensitive to Irrelevant Features**
    - Noisy features affect all distance calculations
@@ -835,6 +1149,54 @@ x_scaled = (x - min) / (max - min)
 - ❌ Real-time predictions required
 - ❌ Features have very different scales (unless scaled)
 - ❌ Many irrelevant features
+
+### Seeing the Curse of Dimensionality
+
+"Distances become meaningless in high dimensions" is repeated everywhere and
+demonstrated almost nowhere. It takes five lines. Scatter 500 random points in a
+unit cube of `d` dimensions, pick a query point, and compare the **nearest**
+distance to the **farthest** distance:
+
+```python
+import numpy as np
+
+np.random.seed(42)
+n = 500
+print(f"{'dims':<8}{'nearest':<12}{'farthest':<12}{'ratio near/far':<16}")
+print("-" * 48)
+for d in [2, 5, 20, 100, 500]:
+    X = np.random.rand(n, d)          # n random points in the unit cube
+    q = np.random.rand(d)             # one query point
+    dist = np.sqrt(((X - q) ** 2).sum(axis=1))
+    print(f"{d:<8}{dist.min():<12.3f}{dist.max():<12.3f}{dist.min()/dist.max():<16.3f}")
+```
+
+Output:
+```
+dims    nearest     farthest    ratio near/far  
+------------------------------------------------
+2       0.022       0.906       0.024           
+5       0.190       1.745       0.109           
+20      1.120       2.371       0.472           
+100     3.342       4.891       0.683           
+500     8.155       9.717       0.839           
+```
+
+Read the last column. In 2-D the nearest point is **40x closer** than the farthest
+one — "nearest neighbor" is a meaningful distinction. By 500-D the nearest point
+is 84% of the distance to the farthest one: **every point is roughly the same
+distance away**. The ratio is climbing toward 1.
+
+That is the whole curse in one number. KNN's entire premise is that "near" means
+"similar". When every point is equidistant, the k nearest neighbors are barely
+different from k points picked at random, and the algorithm degrades to guessing
+the majority class — while still costing you a full scan of the training set for
+every prediction.
+
+**What to do about it**: reduce dimensionality first (PCA, feature selection), or
+use a metric less prone to concentration. This is also the real reason Manhattan
+(L1) is often recommended over Euclidean (L2) in high dimensions — lower-order
+norms concentrate more slowly.
 
 ---
 
@@ -914,6 +1276,30 @@ Prediction = Σ(weight_i × vote_i) / Σ(weight_i)
 ```
 
 **Benefit**: Closer neighbors have more influence
+
+**This one is implemented** — pass `weights='distance'`:
+
+```python
+model = KNearestNeighbors(k=5, task='classification', weights='distance')
+model.fit(X_train, y_train)
+```
+
+The default is `weights='uniform'`, which is the canonical KNN rule (and
+scikit-learn's default): every one of the k neighbors counts the same regardless
+of how far away it is.
+
+**The edge case that matters**: what if a neighbor is at distance 0, i.e. the
+query point is itself a training point? Then `1 / 0` is a division by zero. The
+implementation follows scikit-learn's rule: if any neighbor is at distance 0,
+those exact-match neighbors take *all* the weight and the rest get zero. That is
+both numerically safe and the right answer — the query *is* that training point.
+
+One consequence is worth knowing before it surprises you: with
+`weights='distance'`, **training accuracy is always 1.0000 for any k**, because
+every training point is at distance 0 from itself and therefore out-votes all
+its neighbors. A perfect training score means nothing here; only the test column
+tells you anything. You can see this directly in the `DEMO 3` table printed by
+`python _5_knn.py`.
 
 ### 2. Ball Tree / KD Tree
 

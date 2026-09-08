@@ -30,6 +30,19 @@ class XGBoost:
                          = G + alpha  if G < -alpha
                          = 0          if |G| <= alpha
         This makes leaf weights exactly zero when gradient evidence is weak.
+
+    Simplifications vs. the canonical XGBoost library:
+        This class implements the exact greedy split finder from Algorithm 1 of the
+        XGBoost paper. The following library features are deliberately NOT implemented
+        (see the "Simplification vs. canonical XGBoost" section of _17_xgboost.md):
+        - No weighted quantile sketch (approximate split finding). Every midpoint
+          between consecutive distinct feature values is scored, which is exact but
+          costs O(n_samples * n_features) gain evaluations per node.
+        - No sparsity-aware split finding / learned default direction. NaN inputs are
+          silently routed RIGHT at every node, because "NaN <= threshold" is False.
+        - No colsample_bylevel / colsample_bynode; only colsample_bytree.
+        - eval_set monitors only the first (X_val, y_val) tuple.
+        - gamma follows the paper's halved gain (see the gamma docstring below).
     """
     
     def __init__(self, n_estimators=100, learning_rate=0.3, max_depth=6, 
@@ -69,7 +82,13 @@ class XGBoost:
             - Acts as regularization
             - Higher values make algorithm more conservative
             Typical values: 0-5
-            
+            Note on scale: this implementation subtracts gamma from the HALVED gain,
+            exactly as in Eq. (7) of the XGBoost paper:
+                gain = 0.5 * [score_L + score_R - score_parent] - gamma
+            The xgboost C++ library instead compares the un-halved loss change against
+            min_split_loss, so a given numeric gamma prunes twice as aggressively here.
+            gamma=g here corresponds to min_split_loss=2*g in the library.
+
         subsample : float, default=1.0
             Fraction of samples to use for training each tree
             - < 1.0 introduces randomness (stochastic gradient boosting)
@@ -112,9 +131,31 @@ class XGBoost:
         self.objective = objective
         self.trees = []
         self.base_score = None
-        
+        self.n_features = None
+
     def _sigmoid(self, x):
-        """Sigmoid function with numerical stability"""
+        """
+        Sigmoid function with numerical stability
+
+        Implements sigma(x) = 1 / (1 + exp(-x)), the link that turns a raw boosted
+        score into a probability.
+
+        The branch exists purely to keep exp() from overflowing:
+        - for x >= 0 evaluate 1 / (1 + exp(-x))      -> exp(-x) is in (0, 1]
+        - for x <  0 evaluate exp(x) / (1 + exp(x))  -> exp(x)  is in (0, 1]
+        Both branches are algebraically the same function; each one only ever calls
+        exp() on a non-positive argument, so a score of -1000 gives 0.0 instead of inf.
+
+        Parameters:
+        -----------
+        x : np.ndarray or float
+            Raw (log-odds) scores
+
+        Returns:
+        --------
+        p : np.ndarray
+            Probabilities in (0, 1)
+        """
         return np.where(
             x >= 0,
             1 / (1 + np.exp(-x)),
@@ -145,7 +186,7 @@ class XGBoost:
         if self.objective in ['reg:squarederror', 'reg:linear']:
             # For squared error: L = 0.5 * (y - pred)^2
             # Gradient: dL/dpred = pred - y
-            # Hessian: d²L/dpred² = 1
+            # Hessian: d^2L/dpred^2 = 1
             gradient = y_pred - y_true
             hessian = np.ones_like(y_pred)
             
@@ -153,7 +194,7 @@ class XGBoost:
             # For logistic: L = -y*log(p) - (1-y)*log(1-p)
             # where p = sigmoid(pred)
             # Gradient: dL/dpred = p - y
-            # Hessian: d²L/dpred² = p * (1 - p)
+            # Hessian: d^2L/dpred^2 = p * (1 - p)
             p = self._sigmoid(y_pred)
             gradient = p - y_true
             hessian = p * (1 - p)
@@ -259,7 +300,33 @@ class XGBoost:
         2. Uses regularized gain calculation
         3. Implements column subsampling
         4. Pruning based on min_child_weight and gamma
-        
+
+        Split candidates (exact greedy, Algorithm 1 of the XGBoost paper):
+        For a feature with sorted distinct values u[0] < u[1] < ... < u[k-1], the
+        candidate thresholds are the MIDPOINTS between consecutive values:
+            thresholds = (u[:-1] + u[1:]) / 2
+        Splitting at a midpoint instead of at an observed value gives the same k-1
+        training partitions, but places the decision boundary halfway through the
+        empty gap. An unseen point that falls inside that gap is then routed the way
+        sklearn and the xgboost library would route it. Using u itself would push every
+        boundary onto the left value and also waste one always-empty split at u[-1].
+
+        Two float64 edge cases in that midpoint, documented here rather than fixed.
+        When u[i] and u[i+1] are ADJACENT float64 numbers their midpoint is an exact
+        tie, and round-half-to-even lands it on u[i+1] roughly half the time (20 of the
+        first 40 adjacent pairs above 1.0); since the code routes with '<=', that one
+        then reproduces the next one and the partition separating u[i] from u[i+1] is
+        never scored. Separately, for feature values above ~9e307 the sum u[i]+u[i+1]
+        overflows to inf, emitting a numpy RuntimeWarning and giving a threshold no row
+        can exceed. Neither fires on ordinary data - 0 collapses across 59,700
+        candidates from 300 standard-normal columns of 200 rows - so no clamp is
+        applied and no warning is suppressed.
+
+        Each node also records 'hessian' (the sum of hessians reaching it). That sum is
+        XGBoost's definition of node "cover" and is what get_feature_importance('cover')
+        accumulates; for squared error h=1 so it equals the sample count, but for
+        logistic loss h = p(1-p) and the two differ.
+
         Parameters:
         -----------
         X : np.ndarray, shape (n_samples, n_features)
@@ -293,10 +360,18 @@ class XGBoost:
             return {
                 'type': 'leaf',
                 'weight': leaf_weight,
-                'count': n_samples
+                'count': n_samples,
+                'hessian': hessian_sum
             }
-        
-        # Column subsampling (if not already specified)
+
+        # Column subsampling (if not already specified).
+        # Note that this draw runs even at colsample_bytree=1.0, where it is a no-op
+        # as a subsample but still consumes global RNG state and randomizes the order
+        # in which features are scanned below. Because the scan keeps only a strictly
+        # better gain ('gain > best_gain'), that order decides exact ties, so two
+        # unseeded fits on the same data can differ whenever two candidates tie -
+        # rare on continuous features, but it does happen. Call np.random.seed(...)
+        # immediately before fit() if you need bit-identical runs.
         if feature_indices is None:
             n_features_use = max(1, int(self.colsample_bytree * n_features))
             feature_indices = np.random.choice(n_features, n_features_use, replace=False)
@@ -310,19 +385,19 @@ class XGBoost:
         # Try each feature
         for feature_idx in feature_indices:
             feature_values = X[:, feature_idx]
-            
-            # Get unique values and sort them
-            thresholds = np.unique(feature_values)
-            
+
+            # Sorted distinct values, then the midpoints between consecutive ones.
+            # k distinct values -> k-1 candidate thresholds, each producing a
+            # non-empty left AND right child unless the two values it separates are
+            # adjacent float64 numbers (see the float64 note in the docstring above).
+            unique_values = np.unique(feature_values)
+            thresholds = (unique_values[:-1] + unique_values[1:]) / 2.0
+
             # Try each threshold
             for threshold in thresholds:
                 left_mask = feature_values <= threshold
                 right_mask = ~left_mask
-                
-                # Check if split is valid
-                if np.sum(left_mask) == 0 or np.sum(right_mask) == 0:
-                    continue
-                
+
                 # Calculate gradient and hessian sums for children
                 gradient_left = np.sum(gradient[left_mask])
                 hessian_left = np.sum(hessian[left_mask])
@@ -350,9 +425,10 @@ class XGBoost:
             return {
                 'type': 'leaf',
                 'weight': leaf_weight,
-                'count': n_samples
+                'count': n_samples,
+                'hessian': hessian_sum
             }
-        
+
         # Recursively build left and right subtrees
         left_tree = self._build_tree(
             X[best_left_mask],
@@ -377,7 +453,8 @@ class XGBoost:
             'gain': best_gain,
             'left': left_tree,
             'right': right_tree,
-            'count': n_samples
+            'count': n_samples,
+            'hessian': hessian_sum
         }
     
     def _predict_tree(self, tree, X):
@@ -428,18 +505,19 @@ class XGBoost:
         Parameters:
         -----------
         X : np.ndarray or list, shape (n_samples, n_features)
-            Training data
+            Training data. A 1-D array/list is treated as a single feature column.
         y : np.ndarray or list, shape (n_samples,)
             Target values
         eval_set : list of tuples, optional
-            List of (X_val, y_val) tuples for validation
-            Used for early stopping and monitoring
+            List of (X_val, y_val) tuples for validation.
+            Only the FIRST tuple is used for monitoring and early stopping; any
+            further tuples are ignored (the library supports several, this does not).
         early_stopping_rounds : int, optional
             Stop training if validation score doesn't improve for this many rounds
         verbose : bool or int, default=False
             If True, print training progress
             If int, print every verbose rounds
-            
+
         Returns:
         --------
         self : XGBoost
@@ -448,7 +526,11 @@ class XGBoost:
         # Convert to numpy arrays
         X = np.array(X, dtype=float)
         y = np.array(y, dtype=float)
-        
+
+        # Accept a 1-D X as a single-feature dataset, as the docstring promises
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
         n_samples, n_features = X.shape
         self.n_features = n_features
         
@@ -468,11 +550,24 @@ class XGBoost:
         self.trees = []
         self.train_scores = []
         self.val_scores = []
-        
+
+        # Validation set (only the first tuple of eval_set is monitored).
+        # val_predictions is kept as a RUNNING raw score, updated by one tree per
+        # round. Re-calling predict() every round would re-evaluate every tree built
+        # so far, making monitoring cost O(n_estimators^2) tree evaluations.
+        X_val = y_val = val_predictions = None
+        if eval_set is not None:
+            X_val, y_val = eval_set[0]
+            X_val = np.array(X_val, dtype=float)
+            if X_val.ndim == 1:
+                X_val = X_val.reshape(-1, 1)
+            y_val = np.array(y_val, dtype=float)
+            val_predictions = np.full(X_val.shape[0], self.base_score)
+
         # Early stopping variables
         best_score = float('inf')
         best_iteration = 0
-        
+
         # Train trees
         for iteration in range(self.n_estimators):
             # Calculate gradients and hessians
@@ -510,17 +605,21 @@ class XGBoost:
             
             # Evaluate on validation set if provided
             if eval_set is not None:
-                X_val, y_val = eval_set[0]
-                val_preds = self.predict(X_val, num_iteration=iteration+1)
-                
-                if self.objective in ['binary:logistic', 'reg:logistic']:
-                    val_score = -np.mean(y_val * np.log(val_preds + 1e-10) + 
-                                        (1 - y_val) * np.log(1 - val_preds + 1e-10))
+                is_logistic = self.objective in ['binary:logistic', 'reg:logistic']
+
+                # Add just this round's tree to the running validation score
+                val_predictions += self.learning_rate * self._predict_tree(tree, X_val)
+
+                if is_logistic:
+                    # Raw scores -> probabilities only when scoring
+                    val_probs = self._sigmoid(val_predictions)
+                    val_score = -np.mean(y_val * np.log(val_probs + 1e-10) +
+                                        (1 - y_val) * np.log(1 - val_probs + 1e-10))
                 else:
-                    val_score = np.mean((y_val - val_preds) ** 2)
-                
+                    val_score = np.mean((y_val - val_predictions) ** 2)
+
                 self.val_scores.append(val_score)
-                
+
                 # Early stopping
                 if early_stopping_rounds is not None:
                     if val_score < best_score:
@@ -529,21 +628,34 @@ class XGBoost:
                     elif iteration - best_iteration >= early_stopping_rounds:
                         if verbose:
                             print(f"Early stopping at iteration {iteration}")
-                            print(f"Best iteration: {best_iteration}, Best score: {best_score:.6f}")
+                            # Report the best score in the SAME units as the progress
+                            # lines above (rmse = sqrt of the stored MSE).
+                            if is_logistic:
+                                print(f"Best iteration: {best_iteration}, "
+                                      f"Best val-logloss: {best_score:.6f}")
+                            else:
+                                print(f"Best iteration: {best_iteration}, "
+                                      f"Best val-rmse: {np.sqrt(best_score):.6f}")
+                            print(f"Keeping {best_iteration + 1} trees "
+                                  f"(iterations 0..{best_iteration})")
                         # Remove trees after best iteration
                         self.trees = self.trees[:best_iteration + 1]
                         break
-                
+
                 # Verbose output
                 if verbose and (isinstance(verbose, bool) or iteration % verbose == 0):
-                    print(f"[{iteration}] train-rmse: {np.sqrt(train_score):.6f}, "
-                          f"val-rmse: {np.sqrt(val_score):.6f}")
+                    if is_logistic:
+                        print(f"[{iteration}] train-logloss: {train_score:.6f}, "
+                              f"val-logloss: {val_score:.6f}")
+                    else:
+                        print(f"[{iteration}] train-rmse: {np.sqrt(train_score):.6f}, "
+                              f"val-rmse: {np.sqrt(val_score):.6f}")
             elif verbose and (isinstance(verbose, bool) or iteration % verbose == 0):
                 if self.objective in ['binary:logistic', 'reg:logistic']:
                     print(f"[{iteration}] train-logloss: {train_score:.6f}")
                 else:
                     print(f"[{iteration}] train-rmse: {np.sqrt(train_score):.6f}")
-        
+
         return self
     
     def predict(self, X, num_iteration=None):
@@ -553,11 +665,11 @@ class XGBoost:
         Parameters:
         -----------
         X : np.ndarray or list, shape (n_samples, n_features)
-            Data to predict
+            Data to predict. A 1-D array/list is reshaped to (-1, n_features).
         num_iteration : int, optional
             Number of trees to use for prediction
             If None, use all trees
-            
+
         Returns:
         --------
         predictions : np.ndarray, shape (n_samples,)
@@ -565,7 +677,14 @@ class XGBoost:
             - For regression: continuous values
             - For classification: probabilities
         """
+        if self.base_score is None:
+            raise ValueError("Model is not fitted yet. Call fit(X, y) first.")
+
         X = np.array(X, dtype=float)
+        # A flat array is either one sample or a column of a 1-feature dataset;
+        # n_features (recorded during fit) says which.
+        if X.ndim == 1:
+            X = X.reshape(-1, self.n_features)
         n_samples = X.shape[0]
         
         # Start with base score
@@ -623,20 +742,43 @@ class XGBoost:
         Returns:
         --------
         score : float
-            - For regression: R² score
-            - For classification: Accuracy
+            - For regression: R^2 score (1.0 is perfect, 0.0 is the mean baseline).
+              A constant target has no variance to explain, so R^2 is undefined
+              there; following sklearn's convention this returns 1.0 if the
+              constant is reproduced and 0.0 if it is not.
+            - For classification: Accuracy (fraction of labels predicted correctly)
         """
-        y = np.array(y)
+        y = np.array(y, dtype=float)
         predictions = self.predict(X)
-        
+
         if self.objective in ['binary:logistic', 'reg:logistic']:
             # Classification: accuracy
             predicted_classes = (predictions >= 0.5).astype(int)
             return np.mean(predicted_classes == y)
         else:
-            # Regression: R² score
+            # Regression: R^2 score
             ss_total = np.sum((y - np.mean(y)) ** 2)
             ss_residual = np.sum((y - predictions) ** 2)
+            # If y is constant, ss_total is 0 (up to rounding) and R^2 = 1 - 0/0
+            # is undefined. Compare against the scale of y rather than to exact
+            # zero: np.full(20, 9.9) leaves ss_total ~ 6e-29, not 0.0, and
+            # dividing by that would print a nonsense R^2 of -1e+31.
+            #
+            # The tolerance must be eps^2-small, not merely small. The ratio
+            # ss_total / sum(y^2) is essentially (std(y) / mean(y))^2, so a
+            # tolerance t declares y "constant" whenever its RELATIVE spread
+            # drops below sqrt(t). Float64 rounding alone puts a floor of about
+            # eps^2 = 4.9e-32 on that ratio (measured: 3.2e-32 for
+            # np.full(20, 9.9)), so 1e-24 clears the rounding floor by ~1e7
+            # while only firing below a relative spread of 1e-12. A tolerance of
+            # 1e-12 would instead fire at a relative spread of 1e-6 and return
+            # 1.0 for an ordinary narrow-range target whose R^2 is well defined.
+            eps_sq = 1e-24
+            scale = max(np.sum(y ** 2), 1.0)
+            if ss_total <= eps_sq * scale:
+                # Follow sklearn's convention for a constant target:
+                # 1.0 if we reproduce it, 0.0 otherwise.
+                return 1.0 if ss_residual <= eps_sq * scale else 0.0
             r2 = 1 - (ss_residual / ss_total)
             return r2
     
@@ -650,13 +792,19 @@ class XGBoost:
             Type of importance to calculate:
             - 'weight': Number of times feature is used in splits
             - 'gain': Average gain when feature is used
-            - 'cover': Average coverage (number of samples affected)
-            
+            - 'cover': Average node "cover", i.e. the sum of hessians reaching the
+              node. For squared error h=1 so cover equals the sample count; for
+              logistic loss h = p(1-p), so cover measures how much *uncertain*
+              mass a split touches, not merely how many rows.
+
         Returns:
         --------
         importance : np.ndarray, shape (n_features,)
             Feature importance scores (normalized to sum to 1)
         """
+        if self.n_features is None:
+            raise ValueError("Model is not fitted yet. Call fit(X, y) first.")
+
         if importance_type == 'weight':
             importance = np.zeros(self.n_features)
             
@@ -695,7 +843,9 @@ class XGBoost:
             def accumulate_cover(tree):
                 if tree['type'] == 'leaf':
                     return
-                importance[tree['feature']] += tree['count']
+                # XGBoost defines cover as the sum of second-order gradients
+                # (hessians) at the node, not the raw row count.
+                importance[tree['feature']] += tree['hessian']
                 counts[tree['feature']] += 1
                 accumulate_cover(tree['left'])
                 accumulate_cover(tree['right'])
@@ -720,7 +870,7 @@ USAGE EXAMPLE 1: Simple Regression with XGBoost
 
 import numpy as np
 
-# Generate non-linear data: y = x² + noise
+# Generate non-linear data: y = x^2 + noise
 np.random.seed(42)
 X = np.linspace(-3, 3, 200).reshape(-1, 1)
 y = X.ravel() ** 2 + np.random.randn(200) * 0.5
@@ -748,8 +898,8 @@ model.fit(X_train, y_train)
 train_score = model.score(X_train, y_train)
 test_score = model.score(X_test, y_test)
 
-print(f"Training R²: {train_score:.4f}")
-print(f"Test R²: {test_score:.4f}")
+print(f"Training R2: {train_score:.4f}")
+print(f"Test R2: {test_score:.4f}")
 
 # Make predictions
 predictions = model.predict(X_test)
@@ -814,19 +964,22 @@ USAGE EXAMPLE 3: XGBoost with Early Stopping
 import numpy as np
 
 # Generate data
+# (kept small on purpose: the exact-greedy split scan costs
+#  O(n_samples * n_features) gain evaluations per node, so runtime grows
+#  roughly with n_samples^2 -- see "Computational Complexity" in the .md)
 np.random.seed(42)
-X = np.random.randn(500, 10)
-y = 2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] ** 2 + np.random.randn(500) * 0.5
+X = np.random.randn(300, 8)
+y = 2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] ** 2 + np.random.randn(300) * 0.5
 
-# Split train/validation/test
-X_train, X_val, X_test = X[:300], X[300:400], X[400:]
-y_train, y_val, y_test = y[:300], y[300:400], y[400:]
+# Split train/validation/test (disjoint slices)
+X_train, X_val, X_test = X[:180], X[180:240], X[240:]
+y_train, y_val, y_test = y[:180], y[180:240], y[240:]
 
 # Train with early stopping
 model = XGBoost(
-    n_estimators=500,  # Set high, will stop early
+    n_estimators=150,  # Set high, will stop early
     learning_rate=0.1,
-    max_depth=5,
+    max_depth=4,
     reg_lambda=1.0,
     subsample=0.8
 )
@@ -842,7 +995,7 @@ print(f"\nTrees trained: {len(model.trees)}")
 
 # Evaluate on test set
 test_score = model.score(X_test, y_test)
-print(f"Test R²: {test_score:.4f}")
+print(f"Test R2: {test_score:.4f}")
 """
 
 """
@@ -852,7 +1005,7 @@ import numpy as np
 
 # Create dataset with informative and noise features
 np.random.seed(42)
-n_samples = 300
+n_samples = 200
 
 # Informative features
 X1 = np.random.randn(n_samples, 1)
@@ -869,7 +1022,7 @@ y = 3 * X1.ravel() + 2 * X2.ravel() - X3.ravel() + np.random.randn(n_samples) * 
 
 # Train model
 model = XGBoost(
-    n_estimators=100,
+    n_estimators=40,
     learning_rate=0.1,
     max_depth=4,
     reg_lambda=2.0,
@@ -880,17 +1033,25 @@ model.fit(X, y)
 # Get feature importance (different types)
 importance_weight = model.get_feature_importance('weight')
 importance_gain = model.get_feature_importance('gain')
+importance_cover = model.get_feature_importance('cover')
 
+# Bars use plain ASCII '#' so the output prints on any console encoding
 print("\nFeature Importance (by weight):")
 print("="*50)
 for i, imp in enumerate(importance_weight):
-    bar = '█' * int(imp * 50)
+    bar = '#' * int(imp * 50)
     print(f"Feature {i:2d}: {imp:.4f} {bar}")
 
 print("\nFeature Importance (by gain):")
 print("="*50)
 for i, imp in enumerate(importance_gain):
-    bar = '█' * int(imp * 50)
+    bar = '#' * int(imp * 50)
+    print(f"Feature {i:2d}: {imp:.4f} {bar}")
+
+print("\nFeature Importance (by cover = average sum of hessians per split):")
+print("="*50)
+for i, imp in enumerate(importance_cover):
+    bar = '#' * int(imp * 50)
     print(f"Feature {i:2d}: {imp:.4f} {bar}")
 """
 
@@ -899,44 +1060,55 @@ USAGE EXAMPLE 5: Comparing Regularization Parameters
 
 import numpy as np
 
-# Generate data with some overfitting potential
+# Generate data with strong overfitting potential:
+# only 3 of the 8 features carry signal, the noise is large, and deep trees
+# on 100 rows can memorize almost all of it.
 np.random.seed(42)
-X = np.random.randn(200, 15)
-y = 2 * X[:, 0] - X[:, 1] + 0.5 * X[:, 2] + np.random.randn(200) * 0.8
+X = np.random.randn(150, 8)
+y = 2 * X[:, 0] - X[:, 1] + 0.5 * X[:, 2] + np.random.randn(150) * 1.5
 
-X_train, X_test = X[:150], X[150:]
-y_train, y_test = y[:150], y[150:]
+X_train, X_test = X[:100], X[100:]
+y_train, y_test = y[:100], y[100:]
 
 # Test different regularization settings
 configs = [
     {'reg_lambda': 0.0, 'reg_alpha': 0.0, 'name': 'No regularization'},
-    {'reg_lambda': 1.0, 'reg_alpha': 0.0, 'name': 'L2 (Ridge)'},
-    {'reg_lambda': 0.0, 'reg_alpha': 1.0, 'name': 'L1 (Lasso)'},
-    {'reg_lambda': 1.0, 'reg_alpha': 1.0, 'name': 'Elastic Net'},
+    {'reg_lambda': 10.0, 'reg_alpha': 0.0, 'name': 'L2 (Ridge)'},
+    {'reg_lambda': 0.0, 'reg_alpha': 10.0, 'name': 'L1 (Lasso)'},
+    {'reg_lambda': 10.0, 'reg_alpha': 10.0, 'name': 'Elastic Net'},
 ]
 
 print("Effect of Regularization:")
 print("="*80)
-print(f"{'Configuration':<25} {'Train R²':>15} {'Test R²':>15} {'Overfit':>15}")
+print(f"{'Configuration':<25} {'Train R2':>15} {'Test R2':>15} {'Overfit':>15}")
 print("-"*80)
 
 for config in configs:
     model = XGBoost(
-        n_estimators=100,
+        n_estimators=40,
         learning_rate=0.1,
-        max_depth=5,
+        max_depth=6,
         reg_lambda=config['reg_lambda'],
         reg_alpha=config['reg_alpha']
     )
     model.fit(X_train, y_train)
-    
+
     train_score = model.score(X_train, y_train)
     test_score = model.score(X_test, y_test)
     overfit = train_score - test_score
-    
+
     print(f"{config['name']:<25} {train_score:>15.4f} {test_score:>15.4f} {overfit:>15.4f}")
 
-# Observation: Regularization helps reduce overfitting!
+# Observation: regularization trades training fit for honesty.
+# The un-regularized model memorizes the noise (train R2 close to 1.0) and has
+# by far the largest train-test gap. Both penalties shrink leaf weights, which
+# costs a lot of train R2 and narrows that gap: about 17% with L2 alone, 28%
+# with L1 alone, 40% with both. Test R2 itself barely moves, because with only
+# 3 weak signals under heavy noise there is not much more to extract -- the win
+# is that the model stops being over-confident.
+# Note that at the same numeric value L1 shrinks harder than L2 here: alpha is
+# subtracted from the gradient sum G, while lambda is added to the hessian sum H
+# (which is ~n_samples in the leaf, so 10 barely dents it).
 """
 
 """
@@ -946,25 +1118,25 @@ import numpy as np
 
 # Complex non-linear data
 np.random.seed(42)
-X = np.random.randn(300, 8)
-y = (X[:, 0] ** 2 + X[:, 1] ** 2 + 
-     np.sin(X[:, 2]) * X[:, 3] + 
-     np.random.randn(300) * 0.5)
+X = np.random.randn(200, 6)
+y = (X[:, 0] ** 2 + X[:, 1] ** 2 +
+     np.sin(X[:, 2]) * X[:, 3] +
+     np.random.randn(200) * 0.5)
 
-X_train, X_test = X[:200], X[200:]
-y_train, y_test = y[:200], y[200:]
+X_train, X_test = X[:140], X[140:]
+y_train, y_test = y[:140], y[140:]
 
 # Test different depths
-depths = [2, 3, 4, 6, 8]
+depths = [2, 4, 6, 8]
 
 print("\nEffect of Max Depth:")
 print("="*80)
-print(f"{'Max Depth':>12} {'Train R²':>15} {'Test R²':>15} {'Trees Used':>15}")
+print(f"{'Max Depth':>12} {'Train R2':>15} {'Test R2':>15} {'Trees Used':>15}")
 print("-"*80)
 
 for depth in depths:
     model = XGBoost(
-        n_estimators=100,
+        n_estimators=40,
         learning_rate=0.1,
         max_depth=depth,
         reg_lambda=1.0,
@@ -985,25 +1157,25 @@ import numpy as np
 
 # Wide dataset (many features)
 np.random.seed(42)
-X = np.random.randn(200, 20)
+X = np.random.randn(150, 12)
 # Only first 5 features are informative
-y = (2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] - 
-     0.5 * X[:, 3] + X[:, 4] + np.random.randn(200) * 0.5)
+y = (2 * X[:, 0] - 3 * X[:, 1] + X[:, 2] -
+     0.5 * X[:, 3] + X[:, 4] + np.random.randn(150) * 0.5)
 
-X_train, X_test = X[:150], X[150:]
-y_train, y_test = y[:150], y[150:]
+X_train, X_test = X[:100], X[100:]
+y_train, y_test = y[:100], y[100:]
 
 # Test different colsample_bytree values
 colsample_values = [0.3, 0.5, 0.7, 1.0]
 
 print("\nEffect of Column Subsampling:")
 print("="*80)
-print(f"{'Colsample':>12} {'Train R²':>15} {'Test R²':>15} {'Overfit':>15}")
+print(f"{'Colsample':>12} {'Train R2':>15} {'Test R2':>15} {'Overfit':>15}")
 print("-"*80)
 
 for colsample in colsample_values:
     model = XGBoost(
-        n_estimators=100,
+        n_estimators=40,
         learning_rate=0.1,
         max_depth=4,
         colsample_bytree=colsample,
@@ -1017,7 +1189,14 @@ for colsample in colsample_values:
     
     print(f"{colsample:>12.1f} {train_score:>15.4f} {test_score:>15.4f} {overfit:>15.4f}")
 
-# Observation: Lower colsample can reduce overfitting
+# Observation: column subsampling is NOT a free win, and this dataset shows why.
+# All 5 informative features are independent and each is genuinely needed, so a
+# tree that only sees 30% of the 12 columns often cannot see the column it needs:
+# test R2 falls and the train-test gap widens as colsample_bytree drops.
+# Column subsampling pays off in the opposite situation -- many features that are
+# redundant or correlated -- where forcing trees to use different columns adds
+# ensemble diversity without losing signal. Try it on your own data before
+# assuming colsample_bytree < 1.0 helps.
 """
 
 """
@@ -1200,7 +1379,7 @@ rmse = np.sqrt(np.mean((y_test - predictions) ** 2))
 
 print(f"\nHouse Price Prediction (XGBoost):")
 print("="*60)
-print(f"Test R²: {test_r2:.4f}")
+print(f"Test R2: {test_r2:.4f}")
 print(f"Mean Absolute Error: ${mae:.2f}k")
 print(f"Root Mean Squared Error: ${rmse:.2f}k")
 

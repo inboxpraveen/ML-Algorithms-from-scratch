@@ -3,14 +3,126 @@
 Welcome to the world of Principal Component Analysis! 📊 In this comprehensive guide, we'll explore one of the most powerful dimensionality reduction techniques in machine learning. Think of it as finding the "essence" of your data!
 
 ## Table of Contents
-1. [What is PCA?](#what-is-pca)
-2. [How PCA Works](#how-pca-works)
-3. [The Mathematical Foundation](#the-mathematical-foundation)
-4. [Implementation Details](#implementation-details)
-5. [Step-by-Step Example](#step-by-step-example)
-6. [Real-World Applications](#real-world-applications)
-7. [Understanding the Code](#understanding-the-code)
-8. [Model Evaluation](#model-evaluation)
+1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
+2. [What is PCA?](#what-is-pca)
+3. [How PCA Works](#how-pca-works)
+4. [The Mathematical Foundation](#the-mathematical-foundation)
+5. [Implementation Details](#implementation-details)
+6. [Step-by-Step Example](#step-by-step-example)
+7. [Real-World Applications](#real-world-applications)
+8. [Understanding the Code](#understanding-the-code)
+9. [Model Evaluation](#model-evaluation)
+10. [Choosing Number of Components](#choosing-number-of-components)
+11. [Feature Scaling: Critical for PCA](#feature-scaling-critical-for-pca)
+12. [Simplifications vs. Canonical PCA](#simplifications-vs-canonical-pca)
+13. [Advantages and Limitations](#advantages-and-limitations)
+14. [Complete Usage Example](#complete-usage-example)
+15. [PCA vs Other Dimensionality Reduction Methods](#pca-vs-other-dimensionality-reduction-methods)
+16. [Key Concepts to Remember](#key-concepts-to-remember)
+17. [Conclusion](#conclusion)
+
+---
+
+## Quick Start: Plug-and-Play Example
+
+This is a complete, self-contained script. Copy it, paste it, and run it. No extra dependencies beyond NumPy.
+
+```python
+# ---------------------------------------------------------------
+# PCA from Scratch - Complete Runnable Example
+# Requires: numpy only
+# Run with: python _11_pca.py  (the __main__ block runs a fuller version)
+# Or copy the PrincipalComponentAnalysis class from _11_pca.py and paste above.
+# ---------------------------------------------------------------
+import numpy as np
+
+# ---- Paste the PrincipalComponentAnalysis class here (from _11_pca.py) ----
+# class PrincipalComponentAnalysis: ...
+
+np.random.seed(42)
+
+# ---- 1. Known-answer test: hide a 2-D plane inside 5-D and find it again ----
+basis = np.linalg.qr(np.random.randn(5, 2))[0]        # true 2-D plane
+latent = np.random.randn(300, 2) * np.array([3.0, 1.0])
+X = latent @ basis.T + 0.1 * np.random.randn(300, 5) + np.array([10., -4., 7., 0., 2.])
+
+# PCA is unsupervised, but it still learns a mean and a basis - so hold rows out.
+X_train, X_test = X[:240], X[240:]
+
+pca = PrincipalComponentAnalysis(n_components=2)
+Z = pca.fit_transform(X_train)
+
+print("shape %s -> train %s / test %s" % (X.shape, X_train.shape, X_test.shape))
+# Slice to n_components_! explained_variance_ratio_ is full length (5 here),
+# so summing the whole array would always give 1.0.
+ratios = pca.explained_variance_ratio_[:pca.n_components_]
+print("explained_variance_ratio_[:2] : [%.4f, %.4f]" % (ratios[0], ratios[1]))
+print("variance retained             : %.4f" % np.sum(ratios))
+
+# If PCA found the planted plane, components_ @ basis is orthogonal,
+# so both of its singular values are 1.0.
+overlap = np.linalg.svd(pca.components_ @ basis, compute_uv=False)
+print("planted-subspace overlap      : %.4f, %.4f" % (overlap[0], overlap[1]))
+# Train and test should agree closely: the subspace generalizes.
+print("train score (-MSE)            : %.5f" % pca.score(X_train))
+print("test  score (-MSE)            : %.5f" % pca.score(X_test))
+print("noise floor                   : %.5f" % (0.1 ** 2 * 3 / 5))
+
+# ---- 2. Let PCA choose k for you: keep 95% of the variance ----
+factors = np.random.randn(400, 3) * np.array([4.0, 3.0, 2.0])   # only 3 real factors
+X2 = factors @ np.random.randn(3, 10) + 0.05 * np.random.randn(400, 10)
+
+pca2 = PrincipalComponentAnalysis(n_components=0.95)
+pca2.fit_transform(X2)
+print("\n10 features built from 3 factors -> PCA kept %d components"
+      % pca2.n_components_)
+print("variance retained: %.4f"
+      % np.sum(pca2.explained_variance_ratio_[:pca2.n_components_]))
+cum = np.cumsum(pca2.explained_variance_ratio_)
+for i in range(4):
+    print("  PC%-2d ratio=%.4f  cumulative=%.4f"
+          % (i + 1, pca2.explained_variance_ratio_[i], cum[i]))
+
+# ---- 3. PCA as a denoiser ----
+t = np.linspace(0, 10, 200)
+X_clean = np.column_stack([np.sin(t), np.cos(t), 2 * np.sin(t),
+                           2 * np.cos(t), np.sin(t) + np.cos(t),
+                           np.sin(t) - np.cos(t)])
+X_noisy = X_clean + np.random.normal(0, 0.1, X_clean.shape)
+
+pca3 = PrincipalComponentAnalysis(n_components=2)
+X_denoised = pca3.inverse_transform(pca3.fit_transform(X_noisy))
+
+before = np.mean((X_noisy - X_clean) ** 2)
+after = np.mean((X_denoised - X_clean) ** 2)
+print("\nMSE(noisy, clean)    = %.6f" % before)
+print("MSE(denoised, clean) = %.6f" % after)
+print("noise removed        = %.2f%%" % ((1 - after / before) * 100))
+```
+
+Expected output:
+```
+shape (300, 5) -> train (240, 5) / test (60, 5)
+explained_variance_ratio_[:2] : [0.9021, 0.0951]
+variance retained             : 0.9972
+planted-subspace overlap      : 1.0000, 1.0000
+train score (-MSE)            : -0.00566
+test  score (-MSE)            : -0.00580
+noise floor                   : 0.00600
+
+10 features built from 3 factors -> PCA kept 3 components
+variance retained: 0.9999
+  PC1  ratio=0.7012  cumulative=0.7012
+  PC2  ratio=0.1831  cumulative=0.8843
+  PC3  ratio=0.1156  cumulative=0.9999
+  PC4  ratio=0.0000  cumulative=1.0000
+
+MSE(noisy, clean)    = 0.010764
+MSE(denoised, clean) = 0.003650
+noise removed        = 66.09%
+```
+
+**How to read this output.** Part 1 is a *known-answer test*: we built data that genuinely lies on a 2-D plane, so PCA has a right answer to find. The overlap of `1.0000, 1.0000` says the recovered plane is the planted plane. The train and test scores agree to within 0.0002 -- the subspace was learned from 240 rows and works just as well on 60 rows it never saw -- and both stop at the noise floor (0.00600) rather than at zero, which is exactly right: the noise is the only thing PCA could not explain, so no amount of extra data would drive the error lower. Part 2 shows PCA counting the hidden factors: 10 observed columns, 3 real factors, and `n_components=0.95` discovers 3. Part 3 shows why "throw away the small components" is the same thing as "denoise": the signal is concentrated in 2 directions, while noise is spread evenly over all 6, so dropping 4 directions deletes mostly noise.
 
 ---
 
@@ -195,6 +307,70 @@ Cov = [[ 1.0,  2.0],   # Var(x₁)=1, Cov(x₁,x₂)=2
 
 **Meaning**: x₂ has more variance (4 vs 1), and they're positively correlated (cov=2)
 
+### 2.5 Why Eigenvectors? The One Derivation That Matters
+
+Every PCA tutorial says "find the directions of maximum variance" and then, without explanation, says "so eigendecompose the covariance matrix." Those two sentences look unrelated. They aren't — and the bridge between them is the entire mathematical content of PCA. Here it is.
+
+**Step A: write down the thing we actually want to maximize.**
+
+Pick a candidate direction, a unit vector **w**. Project the centered data onto it: each sample xᵢ becomes the single number wᵀxᵢ. The variance of those projections is
+
+```
+Var(projections) = (1/(n-1)) Σᵢ (wᵀxᵢ)²
+                 = (1/(n-1)) Σᵢ wᵀ xᵢ xᵢᵀ w
+                 = wᵀ [ (1/(n-1)) Σᵢ xᵢ xᵢᵀ ] w
+                 = wᵀ C w                        ← C is the covariance matrix!
+```
+
+That is the whole reason the covariance matrix shows up. `wᵀCw` **is** the variance along direction **w**. So PCA's goal becomes a clean optimization problem:
+
+```
+maximize    wᵀ C w
+subject to  ||w|| = 1        (i.e. wᵀw = 1)
+```
+
+The constraint matters: without it you could make the "variance" arbitrarily large by just making **w** longer, which says nothing about direction.
+
+**Step B: solve it with a Lagrange multiplier.**
+
+Form the Lagrangian, with multiplier λ enforcing the unit-length constraint:
+
+```
+L(w, λ) = wᵀ C w - λ (wᵀ w - 1)
+```
+
+Set the gradient with respect to **w** to zero. Using `∂(wᵀCw)/∂w = 2Cw` (valid because C is symmetric) and `∂(wᵀw)/∂w = 2w`:
+
+```
+∂L/∂w = 2 C w - 2 λ w = 0
+
+        =>   C w = λ w
+```
+
+**That is the eigenvector equation.** We did not assume it, choose it, or import it — it fell out of "maximize variance subject to unit length." Any direction that is a stationary point of the variance *must* be an eigenvector of C.
+
+**Step C: which eigenvector?**
+
+Left-multiply `Cw = λw` by wᵀ and use wᵀw = 1:
+
+```
+wᵀ C w = λ wᵀ w = λ
+```
+
+The left side is the variance along **w**. So **the eigenvalue λ is literally the variance captured by its eigenvector**. To maximize variance, take the eigenvector with the largest eigenvalue. That is PC1.
+
+For PC2 you solve the same problem with the extra constraint that **w** be orthogonal to PC1, and the same algebra hands you the eigenvector with the second-largest eigenvalue. And so on down the list. This is why sorting eigenvalues in descending order (Step 4 of the algorithm) is not a convenience — it is the ranking of components by the amount of variance each one explains.
+
+**The three payoffs of this derivation:**
+
+| Result | Where it shows up in the code |
+|--------|-------------------------------|
+| `Cw = λw` — components are eigenvectors of C | `np.linalg.eigh(covariance_matrix)` |
+| λ = variance along that component | `self.explained_variance_ = eigenvalues` |
+| Bigger λ = more variance, so sort descending | `idx = eigenvalues.argsort()[::-1]` |
+
+**One more consequence — orthogonality is free.** C is a real symmetric matrix, and a standard theorem of linear algebra (the spectral theorem) says every such matrix has a full set of *real* eigenvalues and *orthonormal* eigenvectors. So the "PCs are perpendicular" property advertised below is not something PCA imposes; it is inherited from the symmetry of the covariance matrix. This is also the concrete reason the implementation calls `np.linalg.eigh` (the symmetric solver) rather than `np.linalg.eig` (the general one) — see [Understanding the Code](#understanding-the-code).
+
 ### 3. Eigenvalues and Eigenvectors
 
 We decompose the covariance matrix:
@@ -322,6 +498,71 @@ where:
 
 **Note**: If we kept all components, reconstruction is perfect. If we dropped some, there's information loss.
 
+### 8. The SVD View: The Same PCA, Computed Differently
+
+Our implementation eigendecomposes the covariance matrix. **Every production PCA — scikit-learn's included — does something that looks completely different: a Singular Value Decomposition of the centered data matrix itself.** They give the same answer. Knowing why is what connects this file to the rest of the world.
+
+**The SVD.** Any matrix factors as
+
+```
+X_centered = U Σ Vᵀ
+
+where:
+  U: (n_samples × r)   orthonormal columns  (scaled scores)
+  Σ: (r × r)           diagonal, entries σ₁ ≥ σ₂ ≥ ... ≥ 0  (singular values)
+  V: (n_features × r)  orthonormal columns  (the directions)
+  r = min(n_samples, n_features)
+```
+
+**Why V is exactly our `components_`.** Substitute the SVD into the covariance formula:
+
+```
+C = X_centeredᵀ X_centered / (n-1)
+  = (U Σ Vᵀ)ᵀ (U Σ Vᵀ) / (n-1)
+  = V Σ Uᵀ U Σ Vᵀ / (n-1)
+  = V Σ² Vᵀ / (n-1)               (because UᵀU = I)
+  = V [Σ²/(n-1)] Vᵀ
+```
+
+That last line *is* an eigendecomposition of C: the eigenvectors are the columns of V, and the eigenvalues are σᵢ²/(n−1). So:
+
+```
+components_[i]        = vᵢ            (i-th right singular vector)
+explained_variance_[i] = λᵢ = σᵢ²/(n-1)
+singular_values_[i]    = σᵢ = sqrt(λᵢ × (n-1))
+```
+
+**That last line is exactly what `fit()` computes:**
+
+```python
+self.singular_values_ = np.sqrt(eigenvalues[:self.n_components_] * (n_samples - 1))
+```
+
+So `singular_values_` is not a leftover from some other algorithm — it is the SVD's σ, reconstructed from our λ. It is the one attribute that lets you check our output against an SVD-based library directly.
+
+**So why does sklearn prefer SVD?** Two reasons, both practical:
+
+1. **Numerical conditioning.** Forming C squares the data's condition number: if X_centered has singular values spanning 10⁸, C's eigenvalues span 10¹⁶, which is past float64's precision. SVD works on X_centered directly and never squares anything.
+2. **Cost.** Building C is O(n·d²) and eigendecomposing it is O(d³). For "wide" data — the eigenfaces and 20,000-gene cases mentioned under [Real-World Applications](#real-world-applications), where d ≫ n — that is catastrophic. SVD costs O(n·d·min(n,d)), which for d = 20,000 and n = 200 is thousands of times cheaper.
+
+**Why does this file use the covariance route anyway?** Because "variance → covariance matrix → eigenvectors" is the story that explains *what PCA is*, and section 2.5 derived it from first principles. The SVD route is the same mathematics with the intermediate step optimized away — better engineering, worse teaching. See [Simplifications vs. Canonical PCA](#simplifications-vs-canonical-pca).
+
+### 9. Two Conventions Worth Knowing
+
+**Why `n - 1` and not `n`?** `np.cov` divides by `n - 1` (Bessel's correction), giving the *unbiased* estimate of the population covariance from a sample. Dividing by `n` gives the maximum-likelihood estimate instead. For PCA the choice is almost irrelevant: it scales every eigenvalue by the same constant `n/(n-1)`, so the eigen*vectors* — the principal components — are byte-for-byte identical, and `explained_variance_ratio_` is unchanged because the constant cancels in the ratio. Only the absolute `explained_variance_` values shift, which is why `singular_values_` carries the matching `(n - 1)` factor.
+
+**Component signs are arbitrary.** If **w** is an eigenvector, so is −**w**: both describe the same axis, and both give the same variance. LAPACK may return either one, and the choice can flip between machines or numpy versions. Our implementation therefore adopts scikit-learn's `svd_flip` convention — flip each component so its largest-magnitude entry is positive:
+
+```python
+max_abs_rows = np.argmax(np.abs(eigenvectors), axis=0)
+signs = np.sign(eigenvectors[max_abs_rows, np.arange(eigenvectors.shape[1])])
+eigenvectors = eigenvectors * signs
+```
+
+This changes nothing mathematically — it just makes the printed numbers reproducible, and makes `components_` match `sklearn.decomposition.PCA` component-for-component instead of differing by random sign flips. That match is against **scikit-learn 1.5 or newer**: 1.5 is the release where `PCA` began reading each sign off the component itself (`svd_flip(..., u_based_decision=False)`) rather than off the transformed scores. On older scikit-learn the subspace is identical but individual components come back negated about half the time.
+
+**What if n_samples < n_features?** This is the eigenfaces case: 40 photos, 4096 pixels each. The covariance matrix is 4096×4096 but has rank at most 39, so at least 4057 eigenvalues are exactly zero. Two things follow. First, only `min(n_samples - 1, n_features)` components carry any information; asking for more just returns arbitrary directions from the null space. Second, this is precisely the regime where the *symmetric* eigensolver is mandatory: `np.linalg.eig` on such a rank-deficient matrix returns **complex** eigenvalues and eigenvectors (with imaginary parts that are pure floating-point noise), which poisons every downstream computation. `np.linalg.eigh` exploits symmetry and always returns real, orthonormal results. If you write PCA yourself, this is the single easiest way to get silently wrong output.
+
 ---
 
 ## Implementation Details
@@ -338,7 +579,33 @@ class PrincipalComponentAnalysis:
         self.mean_ = None                 # Data mean
         self.explained_variance_ = None   # Variance per component
         self.explained_variance_ratio_ = None  # Proportion of variance
+        self.singular_values_ = None      # sqrt(eigenvalue * (n_samples - 1))
+        self.n_features_ = None           # Number of features in original data
+        self.n_components_ = None         # Actual number of components kept
+        self.noise_variance_ = None       # Mean variance of the DISCARDED components
 ```
+
+### Fitted Attributes
+
+Everything the model learns. Note carefully which arrays are length `n_components_` and which are length `n_features` — this is the single most common source of wrong numbers when using this class.
+
+| Attribute | Shape / length | Meaning |
+|-----------|----------------|---------|
+| `components_` | `(n_components_, n_features)` | The principal components (eigenvectors), one per row, sorted by decreasing variance. Also called *loadings*: `components_[i][j]` is how much feature `j` contributes to PCᵢ. |
+| `mean_` | `(n_features,)` | Per-feature mean of the training data, subtracted in `transform` and added back in `inverse_transform`. |
+| `explained_variance_` | `(n_features,)` — **full length** | The eigenvalues λᵢ: the variance of the data along each component. |
+| `explained_variance_ratio_` | `(n_features,)` — **full length** | λᵢ / Σλⱼ: the *fraction* of total variance each component explains. Sums to 1.0 over the whole array. |
+| `singular_values_` | `(n_components_,)` | σᵢ = √(λᵢ × (n−1)), the SVD singular values. See [The SVD View](#8-the-svd-view-the-same-pca-computed-differently). |
+| `n_components_` | int | How many components were actually kept. Differs from the `n_components` you passed in when you passed a float (e.g. `0.95`) or `None`. |
+| `n_features_` | int | Number of features seen during `fit`. |
+| `noise_variance_` | float | Mean of the *discarded* eigenvalues, σ² — averaged over the first `min(n_samples, n_features)` only, since eigenvalues past that are structural zeros rather than measurements. That window is scikit-learn's and it is not tight: centering drops the rank to `n_samples − 1`, so when `n_samples ≤ n_features` the last eigenvalue *inside* the window is a structural zero too. Used by `get_covariance()`; exactly `0.0` when all components are kept. |
+
+> **The full-length trap.** `explained_variance_` and `explained_variance_ratio_` deliberately keep **all `n_features` entries**, not just the kept ones, so that you can draw a full scree plot from a fitted model. The consequence is that
+> ```python
+> sum(pca.explained_variance_ratio_)          # ALWAYS 1.0 - never what you want
+> sum(pca.explained_variance_ratio_[:pca.n_components_])   # correct retained variance
+> ```
+> Always slice. scikit-learn truncates these arrays instead, so this is a deliberate difference — see [Simplifications vs. Canonical PCA](#simplifications-vs-canonical-pca).
 
 ### Core Methods
 
@@ -350,13 +617,16 @@ class PrincipalComponentAnalysis:
 2. **`fit(X)`** - Compute principal components
    - Centers the data
    - Computes covariance matrix
-   - Finds eigenvectors and eigenvalues
+   - Finds eigenvectors and eigenvalues (with `np.linalg.eigh`, the *symmetric* solver)
+   - Fixes the arbitrary eigenvector signs so output is reproducible
    - Sorts and selects top components
+   - Raises `ValueError` on non-2-D input or an invalid `n_components`
 
 3. **`transform(X)`** - Project data to PC space
    - Centers data using training mean
    - Multiplies by principal components
-   - Returns lower-dimensional representation
+   - Returns lower-dimensional representation, shape `(n_samples, n_components_)`
+   - Raises `ValueError` if the model is not fitted yet, or if `X` has the wrong number of features
 
 4. **`fit_transform(X)`** - Convenience method
    - Combines fit() and transform()
@@ -365,12 +635,20 @@ class PrincipalComponentAnalysis:
 5. **`inverse_transform(X_transformed)`** - Reconstruct data
    - Projects back to original space
    - Adds back the mean
-   - Returns approximation of original data
+   - Returns approximation of original data, shape `(n_samples, n_features)`
 
 6. **`score(X)`** - Evaluate model fit
-   - Measures reconstruction error
-   - Lower error = better fit
-   - Based on mean squared error
+   - Returns the **negative** mean reconstruction error, `-MSE`
+   - **Higher (i.e. closer to zero) is better**; `0.0` means the projection lost nothing
+   - Equivalent to `-np.mean((X - pca.inverse_transform(pca.transform(X)))**2)`
+   - Note: scikit-learn's `PCA.score` returns an average log-likelihood instead, which is a completely different scale. The two are not comparable — see [Simplifications vs. Canonical PCA](#simplifications-vs-canonical-pca).
+
+7. **`get_covariance()`** - Reconstruct the data covariance from the model
+   - Formula: `Cov ≈ Wᵀ diag(λᵢ − σ²) W + σ² I`, where `W = components_`, `λ = explained_variance_`, and `σ² = noise_variance_`
+   - Read it as *signal plus noise*: every direction gets a baseline noise variance σ², and the kept components are topped up by the excess variance λᵢ − σ² that makes them stand out
+   - When all components are kept, σ² = 0 and this returns the exact sample covariance matrix
+   - Matches `sklearn.decomposition.PCA.get_covariance()` to within ~1e-14
+   - It does **not** preserve the sample trace when `n_samples < n_features`: σ² is added to all `n_features` directions, but only `min(n_samples, n_features)` of them carry sample variance. On a 30×100 standard-normal matrix (`np.random.RandomState(0)`, `k=5`) the trace is 271.57 against 93.95 for `np.cov` — sklearn's `get_covariance()` returns the same 271.57, so this is a shared convention rather than a divergence
 
 ---
 
@@ -456,28 +734,45 @@ print(cov)
 ### Step 3: Compute Eigenvalues & Eigenvectors
 
 ```python
-eigenvalues, eigenvectors = np.linalg.eig(cov)
+# eigh, not eig: the covariance matrix is symmetric, and eigh is the solver
+# for symmetric matrices. It guarantees real eigenvalues and orthonormal
+# eigenvectors; eig does not.
+eigenvalues, eigenvectors = np.linalg.eigh(cov)
 
 print("Eigenvalues:", eigenvalues)
-# [12.5, 0.0]
+# [ 0.0, 12.5]     ← note the order: ASCENDING, not sorted for us!
 
 print("Eigenvectors:")
 print(eigenvectors)
-# [[ 0.447,  0.894],  ← eigenvector 1
-#  [ 0.894, -0.447]]  ← eigenvector 2
+# [[-0.894,  0.447],   ← columns, matching the eigenvalues above
+#  [ 0.447,  0.894]]
+#    ^ for λ=0.0        ^ for λ=12.5
 ```
 
 **Analysis:**
-- λ₁ = 12.5: First component captures ALL variance!
-- λ₂ = 0.0: Second component has NO variance
+- λ = 12.5: one component captures ALL the variance
+- λ = 0.0: the other has NO variance
 - This makes sense - data is perfectly linear
+- **The eigenvalues came back in ascending order.** LAPACK makes no promise about which order you get (`eigh` happens to return ascending; `eig` returns them in no defined order at all). This is exactly why Step 4 exists.
 
-### Step 4: Sort by Eigenvalues
+### Step 4: Sort by Eigenvalues, Then Fix the Signs
 
 ```python
-idx = eigenvalues.argsort()[::-1]  # [0, 1] (already sorted)
+idx = eigenvalues.argsort()[::-1]  # [1, 0] - the sort really does reorder!
 eigenvalues = eigenvalues[idx]     # [12.5, 0.0]
 eigenvectors = eigenvectors[:, idx]
+# now: [[ 0.447, -0.894],
+#       [ 0.894,  0.447]]
+
+# Eigenvector signs are arbitrary (v and -v are the same axis), so we adopt
+# sklearn's svd_flip convention: make each column's largest-magnitude entry
+# positive. Column 0's biggest entry (0.894) is already positive - keep it.
+# Column 1's biggest entry (-0.894) is negative - flip the whole column.
+max_abs_rows = np.argmax(np.abs(eigenvectors), axis=0)          # [1, 0]
+signs = np.sign(eigenvectors[max_abs_rows, np.arange(2)])       # [1., -1.]
+eigenvectors = eigenvectors * signs
+# now: [[ 0.447,  0.894],
+#       [ 0.894, -0.447]]
 
 explained_variance_ratio = eigenvalues / sum(eigenvalues)
 print("Variance explained:", explained_variance_ratio)
@@ -550,10 +845,19 @@ X_reduced = pca.fit_transform(X)
 print("Reduced data shape:", X_reduced.shape)  # (5, 1)
 print("Variance explained:", pca.explained_variance_ratio_[0])  # 1.0
 
+# The class reproduces Steps 5 and 6 exactly:
+print("components_:", pca.components_)      # [[0.4472136  0.89442719]]
+print("X_reduced:", X_reduced.ravel())
+# [-4.47213595 -2.23606798  0.          2.23606798  4.47213595]
+print("singular_values_:", pca.singular_values_)   # [7.07106781]
+# check: sqrt(12.5 * (5-1)) = sqrt(50) = 7.0710678
+
 # Reconstruct
 X_reconstructed = pca.inverse_transform(X_reduced)
-print("Reconstruction error:", np.mean((X - X_reconstructed)**2))  # ~0
+print("Reconstruction error:", np.mean((X - X_reconstructed)**2))  # 0.0
 ```
+
+Note the reconstruction error is **exactly** zero, not merely small: the data really did lie on a line, PC1 captured 100% of the variance, and nothing was thrown away.
 
 ---
 
@@ -670,18 +974,20 @@ cov = [[2.0, 1.5],
 ### 3. Eigendecomposition
 
 ```python
-eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+eigenvalues, eigenvectors = np.linalg.eigh(covariance_matrix)
 ```
 
 **What this finds:**
 ```
 For covariance matrix C, finds vectors v and values λ such that:
-C × v = λ × v
+C @ v = λ * v          (λ is a scalar, so this is a scalar multiply)
 
 Results:
 - eigenvalues: [λ₁, λ₂, ..., λₙ]  (variance along each PC)
-- eigenvectors: [v₁, v₂, ..., vₙ] (direction of each PC)
+- eigenvectors: [v₁, v₂, ..., vₙ] (direction of each PC, as COLUMNS)
 ```
+
+This is the equation [section 2.5](#25-why-eigenvectors-the-one-derivation-that-matters) derived from "maximize wᵀCw subject to ‖w‖ = 1". The solver just does the arithmetic.
 
 **Example:**
 ```python
@@ -691,6 +997,32 @@ C = [[2, 1],
 eigenvalues = [3, 1]
 eigenvectors = [[0.707,  0.707],   # PC1: diagonal direction
                 [0.707, -0.707]]   # PC2: other diagonal
+```
+
+#### Why `eigh` and not `eig`?
+
+This one-letter difference is the most important correctness detail in the whole file.
+
+| | `np.linalg.eig` | `np.linalg.eigh` |
+|---|---|---|
+| Assumes | general square matrix | **real symmetric** matrix |
+| Eigenvalues | may be complex | always real |
+| Eigenvectors | not guaranteed orthogonal | always orthonormal |
+| Order returned | undefined | ascending |
+
+A covariance matrix is *always* real and symmetric, so `eigh` is simply the right tool. Using `eig` breaks in two concrete ways:
+
+1. **Complex output on wide data.** When `n_samples <= n_features` the covariance matrix is rank deficient, and `eig`'s general routine returns `complex128` — eigenvalues like `57.635+0.j`, whose imaginary parts are pure round-off. Every downstream array (`components_`, `singular_values_`, and everything `transform()` returns) then becomes complex, and handing that to a classifier fails with `ValueError: Complex data not supported`. This is exactly the eigenfaces regime the [applications](#real-world-applications) section advertises.
+2. **Non-orthogonal components.** With repeated or zero eigenvalues, `eig` gives no orthogonality guarantee. On a rank-deficient 60×6 matrix asking for 6 components, `max|components_ @ components_.T − I|` came out as **1.0** — the components were not a basis at all, so the "PCs are orthogonal" property in [Key Concepts](#key-concepts-to-remember) was simply false. With `eigh` the same measurement is **7.8e-16**, i.e. exact to floating-point precision.
+
+Two small guards accompany the solver:
+
+```python
+covariance_matrix = np.atleast_2d(np.cov(X_centered.T))  # np.cov on ONE column
+                                                         # returns a 0-d scalar
+eigenvalues = np.maximum(eigenvalues, 0.0)   # a variance can't be negative;
+                                             # -2e-16 is round-off, and would
+                                             # make sqrt() below return NaN
 ```
 
 ### 4. Sorting Components
@@ -704,7 +1036,7 @@ eigenvectors = eigenvectors[:, idx]
 **Step by step:**
 ```python
 # Before sorting
-eigenvalues = [1.0, 5.0, 3.0]
+eigenvalues = np.array([1.0, 5.0, 3.0])
 
 # argsort gives indices that would sort
 idx = eigenvalues.argsort()  # [0, 2, 1]
@@ -717,6 +1049,23 @@ eigenvalues = eigenvalues[idx]  # [5.0, 3.0, 1.0] ✓
 eigenvectors = eigenvectors[:, idx]  # columns reordered
 ```
 
+**Why this step is not optional:** `eigh` returns eigenvalues in *ascending* order, so without this sort your "first principal component" would be the direction of *least* variance — the exact opposite of what PCA is for.
+
+#### Then: fixing the arbitrary signs
+
+```python
+max_abs_rows = np.argmax(np.abs(eigenvectors), axis=0)
+signs = np.sign(eigenvectors[max_abs_rows, np.arange(eigenvectors.shape[1])])
+signs[signs == 0] = 1.0
+eigenvectors = eigenvectors * signs
+```
+
+**What this does:** for each component (each *column*), find its largest-magnitude entry and, if that entry is negative, flip the entire column.
+
+**Why:** an eigenvector `v` and its negation `-v` point along the same axis and explain the same variance, so LAPACK is free to hand back either. Without a convention, `components_` and every `transform()` output can flip sign between numpy versions or machines, which makes plots mirror themselves and makes documented example output unreproducible. This is the rule `sklearn.decomposition.PCA` applies from **version 1.5 onward** — `svd_flip(..., u_based_decision=False)`, i.e. the sign is read off the component itself — so adopting it means our `components_` match sklearn's exactly, with no sign mismatches. Measured against scikit-learn 1.7.2: max absolute difference 2.7e-15 on iris `k=2`, 3.9e-15 on iris `k=4`, 9.2e-16 on standardized wine `k=3`, and 1.4e-12 over 300 random datasets (`np.random.RandomState(12345)`, 2009 components in total, zero sign mismatches). Before 1.5, sklearn took the sign from the transformed scores instead; against those versions the subspace is identical but individual components are negated roughly half the time — 993 of those same 2009 components.
+
+**What it does *not* do:** change the mathematics. Variance, `explained_variance_ratio_`, reconstruction error and the spanned subspace are all identical either way.
+
 ### 5. Selecting Components
 
 ```python
@@ -728,15 +1077,15 @@ if isinstance(self.n_components, float) and 0 < self.n_components < 1:
 
 **How this works:**
 ```python
-explained_variance_ratio = [0.5, 0.3, 0.15, 0.05]
-cumsum = [0.5, 0.8, 0.95, 1.0]
+explained_variance_ratio = np.array([0.5, 0.3, 0.15, 0.05])
+cumsum = np.cumsum(explained_variance_ratio)  # [0.5, 0.8, 0.95, 1.0]
 
 # Want 95% variance
 n_components = 0.95
 
 # Find first index where cumsum >= 0.95
-np.argmax(cumsum >= 0.95)  # returns 2
-n_components_ = 2 + 1 = 3  # need 3 components
+idx = np.argmax(cumsum >= 0.95)  # returns 2 (0-based index)
+n_components_ = idx + 1          # 3 - need 3 components
 ```
 
 ### 6. Projection
@@ -846,11 +1195,13 @@ Explained variance:
   PC4: 0.20
 
 Explained variance ratio:
-  PC1: 0.7561 (75.61%)  ← Most important!
-  PC2: 0.1935 (19.35%)
-  PC3: 0.0484 (4.84%)
-  PC4: 0.0121 (1.21%)   ← Least important
+  PC1: 0.7485 (74.85%)  ← Most important!
+  PC2: 0.1916 (19.16%)
+  PC3: 0.0479 (4.79%)
+  PC4: 0.0120 (1.20%)   ← Least important
 ```
+
+(Check the arithmetic yourself: the four eigenvalues sum to 12.50 + 3.20 + 0.80 + 0.20 = 16.70, and 12.50 / 16.70 = 0.7485.)
 
 ### 2. Cumulative Variance
 
@@ -867,13 +1218,13 @@ for i, cum in enumerate(cumulative):
 **Output:**
 ```
 Cumulative variance:
-  First 1 components: 0.7561 (75.61%)
-  First 2 components: 0.9496 (94.96%)  ← 2 components for ~95%!
-  First 3 components: 0.9980 (99.80%)
+  First 1 components: 0.7485 (74.85%)
+  First 2 components: 0.9401 (94.01%)  ← 2 components for ~94%!
+  First 3 components: 0.9880 (98.80%)
   First 4 components: 1.0000 (100.00%)
 ```
 
-**Decision**: Keep 2 components to retain 95% variance!
+**Decision**: Keep 2 components to retain ~94% of the variance, or 3 to retain almost 99%.
 
 ### 3. Reconstruction Error
 
@@ -897,12 +1248,22 @@ print(f"Reconstruction MSE: {mse:.6f}")
 print(f"Relative error: {relative_error:.6f}")
 ```
 
+`score()` is a one-call shortcut for exactly this quantity, negated:
+
+```python
+pca.score(X) == -np.mean((X - pca.inverse_transform(pca.transform(X)))**2)
+```
+
+so `score()` is **higher-is-better** (0.0 is perfect), while the raw `mse` above is lower-is-better. Do not compare either number to `sklearn.decomposition.PCA.score`, which returns an average log-likelihood on an entirely different scale — see [Simplifications vs. Canonical PCA](#simplifications-vs-canonical-pca).
+
 **Interpretation:**
 ```
 MSE = 0.001: Excellent reconstruction (very little loss)
 MSE = 0.1: Good reconstruction (acceptable loss)
 MSE = 1.0: Poor reconstruction (significant loss)
 ```
+
+These thresholds assume standardized features (variance ≈ 1 per column). On unscaled data, compare `mse` to `np.var(X)` instead of to a fixed number — that is what `relative_error` above does.
 
 ### 4. Visual Evaluation: Scree Plot
 
@@ -1173,6 +1534,67 @@ X_pca = pca.fit_transform(X_images)
 
 ---
 
+## Simplifications vs. Canonical PCA
+
+The core of this implementation is numerically faithful: on iris (k=2 and k=4), standardized wine (k=3) and random correlated 300×8 data (k=4), it reproduces `sklearn.decomposition.PCA`'s `components_`, `explained_variance_`, `explained_variance_ratio_`, `singular_values_`, the transformed scores and `get_covariance()` to a maximum absolute difference of **2.3e-13** — floating-point noise — with matching component signs (measured against scikit-learn 1.7.2; the signs match any scikit-learn ≥ 1.5) and identical reconstruction error to 10 decimal places. But four things are deliberately different or deliberately absent. Each is listed here so you are never surprised by a number.
+
+### 1. Covariance + eigendecomposition instead of SVD
+
+**What canonical PCA does.** scikit-learn computes `U, S, Vt = svd(X_centered)` and reads `components_ = Vt`, `explained_variance_ = S**2 / (n-1)`, `singular_values_ = S`.
+
+**What this file does.** Builds `C = X_centeredᵀ X_centered / (n−1)` explicitly and calls `np.linalg.eigh(C)`.
+
+**Why.** As shown in [The SVD View](#8-the-svd-view-the-same-pca-computed-differently), the two are algebraically identical. The covariance route is kept because it makes the derivation in [section 2.5](#25-why-eigenvectors-the-one-derivation-that-matters) visible in the code, and this repository's rule is clarity over performance.
+
+**Practical consequence.** Two, both mild:
+- *Conditioning.* Forming `C` squares the condition number. For well-scaled data (which, per [Feature Scaling](#feature-scaling-critical-for-pca), is what you should be feeding PCA anyway) this is invisible. For data spanning many orders of magnitude, the smallest eigenvalues lose precision.
+- *Cost.* O(n·d²) to form `C` plus O(d³) to decompose it, versus SVD's O(n·d·min(n,d)). Measured `fit()` times on this machine: 200×5 → 0.001 s; 1000×50 → 0.003 s; 500×400 → 0.04 s; 300×1000 → 0.14 s; 200×2000 → 0.49 s. Note the shape of that growth: the last two rows added no samples but quadrupled `d`, and the time grew ~3.5×, tracking d³ rather than the data size. Fine for teaching-sized data; do not point it at 20,000 genes.
+
+### 2. `explained_variance_` and `explained_variance_ratio_` are full length
+
+**What canonical PCA does.** sklearn truncates both arrays to `n_components_`, so `pca.explained_variance_ratio_.sum()` is the retained variance.
+
+**What this file does.** Keeps all `n_features` entries, so a scree plot can be drawn from any fitted model without refitting with `n_components=None`.
+
+**Practical consequence.** `sum(pca.explained_variance_ratio_)` is **always 1.0** here and tells you nothing. Retained variance is `sum(pca.explained_variance_ratio_[:pca.n_components_])`. Every example in `_11_pca.py` and this document uses the sliced form.
+
+### 3. `score()` returns −MSE, not a log-likelihood
+
+**What canonical PCA does.** `sklearn.decomposition.PCA.score(X)` returns the average Gaussian **log-likelihood** of the samples under the probabilistic-PCA model, using the *same* covariance `get_covariance()` returns — `Wᵀ diag(λᵢ − σ²) W + σ² I`, with the noise floor subtracted from the retained eigenvalues, not left in — and a proper normalizing constant.
+
+**What this file does.** Returns `-np.mean((X - inverse_transform(transform(X)))**2)` — the negative mean reconstruction error.
+
+**Why.** Reconstruction error is what a learner can compute by hand and reason about; the pPCA likelihood needs a matrix determinant and a Gaussian normalizer that add machinery without adding insight.
+
+**Practical consequence.** The two numbers are on completely different scales and **must not be compared**:
+
+| Data | `our score(X)` | `sklearn PCA.score(X)` |
+|------|----------------|------------------------|
+| iris, k=2 | −0.0253 | −2.6998 |
+| iris, k=4 | ≈ −1e−31 | −2.5328 |
+| standardized wine, k=3 | −0.3347 | −15.7019 |
+
+Both agree on *direction* — higher is better, and both improve as k grows — but only the magnitudes of our own scores are comparable to each other. If you need the real log-likelihood, compute it separately rather than expecting `score()` to give it.
+
+### 4. Not implemented: whitening, and kernel PCA
+
+**Whitening.** sklearn's `PCA(whiten=True)` divides each transformed component by its standard deviation, so the output has unit variance in every direction:
+
+```
+Z_whitened[:, i] = Z[:, i] / sqrt(explained_variance_[i])
+```
+
+This is useful when a downstream model (an SVM with an RBF kernel, say) assumes isotropic inputs. It is not implemented here because it is a post-processing step, not part of PCA proper — and you can apply it in one line yourself:
+
+```python
+Z = pca.fit_transform(X)
+Z_whitened = Z / np.sqrt(pca.explained_variance_[:pca.n_components_])
+```
+
+**Kernel PCA.** Named several times in this document as "the non-linear alternative", so here is the one-paragraph version. PCA can only find *linear* subspaces; data curled onto a spiral or a sphere defeats it. Kernel PCA fixes this by imagining a map φ(x) into a much higher-dimensional space where the structure *is* linear, and then running PCA there. The trick is that you never build φ(x): every quantity PCA needs depends only on inner products, so you replace `φ(xᵢ)ᵀφ(xⱼ)` with a kernel function `k(xᵢ, xⱼ)` — commonly the RBF kernel `exp(-γ‖xᵢ - xⱼ‖²)`. Concretely, instead of eigendecomposing the `d × d` covariance matrix you eigendecompose the centered `n × n` kernel matrix `K`, and the projections come from its eigenvectors. The costs: it is O(n²) in memory and O(n³) in time, it has a bandwidth hyperparameter γ to tune, and — because you never form φ — there is no exact `inverse_transform`, so kernel PCA cannot be used for reconstruction or denoising the way ordinary PCA can. Implementing it properly is a separate algorithm, not a flag on this one.
+
+---
+
 ## Advantages and Limitations
 
 ### Advantages ✅
@@ -1217,7 +1639,7 @@ X_pca = pca.fit_transform(X_images)
 2. **Linear Assumption**
    - Only captures linear relationships
    - Misses non-linear patterns
-   - May need kernel PCA for non-linear data
+   - May need kernel PCA for non-linear data ([sketched here](#simplifications-vs-canonical-pca))
 
 3. **Scale Sensitive**
    - MUST scale features appropriately
@@ -1352,7 +1774,9 @@ plt.legend()
 plt.grid(True, alpha=0.3)
 plt.show()
 
-print(f"\n2D projection retains {sum(pca_2d.explained_variance_ratio_):.2%} of variance")
+# Slice to :2 - explained_variance_ratio_ holds all 30 ratios, so summing the
+# whole array would always print 100.00%.
+print(f"\n2D projection retains {sum(pca_2d.explained_variance_ratio_[:2]):.2%} of variance")
 ```
 
 ---
@@ -1387,6 +1811,21 @@ print(f"\n2D projection retains {sum(pca_2d.explained_variance_ratio_):.2%} of v
 | Training | Instant | Time-consuming |
 | Interpretability | Better | Worse |
 | Flexibility | Limited | High |
+
+(A linear autoencoder with a squared-error loss and a k-unit bottleneck learns *exactly* the PCA subspace — same span, though not necessarily the same rotation inside it. Non-linear activations are what buy autoencoders anything extra.)
+
+### PCA vs Kernel PCA
+
+| Aspect | PCA | Kernel PCA |
+|--------|-----|------------|
+| Decomposes | `d × d` covariance matrix | `n × n` kernel matrix |
+| Structure found | Linear subspaces only | Non-linear manifolds |
+| Cost | O(n·d² + d³) | O(n²) memory, O(n³) time |
+| Hyperparameters | None (just k) | Kernel choice + bandwidth γ |
+| `inverse_transform` | Exact | Only approximate (pre-image problem) |
+| Denoising / compression | Yes | Awkward — no exact reconstruction |
+
+See [Simplifications vs. Canonical PCA](#simplifications-vs-canonical-pca) for how the kernel trick works.
 
 ---
 

@@ -10,17 +10,48 @@ class KMeansClustering:
     
     Key Idea: "Group similar things together into k clusters"
     
+    Use Cases:
+    - Customer segmentation: group shoppers by income and spending behavior
+    - Image color quantization: reduce a photo's colors to k representative ones
+    - Document clustering: organize news articles or papers by topic
+    - Anomaly detection: points far from every centroid are candidate outliers
+    - Market segmentation: find niches from product, price and preference features
+
     The algorithm finds k cluster centers (centroids) such that:
     - Points within a cluster are as close as possible to their centroid
     - Points in different clusters are as far apart as possible
     
+    Objective (minimized) -- the within-cluster sum of squares, a.k.a. inertia:
+
+        J = sum over k of  sum over x in C_k of  ||x - c_k||^2
+
+    Lloyd's algorithm minimizes J by alternating two steps, each of which
+    can only leave J the same or make it smaller:
+
+        Assign (E-step):  label(x) = argmin_k ||x - c_k||
+        Update (M-step):  c_k      = (1 / n_k) * sum of x in C_k
+
+    The Update step is the arithmetic mean because that is exactly where the
+    derivative of the objective vanishes:
+
+        d/dc_k sum_{x in C_k} ||x - c_k||^2 = -2 * sum_{x in C_k} (x - c_k) = 0
+        =>  c_k = (1 / n_k) * sum_{x in C_k} x
+
+    J is bounded below by 0 and there are finitely many possible partitions,
+    so the alternation cannot decrease J forever: k-Means always converges
+    (to a local optimum, not necessarily the global one).
+
     where:
-        k = number of clusters
+        k        = number of clusters (n_clusters)
+        C_k      = set of points currently assigned to cluster k
+        c_k      = centroid of cluster k
+        n_k      = number of points in cluster k
         max_iter = maximum number of iterations
-        tol = convergence tolerance
+        tol      = convergence tolerance on centroid movement
     """
     
-    def __init__(self, n_clusters=3, max_iter=300, tol=1e-4, init='random', random_state=None):
+    def __init__(self, n_clusters=3, max_iter=300, tol=1e-4, init='random',
+                 random_state=None, n_init=1):
         """
         Initialize the k-Means Clustering model
         
@@ -30,6 +61,10 @@ class KMeansClustering:
             Number of clusters to form
             Also the number of centroids to generate
             Choose based on domain knowledge or elbow method
+            - Range: 2 to roughly sqrt(n_samples)
+            - More clusters always lower the inertia, so it cannot be tuned
+              by minimizing inertia alone
+            Typical values: 2-10, chosen with the elbow or silhouette method
         
         max_iter : int, default=300
             Maximum number of iterations
@@ -38,30 +73,91 @@ class KMeansClustering:
         
         tol : float, default=1e-4
             Convergence tolerance
-            Algorithm stops if centroid movement < tol
-            Smaller values = more precise convergence
+            Algorithm stops if centroid movement < tol, where the movement is
+            the Frobenius norm ||new_centroids - old_centroids|| of the whole
+            stacked centroid matrix (an absolute distance in feature units).
+            - Range: 1e-6 to 1e-2
+            - Smaller values = more precise convergence, more iterations
+            - Note: scikit-learn compares the SQUARED shift against tol scaled
+              by the mean feature variance, so the same numeric tol means
+              something different there (see "Simplifications" in the .md)
+            Typical values: 1e-4
         
         init : str, default='random'
             Method for initialization
             Options: 'random', 'kmeans++'
             - 'random': Randomly select k points as initial centroids
             - 'kmeans++': Smart initialization for better convergence
+            Typical: 'kmeans++' is recommended - 'random' with a single start
+            can land in a clearly worse local optimum (the default is kept at
+            'random' only for backward compatibility with older examples)
         
         random_state : int or None, default=None
             Random seed for reproducibility
             Set to an integer for consistent results across runs
+            Seeds a PRIVATE numpy RandomState; the global numpy random stream
+            is never touched, so fitting will not disturb your own seeding
+
+        n_init : int, default=1
+            Number of times the whole algorithm is run with a different
+            initialization. The run with the lowest inertia is kept.
+            - Higher values = far more robust to unlucky starts, linearly slower
+            - scikit-learn's KMeans defaults to 10 restarts ('auto'); the
+              default here is 1 so that the documented example outputs stay
+              reproducible
+            Typical values: 1 for teaching runs, 10 for real use
         """
         self.n_clusters = n_clusters
         self.max_iter = max_iter
         self.tol = tol
         self.init = init
         self.random_state = random_state
+        self.n_init = n_init
+
+        # Private random generator (created on first use / reset by fit).
+        # Using a local RandomState instead of np.random.seed keeps the
+        # caller's global random stream untouched.
+        self._rng = None
         
         # Model attributes (set after fitting)
         self.centroids = None
         self.labels_ = None
         self.inertia_ = None
         self.n_iter_ = None
+
+    def _validate_input(self, X):
+        """
+        Coerce X into a 2-D float array of shape (n_samples, n_features)
+
+        Accepts plain Python lists and 1-D arrays (a single feature), so the
+        docstrings' promise of "array of shape (n_samples, n_features)" is
+        honoured for the convenient inputs a learner is likely to type.
+
+        Parameters:
+        -----------
+        X : array-like
+            Data as a list, list of lists, 1-D array or 2-D array
+
+        Returns:
+        --------
+        X : numpy array of shape (n_samples, n_features)
+            Validated 2-D float array
+        """
+        X = np.asarray(X, dtype=float)
+
+        if X.ndim == 1:
+            # A single feature: [1, 2, 3] -> [[1], [2], [3]]
+            X = X.reshape(-1, 1)
+
+        if X.ndim != 2:
+            raise ValueError(
+                f"X must be 1-D or 2-D, got an array with {X.ndim} dimensions"
+            )
+
+        if X.shape[0] == 0:
+            raise ValueError("X must contain at least one sample")
+
+        return X
         
     def _initialize_centroids(self, X):
         """
@@ -79,20 +175,25 @@ class KMeansClustering:
         """
         n_samples, n_features = X.shape
         
-        if self.random_state is not None:
-            np.random.seed(self.random_state)
+        # Private RNG so that fitting never rewrites the caller's global
+        # np.random stream. fit() resets it, so repeated fits are reproducible.
+        if self._rng is None:
+            self._rng = np.random.RandomState(self.random_state)
+        rng = self._rng
         
         if self.init == 'random':
             # Randomly select k data points as initial centroids
-            indices = np.random.choice(n_samples, self.n_clusters, replace=False)
+            indices = rng.choice(n_samples, self.n_clusters, replace=False)
             centroids = X[indices]
             
         elif self.init == 'kmeans++':
             # k-means++ initialization for better convergence
+            # (Arthur & Vassilvitskii 2007: spread the seeds out, weighting
+            #  each candidate by its squared distance to the nearest seed)
             centroids = []
             
             # Choose first centroid randomly
-            first_idx = np.random.randint(0, n_samples)
+            first_idx = rng.randint(0, n_samples)
             centroids.append(X[first_idx])
             
             # Choose remaining centroids
@@ -101,9 +202,16 @@ class KMeansClustering:
                 distances = np.array([min([np.linalg.norm(x - c) ** 2 
                                           for c in centroids]) for x in X])
                 
-                # Choose next centroid with probability proportional to distance²
-                probabilities = distances / distances.sum()
-                next_idx = np.random.choice(n_samples, p=probabilities)
+                # Choose next centroid with probability proportional to distance^2
+                total = distances.sum()
+                if total <= 0:
+                    # Every remaining point already sits on a chosen centroid
+                    # (e.g. duplicated rows), so D(x)^2 = 0 everywhere and the
+                    # probabilities would be 0/0. Fall back to a uniform pick.
+                    next_idx = rng.randint(0, n_samples)
+                else:
+                    probabilities = distances / total
+                    next_idx = rng.choice(n_samples, p=probabilities)
                 centroids.append(X[next_idx])
             
             centroids = np.array(centroids)
@@ -130,10 +238,10 @@ class KMeansClustering:
         n_samples = X.shape[0]
         labels = np.zeros(n_samples, dtype=int)
         
-        # For each data point
+        # For each data point:  label(x) = argmin_k ||x - c_k||
         for i, x in enumerate(X):
             # Calculate distance to each centroid
-            distances = np.linalg.norm(X[i] - self.centroids, axis=1)
+            distances = np.linalg.norm(x - self.centroids, axis=1)
             
             # Assign to nearest centroid
             labels[i] = np.argmin(distances)
@@ -143,6 +251,13 @@ class KMeansClustering:
     def _update_centroids(self, X, labels):
         """
         Update centroids as the mean of assigned points
+
+        Implements the M-step:  c_k = (1 / n_k) * sum of x in C_k
+
+        Empty-cluster rule: if a cluster loses every point, its centroid is
+        relocated to the sample that is currently farthest from its own
+        centroid (this is what scikit-learn does). Freezing the dead centroid
+        instead would let k silently collapse to fewer effective clusters.
         
         Parameters:
         -----------
@@ -156,8 +271,12 @@ class KMeansClustering:
         new_centroids : numpy array of shape (n_clusters, n_features)
             Updated centroid positions
         """
-        n_features = X.shape[1]
+        n_samples, n_features = X.shape
         new_centroids = np.zeros((self.n_clusters, n_features))
+
+        # Distance of every point to its currently assigned centroid.
+        # Only needed if some cluster turns out empty, so it is built lazily.
+        point_distances = None
         
         # For each cluster
         for k in range(self.n_clusters):
@@ -168,8 +287,16 @@ class KMeansClustering:
                 # Update centroid to mean of assigned points
                 new_centroids[k] = np.mean(cluster_points, axis=0)
             else:
-                # If no points assigned, keep old centroid or reinitialize
-                new_centroids[k] = self.centroids[k]
+                # Empty cluster: relocate it to the worst-served point
+                if point_distances is None:
+                    point_distances = np.array([
+                        np.linalg.norm(X[i] - self.centroids[labels[i]])
+                        for i in range(n_samples)
+                    ])
+                farthest = np.argmax(point_distances)
+                new_centroids[k] = X[farthest]
+                # Do not hand the same point to a second empty cluster
+                point_distances[farthest] = -1.0
         
         return new_centroids
     
@@ -180,7 +307,8 @@ class KMeansClustering:
         Inertia measures how compact the clusters are.
         Lower inertia = tighter clusters = better fit
         
-        Inertia = Σ(distance from each point to its centroid)²
+        Inertia = sum over all points of (distance from a point to its centroid)^2
+        This is the objective J the algorithm minimizes.
         
         Parameters:
         -----------
@@ -207,43 +335,87 @@ class KMeansClustering:
         """
         Compute k-means clustering
         
+        Runs Lloyd's algorithm n_init times from different initializations and
+        keeps the run with the lowest inertia J, because a single start can get
+        trapped in a poor local optimum.
+
+        Each run alternates:
+            E-step: labels      = argmin_k ||x - c_k||       (_assign_clusters)
+            M-step: c_k         = mean of the points in C_k  (_update_centroids)
+        and stops when ||new_centroids - old_centroids|| < tol.
+
+        After the loop a FINAL E-step is performed so that labels_, inertia_
+        and centroids always describe the same state (without it, labels_ would
+        come from the centroids of the previous iteration).
+
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, n_features)
-            Training data
+        X : array-like of shape (n_samples, n_features)
+            Training data (lists and 1-D arrays are accepted and converted)
         
         Returns:
         --------
         self : object
             Returns self for method chaining
         """
-        # Initialize centroids
-        self.centroids = self._initialize_centroids(X)
+        X = self._validate_input(X)
         
-        # Iterative optimization
-        for iteration in range(self.max_iter):
-            # Step 1: Assign each point to nearest centroid
+        if self.n_clusters > X.shape[0]:
+            raise ValueError(
+                f"n_clusters={self.n_clusters} cannot exceed the number of "
+                f"samples ({X.shape[0]})"
+            )
+
+        # Reset the private RNG so that repeated fits of the same model with
+        # the same random_state give identical results.
+        self._rng = np.random.RandomState(self.random_state)
+
+        best_inertia = None
+        best_centroids = None
+        best_labels = None
+        best_n_iter = None
+
+        # Multiple restarts: keep whichever run reaches the lowest inertia
+        for _ in range(max(1, self.n_init)):
+            # Initialize centroids
+            self.centroids = self._initialize_centroids(X)
+
+            n_iter = self.max_iter
+
+            # Iterative optimization
+            for iteration in range(self.max_iter):
+                # Step 1: Assign each point to nearest centroid (E-step)
+                labels = self._assign_clusters(X)
+
+                # Step 2: Update centroids (M-step)
+                new_centroids = self._update_centroids(X, labels)
+
+                # Check for convergence: how far did the centroids move?
+                centroid_shift = np.linalg.norm(new_centroids - self.centroids)
+
+                self.centroids = new_centroids
+
+                # Stop if converged
+                if centroid_shift < self.tol:
+                    n_iter = iteration + 1
+                    break
+
+            # Final assignment against the FINAL centroids, so that the stored
+            # labels and inertia are consistent with the stored centroids.
             labels = self._assign_clusters(X)
+            inertia = self._calculate_inertia(X, labels)
             
-            # Step 2: Update centroids
-            new_centroids = self._update_centroids(X, labels)
+            if best_inertia is None or inertia < best_inertia:
+                best_inertia = inertia
+                best_centroids = self.centroids
+                best_labels = labels
+                best_n_iter = n_iter
             
-            # Check for convergence
-            centroid_shift = np.linalg.norm(new_centroids - self.centroids)
-            
-            self.centroids = new_centroids
-            
-            # Stop if converged
-            if centroid_shift < self.tol:
-                self.n_iter_ = iteration + 1
-                break
-        else:
-            # Maximum iterations reached
-            self.n_iter_ = self.max_iter
-        
-        # Store final labels and inertia
-        self.labels_ = labels
-        self.inertia_ = self._calculate_inertia(X, labels)
+        # Store the best run
+        self.centroids = best_centroids
+        self.labels_ = best_labels
+        self.inertia_ = best_inertia
+        self.n_iter_ = best_n_iter
         
         return self
     
@@ -253,7 +425,7 @@ class KMeansClustering:
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, n_features)
             New data to assign to clusters
             
         Returns:
@@ -264,17 +436,21 @@ class KMeansClustering:
         if self.centroids is None:
             raise ValueError("Model must be fitted before predicting")
         
+        X = self._validate_input(X)
+
         return self._assign_clusters(X)
     
     def fit_predict(self, X):
         """
         Compute clustering and return cluster labels
         
-        Convenience method that calls fit(X) followed by predict(X)
+        Convenience method that calls fit(X) followed by predict(X).
+        (fit() ends with a final assignment step, so the stored labels_ are
+        exactly what predict(X) would return on the training data.)
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, n_features)
             Training data
             
         Returns:
@@ -293,7 +469,7 @@ class KMeansClustering:
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, n_features)
             Data to transform
             
         Returns:
@@ -303,6 +479,8 @@ class KMeansClustering:
         """
         if self.centroids is None:
             raise ValueError("Model must be fitted before transforming")
+
+        X = self._validate_input(X)
         
         n_samples = X.shape[0]
         distances = np.zeros((n_samples, self.n_clusters))
@@ -335,11 +513,14 @@ class KMeansClustering:
         Calculate the negative inertia (for consistency with sklearn)
         
         Negative inertia is returned so that higher values indicate better fit
-        (consistent with other sklearn metrics)
+        (consistent with other sklearn metrics). Note this is NOT bounded like
+        an accuracy or R^2 score: it is always <= 0 and its magnitude depends
+        on the scale of the data and on the number of samples, so compare it
+        only across models fitted on the same data.
         
         Parameters:
         -----------
-        X : numpy array of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, n_features)
             Data to evaluate
             
         Returns:
@@ -347,6 +528,7 @@ class KMeansClustering:
         score : float
             Negative inertia (-1 * within-cluster sum of squares)
         """
+        X = self._validate_input(X)
         labels = self.predict(X)
         inertia = self._calculate_inertia(X, labels)
         return -inertia
@@ -359,7 +541,13 @@ class KMeansClustering:
         --------
         centroids : numpy array of shape (n_clusters, n_features)
             Coordinates of cluster centers
+
+        Note: cluster IDs are arbitrary. Two runs that find the same geometry
+        may number the clusters differently, so never rely on a specific ID.
         """
+        if self.centroids is None:
+            raise ValueError("Model must be fitted before accessing cluster centers")
+
         return self.centroids
 
 
@@ -383,18 +571,29 @@ model = KMeansClustering(n_clusters=3, random_state=42)
 labels = model.fit_predict(X)
 
 print("Cluster assignments:", labels)
-# Output: [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2] (or similar)
+# Output: [2 2 2 2 1 1 1 1 0 0 0 0]
+# The three groups are recovered perfectly, but the cluster IDs themselves are
+# arbitrary: a different seed can find the same geometry and number it
+# [0 0 0 0 2 2 2 2 1 1 1 1]. Never rely on a particular ID - read the centroid.
 
 print("\nCluster centers:")
 print(model.get_cluster_centers())
+# Output:
+# [[64.5  51.25]    <- senior, medium spending
+#  [45.5  81.25]    <- middle-aged, high spending
+#  [25.5  31.25]]   <- young, low spending
 
 print(f"\nInertia: {model.inertia_:.2f}")
+# Output: Inertia: 135.25
+
 print(f"Number of iterations: {model.n_iter_}")
+# Output: Number of iterations: 3
 
 # Predict cluster for new customers
 X_new = np.array([[27, 33], [46, 81], [64, 51]])
 predictions = model.predict(X_new)
 print("\nPredictions for new customers:", predictions)
+# Output: [2 1 0]  (young -> cluster 2, middle-aged -> 1, senior -> 0)
 """
 
 """
@@ -455,13 +654,29 @@ print(f"{'k':<5} {'Inertia':<15}")
 print("-" * 20)
 
 for k in k_values:
-    model = KMeansClustering(n_clusters=k, random_state=42)
+    # init='kmeans++' with several restarts is essential here: a single
+    # 'random' start gets trapped in a local optimum at k=4 and the elbow
+    # disappears entirely (inertia 1755 instead of 204).
+    model = KMeansClustering(n_clusters=k, init='kmeans++', n_init=10,
+                             random_state=42)
     model.fit(X)
     inertias.append(model.inertia_)
     print(f"{k:<5} {model.inertia_:<15.2f}")
 
+# Output:
+# 2     9051.82
+# 3     1773.74
+# 4     203.89          <- huge drop, then the curve flattens: the elbow
+# 5     184.52
+# 6     167.46
+# 7     149.13
+# 8     131.39
+# 9     120.21
+# 10    107.33
+
 # The "elbow" point is where inertia starts decreasing more slowly
-# In this case, k=4 should be the elbow (since we created 4 clusters)
+# In this case, k=4 is the elbow (since we created 4 clusters):
+# 1773.74 -> 203.89 is an 88% drop, 203.89 -> 184.52 is only 10%.
 
 print("\nLook for the 'elbow' where inertia decrease slows down")
 print("That's typically the optimal number of clusters!")
@@ -543,9 +758,15 @@ print("=" * 50)
 # Analyze each cluster
 for cluster in range(5):
     cluster_data = X[labels == cluster]
+    n_customers = len(cluster_data)
+
+    # Guard: np.mean of an empty slice returns nan with a RuntimeWarning
+    if n_customers == 0:
+        print(f"\nCluster {cluster + 1}: empty (no customers assigned)")
+        continue
+
     avg_income = np.mean(cluster_data[:, 0])
     avg_spending = np.mean(cluster_data[:, 1])
-    n_customers = len(cluster_data)
     
     print(f"\nCluster {cluster + 1}:")
     print(f"  Number of customers: {n_customers}")
@@ -573,4 +794,119 @@ print(f"\n{'=' * 50}")
 print(f"Total inertia: {model.inertia_:.2f}")
 print(f"Converged in: {model.n_iter_} iterations")
 """
+
+
+if __name__ == "__main__":
+    # ----------------------------------------------------------------
+    # Plug-and-Play Demo: run this file directly with
+    #   python _10_kmeans_clustering.py
+    # Requires numpy only. Everything below is seeded and reproducible.
+    # ----------------------------------------------------------------
+    np.random.seed(42)
+
+    # --- Demo 1: can k-Means recover clusters we planted ourselves? ---
+    print("=" * 55)
+    print("DEMO 1 - Recovering three planted Gaussian blobs")
+    print("=" * 55)
+
+    true_centers = np.array([[0.0, 0.0], [7.0, 7.0], [0.0, 7.0]])
+    X_blobs = np.vstack([c + np.random.randn(100, 2) for c in true_centers])
+
+    # Shuffle before slicing, so the held-out points come from all three blobs
+    order = np.random.permutation(len(X_blobs))
+    X_blobs = X_blobs[order]
+    X_train, X_test = X_blobs[:240], X_blobs[240:]
+
+    km = KMeansClustering(n_clusters=3, init='kmeans++', n_init=10,
+                          random_state=42)
+    km.fit(X_train)
+
+    # score() returns NEGATIVE inertia, so divide by n to compare train vs test
+    print(f"Converged in {km.n_iter_} iterations")
+    print(f"Train inertia (sum of squared distances) : {km.inertia_:8.2f}")
+    print(f"Train mean squared distance to centroid  : "
+          f"{-km.score(X_train) / len(X_train):8.4f}")
+    print(f"Test  mean squared distance to centroid  : "
+          f"{-km.score(X_test) / len(X_test):8.4f}")
+
+    print("\nRecovered centroids vs the centers we planted:")
+    for c in km.get_cluster_centers():
+        nearest = true_centers[np.argmin(np.linalg.norm(true_centers - c, axis=1))]
+        print(f"  found ({c[0]:5.2f}, {c[1]:5.2f})  ->  planted "
+              f"({nearest[0]:.1f}, {nearest[1]:.1f})")
+
+    print(f"\nCluster sizes on the training set: {np.bincount(km.labels_)}")
+    print("(Cluster IDs are arbitrary - only the geometry is meaningful.)")
+
+    test_labels = km.predict(X_test)
+    test_distances = km.transform(X_test)
+    print("\nSample test points -> assigned cluster, distance to its centroid:")
+    for i in range(5):
+        print(f"  ({X_test[i, 0]:6.2f}, {X_test[i, 1]:6.2f}) -> cluster "
+              f"{test_labels[i]}, distance {test_distances[i, test_labels[i]]:.2f}")
+
+    # --- Demo 2: choosing k with the elbow method ---
+    print("\n" + "=" * 55)
+    print("DEMO 2 - Elbow method: how many clusters are there?")
+    print("=" * 55)
+    print("Inertia always falls as k grows, so we look for the ELBOW:")
+    print("the k after which extra clusters stop buying much.\n")
+
+    print(f"{'k':<4}{'inertia':>12}{'drop vs k-1':>14}")
+    print("-" * 30)
+    previous = None
+    for k in range(1, 7):
+        sweep = KMeansClustering(n_clusters=k, init='kmeans++', n_init=10,
+                                 random_state=42)
+        sweep.fit(X_train)
+        if previous is None:
+            drop = "-"
+        else:
+            drop = f"{100.0 * (previous - sweep.inertia_) / previous:.1f} %"
+        print(f"{k:<4}{sweep.inertia_:12.2f}{drop:>14}")
+        previous = sweep.inertia_
+
+    print("\nTakeaway: the drops collapse after k=3, which is exactly the")
+    print("number of blobs we planted. The elbow found the right answer.")
+
+    # --- Demo 3: color quantization (the classic k-Means application) ---
+    print("\n" + "=" * 55)
+    print("DEMO 3 - Color quantization: 450 pixels -> 3 colors")
+    print("=" * 55)
+
+    reds = np.column_stack([np.random.randint(190, 231, 150),
+                            np.random.randint(30, 71, 150),
+                            np.random.randint(30, 71, 150)])
+    greens = np.column_stack([np.random.randint(30, 71, 150),
+                              np.random.randint(190, 231, 150),
+                              np.random.randint(50, 91, 150)])
+    blues = np.column_stack([np.random.randint(20, 61, 150),
+                             np.random.randint(60, 101, 150),
+                             np.random.randint(190, 231, 150)])
+    pixels = np.vstack([reds, greens, blues]).astype(float)
+
+    palette = KMeansClustering(n_clusters=3, init='kmeans++', n_init=10,
+                               random_state=42)
+    pixel_labels = palette.fit_predict(pixels)
+    colors = palette.get_cluster_centers().astype(int)
+    counts = np.bincount(pixel_labels, minlength=3)
+
+    print("Dominant colors (every pixel is replaced by its centroid):")
+    for i in range(len(colors)):
+        print(f"  Color {i}: RGB({colors[i, 0]:3d}, {colors[i, 1]:3d}, "
+              f"{colors[i, 2]:3d})  used by {counts[i]:3d} pixels")
+
+    print(f"\n{len(pixels)} distinct-ish RGB triples -> 3 palette entries "
+          f"({len(pixels) / 3:.0f}x fewer colors)")
+    print(f"score(X) = {palette.score(pixels):.2f}  "
+          f"(negative inertia, so higher is better)")
+
+    new_pixels = np.array([[205.0, 45.0, 45.0],
+                           [45.0, 205.0, 70.0],
+                           [35.0, 80.0, 210.0]])
+    print("\nAssigning 3 unseen pixels to the fitted palette:")
+    for px, lab in zip(new_pixels, palette.predict(new_pixels)):
+        print(f"  RGB({px[0]:5.0f}, {px[1]:5.0f}, {px[2]:5.0f}) -> color {lab} "
+              f"= RGB({colors[lab, 0]:3d}, {colors[lab, 1]:3d}, "
+              f"{colors[lab, 2]:3d})")
 
