@@ -86,13 +86,28 @@ class AdaBoost:
             Shrinks the contribution of each classifier
             - Lower values need more estimators but generalize better
             - learning_rate * n_estimators ~= constant for similar performance
-            - Range: 0.1 to 1.0. Not merely advice: this class applies no
-              sample-weight floor, so above that range the weights can
-              collapse until alpha pins at the error clip (seen from
+            - Supported range: 0.1 to 1.0. Not merely advice: this class
+              applies no sample-weight floor, so above that range the weights
+              can collapse until alpha pins at the error clip (seen from
               learning_rate=2.0 upward) and the ensemble can end up far worse
               than a single stump. See the last bullet of the class
               docstring. Values > 1.0 are not validated or rejected here,
               only unsupported.
+            - The other half of that collapse: once the easy samples' weights
+              have shrunk far enough (at learning_rate=2.0 and above, 1e-24
+              down to 1e-152 in the runs measured, and in the one quoted here
+              all the way to exactly 0.0) they stop steering the stump
+              search, and the ensemble starts re-picking the same few stumps.
+              On make_classification(n_samples=200, n_features=4,
+              random_state=3) with n_estimators=60 at learning_rate=3.0 the
+              first weight reaches exactly 0 at round 34 (28 of the 200 by
+              the end), the 60 rounds hold only 15 distinct stumps with the
+              most repeated appearing 24 times, and train accuracy is 74.00%
+              -- below the 93.50% a single stump scores on the same data.
+              (learning_rate=1.0 there: 32 distinct stumps, 5 repeats at
+              most, 99.00%.) It degrades rather than stalls -- 15 stumps is
+              not 1, and the predictions still change in all 59 rounds after
+              the first.
             Typical: 0.5-1.0 for small datasets, 0.1-0.3 for large datasets
             Note: the learning rate scales alpha, so the re-weighting ratio
             becomes ((1-e)/e)^learning_rate -- the same semantics as sklearn's

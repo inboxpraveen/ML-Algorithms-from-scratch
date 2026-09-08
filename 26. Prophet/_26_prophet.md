@@ -423,10 +423,13 @@ For default settings (S=25, N_yr=10, N_wk=3): **total = 2 + 25 + 20 + 6 = 53 par
 
 ## Algorithm Steps
 
-> The five snippets in this section are **excerpts from inside the class**, quoted
-> with the same variable names `_26_prophet.py` uses. They illustrate what `fit()`
-> and `predict()` do internally; they are not standalone scripts. For copy-paste
-> code, use the [Quick Start](#quick-start-plug-and-play-example) or
+> The five snippets in this section illustrate what `fit()` and `predict()` do
+> **internally**, quoted with the same variable names `_26_prophet.py` uses.
+> Steps 1 and 2 run as written — each defines the handful of names it reads.
+> Step 3 is a layout sketch, and Steps 4 and 5 are excerpts that are *not*
+> standalone; each one says so in its first comment and names the public call
+> that does the same job. For copy-paste code, use the
+> [Quick Start](#quick-start-plug-and-play-example) or
 > [Code Example](#code-example) sections.
 
 ### Step 1: Parse Dates
@@ -434,19 +437,39 @@ For default settings (S=25, N_yr=10, N_wk=3): **total = 2 + 25 + 20 + 6 = 53 par
 Convert date strings or datetime objects to numeric values (days since start):
 
 ```python
+# Excerpt from Prophet._parse_dates(); runnable as written. You never call it
+# yourself - fit(), predict() and get_components() each run this conversion for
+# you on whatever list of dates you hand them.
+from datetime import datetime
+
+start_date = datetime(2022, 1, 1)
+some_dates = [datetime(2022, 1, 1), datetime(2022, 1, 15), datetime(2022, 2, 1)]
+
 # '2022-01-15' → 14 (days from '2022-01-01')
-t = [(date - start_date).days for date in dates]
+t = [(date - start_date).days for date in some_dates]
+print(t)   # [0, 14, 31]
 ```
 
 ### Step 2: Place Candidate Changepoints
 
-Spread `n_changepoints` candidates evenly over the first `changepoint_range` fraction of the training data. This is the exact code from `fit()`:
+Spread `n_changepoints` candidates evenly over the first `changepoint_range` fraction of the training data. The four lines after the setup mirror `fit()` closely — `t_end` is inlined here and the `n_cp > 0` guard is omitted, but the placement arithmetic is identical:
 
 ```python
+# Excerpt from fit() - see the full method in _26_prophet.py. The three names it
+# reads are defined here so the block runs as written; inside the class they are
+# the parsed `t`, `self.changepoint_range` and `self.n_changepoints`.
+# Public equivalent: after model.fit(...), read model.changepoints_t_.
+import numpy as np
+
+t = np.arange(730, dtype=float)   # 2 years of daily observations
+changepoint_range = 0.8           # the Prophet(...) defaults
+n_changepoints = 25
+
 t_eligible = t[t <= t.min() + changepoint_range * (t.max() - t.min())]
 n_cp = min(n_changepoints, max(0, len(t_eligible) - 1))
 cp_idx = np.round(np.linspace(0, len(t_eligible) - 1, n_cp + 1)).astype(int)
 changepoints_t_ = t_eligible[np.unique(cp_idx[1:])]
+print(f"{len(changepoints_t_)} candidates, first five: {changepoints_t_[:5]}")
 ```
 
 Three details are load-bearing:
@@ -477,6 +500,14 @@ for n in 1..N_wk:
 Standardise, solve the L1 problem on the δ block, then convert back to per-day units:
 
 ```python
+# PSEUDOCODE excerpt from fit() - NOT runnable as written. standardize() and
+# unstandardize() are not functions in _26_prophet.py; both are spelled out
+# inline in fit(). Everything else here lives inside that method too: `X`, `t`
+# and `y` are its locals, `S` is shorthand for the changepoint count and `lam`
+# for the L1 weight. See fit() in _26_prophet.py for the real thing.
+# Public equivalent: model.fit(dates, y) - after which model.params_ holds the
+# vector this sketch ends with.
+
 # t -> [0, 1] and y -> y / max|y| so the prior's units are series-independent
 X_std, y_std = standardize(X, t, y)
 
@@ -494,6 +525,15 @@ Set `changepoint_prior_scale=np.inf` and `lam` becomes 0, at which point `_solve
 ### Step 5: Predict and Decompose
 
 ```python
+# Excerpt from predict() and get_components() - NOT runnable as written: the
+# design matrices and the parameter vector are built inside those methods.
+# The public calls that do exactly this, on a fitted model:
+#     y_hat    = model.predict(future_dates)
+#     comps    = model.get_components(future_dates)
+#     y_trend  = comps['trend']
+#     y_yearly = comps['yearly']
+# Internally each one is a single matrix product:
+
 # Full forecast
 y_hat = X_future @ params
 
@@ -672,6 +712,22 @@ Surviving changepoint days: [163.]
 
 ```python
 # Forecast daily orders for the next quarter
+import numpy as np
+from _26_prophet import Prophet
+from datetime import datetime, timedelta
+
+# Substitute your own values for historical_dates / daily_orders; this synthetic
+# series keeps the snippet runnable end to end.
+np.random.seed(0)
+order_t = np.arange(730, dtype=float)
+orders_start = datetime(2022, 1, 1)
+historical_dates = [(orders_start + timedelta(days=int(i))).strftime('%Y-%m-%d')
+                    for i in order_t]
+daily_orders = (800 + 0.5 * order_t
+                + 120 * np.sin(2 * np.pi * order_t / 365.25)
+                + 60 * np.sin(2 * np.pi * order_t / 7.0)
+                + np.random.normal(0, 25, len(order_t)))
+
 model = Prophet(n_changepoints=20, yearly_fourier_order=10, weekly_fourier_order=3)
 model.fit(historical_dates, daily_orders)
 
@@ -687,6 +743,22 @@ print(f"Average daily orders next month: {forecast[:30].mean():.0f}")
 
 ```python
 # Forecast page views to plan server capacity
+import numpy as np
+from _26_prophet import Prophet
+from datetime import datetime, timedelta
+
+# Substitute your own values for traffic_dates / page_views; this synthetic
+# series keeps the snippet runnable end to end.
+np.random.seed(1)
+view_t = np.arange(730, dtype=float)
+views_start = datetime(2022, 1, 1)
+traffic_dates = [(views_start + timedelta(days=int(i))).strftime('%Y-%m-%d')
+                 for i in view_t]
+page_views = (5000 + 4.0 * view_t
+              + 800 * np.sin(2 * np.pi * view_t / 365.25)
+              + 900 * np.sin(2 * np.pi * view_t / 7.0)
+              + np.random.normal(0, 200, len(view_t)))
+
 model = Prophet(
     yearly_seasonality=True,
     weekly_seasonality=True,
@@ -694,10 +766,10 @@ model = Prophet(
     weekly_fourier_order=3,
     n_changepoints=25
 )
-model.fit(dates, page_views)
+model.fit(traffic_dates, page_views)
 
 # Check if weekly pattern shows weekday vs weekend difference
-comps = model.get_components(dates[-14:])
+comps = model.get_components(traffic_dates[-14:])
 print("Weekly effect last 2 weeks:", comps['weekly'].round(0))
 ```
 
@@ -705,11 +777,32 @@ print("Weekly effect last 2 weeks:", comps['weekly'].round(0))
 
 ```python
 # Check where significant trend changes happened
+import numpy as np
+from _26_prophet import Prophet
+from datetime import datetime, timedelta
+
+# Substitute your own values for revenue_dates / revenue; this synthetic series
+# plants a REAL break (+0.5/day for a year, then -0.3/day) so there is something
+# to find.
+np.random.seed(2)
+rev_t = np.arange(1095, dtype=float)
+rev_start = datetime(2021, 1, 1)
+revenue_dates = [(rev_start + timedelta(days=int(i))).strftime('%Y-%m-%d')
+                 for i in rev_t]
+revenue = (1000 + 0.5 * rev_t - 0.8 * np.maximum(0.0, rev_t - 365.0)
+           + 60 * np.sin(2 * np.pi * rev_t / 365.25)
+           + 30 * np.sin(2 * np.pi * rev_t / 7.0)
+           + np.random.normal(0, 25, len(rev_t)))
+
 model = Prophet(n_changepoints=25)
-model.fit(dates, revenue)
+model.fit(revenue_dates, revenue)
+
+# The direct answer: the bends the Laplace prior refused to switch off.
+deltas = model.params_[2:2 + len(model.changepoints_t_)]
+print("Surviving bend days:", model.changepoints_t_[np.abs(deltas) > 0])
 
 # Get trend component to see inflection points
-comps = model.get_components(dates)
+comps = model.get_components(revenue_dates)
 trend = comps['trend']
 
 # Compute trend velocity (rate of change)
@@ -717,6 +810,15 @@ trend_velocity = np.diff(trend)
 major_changes = np.where(np.abs(trend_velocity) > trend_velocity.std() * 2)[0]
 print("Major trend shifts at days:", major_changes)
 ```
+
+A caveat on that last test, so the empty array it prints here is not a surprise:
+the fitted trend is **piecewise linear**, so `trend_velocity` only ever takes as
+many distinct values as there are surviving bends, plus one. A 2-sigma outlier
+test on so few levels usually flags nothing, or flags whole segments at once —
+it asks how fast the trend is moving relative to how much that speed varies,
+which is not the same question as where the speed *changed*.
+`model.changepoints_t_` filtered by the non-zero deltas — the
+`Surviving bend days` line above — is the reliable way to ask this one.
 
 ### 4. Monthly Forecasting (Aggregated Data)
 

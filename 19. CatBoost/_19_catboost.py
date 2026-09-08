@@ -734,17 +734,40 @@ class CatBoost:
                 # land early sees almost no history and gets the prior, so the
                 # same category can land in wildly different bins. Averaging
                 # keeps the no-leakage property (no permutation ever lets a row
-                # see its own target) while tightening the encoding. Measured
-                # on Demo 3's generator below (4 plan strings + one numeric
-                # column) shrunk to 90 train / 30 test rows, over seeds 0-199
-                # with each seed used both for the data and as the model's
-                # random_seed, and random_strength=0: mean test RMSE 8.67 with
-                # one permutation vs 7.81 with four, four winning on 115 of
-                # the 200 seeds, against 7.86 for one-hot encoding. At the
-                # demo's own 300 training rows one and four permutations are
-                # within noise of each other (6.18 vs 6.09) while one-hot
-                # leads at 5.64 -- averaging earns its keep when a category
-                # has few rows to average over.
+                # see its own target) while tightening the encoding.
+                #
+                # Measured on the setup below -- Demo 3's generator, two
+                # feature columns, run at n = 120 and n = 400 rows. It is
+                # written out in full so it can be re-run as-is; it does not
+                # depend on the demo's global RNG state:
+                #
+                #   plans = ['basic', 'plus', 'pro', 'enterprise']
+                #   value = {basic: 10, plus: 25, pro: 60, enterprise: 150}
+                #   for s in range(200):          # seeds 0-199
+                #       np.random.seed(s)         # draws in exactly this order
+                #       plan  = np.random.choice(plans, n)
+                #       usage = np.random.uniform(0, 10, n)
+                #       y     = value[plan] + 3*usage + np.random.randn(n)*5
+                #       rows shuffled by np.random.permutation(n)
+                #       X: column 0 = plan strings, column 1 = usage
+                #       train = first 3/4 of the rows, test = the rest
+                #       CatBoost(n_estimators=120, learning_rate=0.1,
+                #                depth=4, cat_features=[0],
+                #                random_strength=0.0, random_seed=s)
+                #                # every other argument left at its default
+                #       model.ts_permutations = 1 or 4, set before fit()
+                #
+                # The one-hot baseline swaps column 0 for four 0/1 indicator
+                # columns (one per plan, in the order listed above), drops
+                # cat_features, and changes nothing else. Mean test RMSE over
+                # the 200 seeds, at n=120 (90 train / 30 test): 8.67 with one
+                # permutation vs 7.81 with four, four winning on 115 of the
+                # 200 seeds, against 7.86 for one-hot. At n=400 (300 train /
+                # 100 test -- Demo 3's own shape, but seeded per run, so not
+                # the RMSE the demo prints) one and four are within noise of
+                # each other, 6.18 vs 6.09, while one-hot leads at 5.64.
+                # Averaging earns its keep when a category has few rows to
+                # average over.
                 ts_sum = np.zeros(len(keys))
                 for _ in range(self.ts_permutations):
                     permutation = self._rng.permutation(len(keys))

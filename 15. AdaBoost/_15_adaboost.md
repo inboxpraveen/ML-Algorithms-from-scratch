@@ -1362,6 +1362,38 @@ Low (0.1-0.3):
   ✗ Slower training
 ```
 
+**Supported range: `0.1` to `1.0`.** Values above `1.0` are neither validated nor
+rejected by `__init__` — they are simply not supported, and the reason is
+numerical rather than stylistic. This class keeps no per-round sample-weight
+floor (see [Simplification vs. canonical AdaBoost](#simplification-vs-canonical-adaboost)),
+so a large learning rate drives the easy samples' weights down by dozens of
+orders of magnitude — at `learning_rate=2.0` and above, to between `1e-24` and
+`1e-152` in the runs measured for this note, and far enough out to **exactly
+`0.0`**. Those samples stop steering the
+stump search, the pool of stumps worth picking narrows, and the ensemble begins
+re-selecting the same few. On `make_classification(n_samples=200, n_features=4,
+random_state=3)` with `n_estimators=60`:
+
+| `learning_rate` | first weight = 0 | zero weights at the end | distinct stumps | most-repeated stump | train accuracy |
+|---|---|---|---|---|---|
+| 1.0 (supported) | never | 0 of 200 | 32 of 60 | 5× | 99.00% |
+| 3.0 (above range) | round 34 | 28 of 200 | 15 of 60 | 24× | 74.00% |
+
+A single stump scores **93.50%** on that data, so the `learning_rate=3.0`
+ensemble ends up worse than the first learner it trained.
+
+This is degradation, not a stall: 15 distinct stumps is not one stump copied 60
+times, and the ensemble's prediction vector still changes at every one of the 59
+rounds after the first. The model keeps moving — it just stops improving. Within
+the supported range the weights stay far from the danger zone: across the four
+datasets measured for this note, at `learning_rate` ∈ {0.1, 0.5, 1.0} with
+`n_estimators=60`, the smallest sample weight in any round never fell below
+`2e-5` — nowhere near underflow. That is evidence from four datasets rather than
+a guarantee, but the mechanism is general: underflow needs the weight ratio
+`((1-e)/e)^learning_rate` to compound, and at `learning_rate <= 1.0` it does not
+compound fast enough to reach the limits of double precision in a normal number
+of rounds.
+
 **Interaction with n_estimators**:
 ```
 Rule of thumb:

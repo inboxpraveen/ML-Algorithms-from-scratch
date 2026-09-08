@@ -277,10 +277,11 @@ Raising `min_dist` lowers `a` and raises `b`, which flattens `q` near the origin
 two points that are already closer than `min_dist` gain almost nothing by squeezing
 closer still, so the attractive gradient there goes to nearly zero.
 
-`spread` is not a constructor argument in this implementation - `UMAP` always fits
-at `spread=1.0`, and the swept range above comes from calling the internal
-`_find_ab_params(min_dist, spread=...)` directly. (`umap-learn` does expose
-`spread` on its estimator.)
+`spread` is a constructor argument, `UMAP(..., spread=1.0)`, and the swept range
+above is exactly what you get by passing it. `fit()` and `transform()` both hand
+it to `_find_ab_params`, so one kernel serves the whole model. Keep
+`min_dist <= spread` - that is `umap-learn`'s own precondition on the pair, and it
+is the range the fit was verified over. (`umap-learn` exposes `spread` too.)
 
 ### 5. Deriving the SGD Gradients
 
@@ -622,6 +623,14 @@ Minimum distance between points in the embedding.
 - Better for understanding relationships
 
 **Tip:** Use 0.0 for clustering tasks, 0.1-0.3 for general visualization.
+
+**Its partner, `spread` (default=1.0).** `min_dist` is the flat part of the target
+curve `psi(d)`; `spread` is the scale of the exponential tail after it, so it is
+the unit `min_dist` is effectively measured in. Raising `spread` stretches the
+tail, similarity decays more slowly with distance, and the whole layout spreads
+out; lowering it contracts the layout. Most users leave it at 1.0 and tune
+`min_dist`. Keep `min_dist <= spread` (`umap-learn`'s own precondition); the fit
+was verified over spreads 0.25-20.
 
 **Measured on the demo's three planted clusters** (105 points, 30 epochs), showing
 the fitted `(a, b)` and the resulting mean cluster radius:

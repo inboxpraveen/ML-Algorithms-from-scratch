@@ -83,13 +83,16 @@ class TSNE:
             - Small perplexity: Focuses on very local structure
             - Large perplexity: Considers more global structure
             - Rule of thumb: perplexity < n_samples / 3
-            - Hard limit: perplexity < n_samples (fit_transform raises otherwise,
-              because the largest entropy reachable with n-1 neighbours is log2(n-1))
-            - Do not go near perplexity 1: the target entropy is then ~0 bits,
-              which no point with two near-equidistant neighbours can reach, so
-              the search drives beta up until exp(-d^2 * beta) underflows and
-              those rows of P collapse to zero (measured: sum(P) = 0.88 instead
-              of 1.0 at perplexity=1 on the demo blobs). Nothing warns you.
+            - Hard limits, both enforced by fit_transform (ValueError):
+              1 < perplexity < n_samples. The upper one holds because the
+              largest entropy reachable with n-1 neighbours is log2(n-1). The
+              lower one holds because the target entropy log2(perplexity) is
+              then <= 0 bits, and only a degenerate point mass has entropy 0 -
+              reachable only as beta -> infinity. Left unguarded, the search
+              drives beta up until exp(-d^2 * beta) underflows and whole rows
+              of P collapse to zero: measured on the demo blobs, sum(P) = 0.88
+              instead of 1.0 at perplexity=1 (18 of the 150 rows gone), and
+              ~0.0 at anything below 1 (every row gone).
 
         learning_rate : float, default=200.0
             Learning rate for gradient descent
@@ -435,10 +438,11 @@ class TSNE:
         Raises:
         -------
         ValueError
-            If X is empty, has more than 2 dimensions, or if perplexity is not
-            smaller than n_samples (the entropy target log2(perplexity) would
-            then be unreachable: the most a point can spread over n-1 neighbours
-            is log2(n-1) bits).
+            If X is empty, has more than 2 dimensions, or if perplexity falls
+            outside 1 < perplexity < n_samples. On either side the entropy
+            target log2(perplexity) is unreachable: the most a point can spread
+            over n-1 neighbours is log2(n-1) bits, and the least is 0 bits,
+            which only a degenerate point mass attains.
         """
         # Accept lists and 1-D input, as the docstring promises
         X = np.asarray(X, dtype=float)
@@ -454,6 +458,18 @@ class TSNE:
             )
 
         n_samples, n_features = X.shape
+
+        if self.perplexity <= 1:
+            raise ValueError(
+                f"perplexity ({self.perplexity}) must be greater than 1. The "
+                f"bandwidth search targets an entropy of log2(perplexity) bits, "
+                f"which is 0 or negative here, and only a degenerate point mass "
+                f"reaches entropy 0 - i.e. only as beta -> infinity, where "
+                f"exp(-d^2 * beta) underflows and whole rows of P collapse to "
+                f"zero, so P no longer sums to 1 and the KL objective is "
+                f"meaningless. Use the documented range 5-50, and keep "
+                f"perplexity < n_samples / 3."
+            )
 
         if self.perplexity >= n_samples:
             raise ValueError(

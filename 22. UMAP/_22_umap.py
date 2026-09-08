@@ -71,7 +71,7 @@ class UMAP:
     
     def __init__(self, n_components=2, n_neighbors=15, min_dist=0.1, 
                  metric='euclidean', learning_rate=1.0, n_epochs=200,
-                 init='spectral', random_state=None, verbose=0):
+                 init='spectral', random_state=None, verbose=0, spread=1.0):
         """
         Initialize the UMAP model
         
@@ -137,6 +137,19 @@ class UMAP:
             - 0: Silent
             - 1: Show progress
             - 2: Show detailed information
+
+        spread : float, default=1.0
+            Scale of the exponential tail of the target curve that (a, b) are
+            fitted to: psi(d) = exp(-(d - min_dist) / spread) for d >= min_dist
+            - Typical range: 0.25-20 (the range the solver was verified over);
+              most users leave it at 1.0 and tune min_dist instead
+            - Larger spread stretches that tail, so similarity decays more
+              slowly with distance and the whole embedding spreads out
+            - Smaller spread does the opposite: the layout contracts
+            - Works together with min_dist, which sets the flat part of the same
+              curve; spread is the unit min_dist is effectively measured in
+            - Scope: the fit is accurate for min_dist <= spread, which is
+              umap-learn's own precondition on this pair
         """
         self.n_components = n_components
         self.n_neighbors = n_neighbors
@@ -147,6 +160,7 @@ class UMAP:
         self.init = init
         self.random_state = random_state
         self.verbose = verbose
+        self.spread = spread
         
         # Will be set during fitting
         self.embedding_ = None
@@ -584,7 +598,7 @@ class UMAP:
         epoch_of_next_sample = epochs_per_sample.copy()
 
         # Parameters for optimization
-        a, b = self._find_ab_params(self.min_dist)
+        a, b = self._find_ab_params(self.min_dist, self.spread)
         if self.verbose > 1:
             print(f"  low-D kernel q(d) = 1/(1 + {a:.4f}*d^(2*{b:.4f})) "
                   f"for min_dist={self.min_dist}")
@@ -691,10 +705,10 @@ class UMAP:
         min_dist : float
             Minimum distance parameter
         spread : float
-            Scale of the exponential tail in the target curve. NOT a constructor
-            argument: every caller inside this class leaves it at 1.0, so the
-            only way to fit another spread is to call this method directly.
-            (umap-learn does expose `spread` on its estimator.)
+            Scale of the exponential tail in the target curve. This is the
+            constructor's `spread` argument (default 1.0); fit() and transform()
+            both pass self.spread through to here, so the whole model uses one
+            kernel. (umap-learn exposes `spread` on its estimator too.)
             
         Returns:
         --------
@@ -923,7 +937,7 @@ class UMAP:
             new_embedding[i] = share @ self.embedding_[knn_indices[i]]
 
         # Step 3: attractive-only refinement, training embedding frozen
-        a, b = self._find_ab_params(self.min_dist)
+        a, b = self._find_ab_params(self.min_dist, self.spread)
         n_sweeps = max(1, self.n_epochs // 4)
 
         for epoch in range(n_sweeps):

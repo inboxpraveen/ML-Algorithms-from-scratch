@@ -653,8 +653,9 @@ class TSNE:
 
 7. **`fit_transform(X)`** - Main algorithm
    - Accepts a 2-D array, a 1-D array, or a plain list of lists
-   - Validates the request: raises `ValueError` if `perplexity >= n_samples`,
-     because the largest entropy reachable with n-1 neighbours is log₂(n-1)
+   - Validates the request: raises `ValueError` unless `1 < perplexity < n_samples`,
+     because the entropy a point can reach over its n-1 neighbours runs from
+     0 bits up to log₂(n-1)
    - Compute high-D probabilities
    - Initialize embedding from a **private** `np.random.RandomState(random_state)`,
      so seeding t-SNE never disturbs your own global NumPy random stream
@@ -1291,6 +1292,8 @@ Now the actual update the code performs (all three lines):
 def fit_transform(self, X):
     # Setup
     X = np.asarray(X, dtype=float)          # accept lists / 1-D input
+    if self.perplexity <= 1:                # entropy target <= 0 bits
+        raise ValueError(...)
     if self.perplexity >= n_samples:        # unreachable entropy target
         raise ValueError(...)
 
@@ -1409,7 +1412,7 @@ For different dataset sizes:
 When in doubt: Start with 30
 ```
 
-**Hard limit, enforced by the code:** `perplexity` must be strictly less than
+**Hard upper limit, enforced by the code:** `perplexity` must be strictly less than
 `n_samples`, otherwise `fit_transform` raises `ValueError`. The reason is exact rather
 than stylistic: a point has only `n - 1` neighbours to spread probability over, so the
 largest achievable entropy is `log₂(n - 1)` bits, i.e. a perplexity of `n - 1`. Asking
@@ -1417,12 +1420,19 @@ for more is asking the binary search to solve an equation with no solution - it 
 run its 50 iterations, drive beta toward zero, and hand back a uniform `P` with no
 warning. So `perplexity=100` is fine on 400 points and an error on 90.
 
-**The bottom end has no guard, and it needs one more than you would think.** At
-`perplexity=1` the target entropy is `log₂(1) = 0` bits, which no point whose two nearest
-neighbours are nearly equidistant can ever reach; the search pushes beta up until
-`exp(-d²·beta)` underflows to zero for that entire row, and the row of `P` collapses to
-zeros. Measured on the Quick Start blobs, `P.sum()` is then `0.88` instead of `1.0`
-(18 of 150 rows gone), and nothing warns you. Stay in the documented 5-50 range.
+**Hard lower limit, enforced the same way:** `perplexity` must be strictly greater
+than `1`, and this end needed a guard more than you would think. At `perplexity=1` the
+target entropy is `log₂(1) = 0` bits, which no point whose two nearest neighbours are
+nearly equidistant can ever reach; the search pushes beta up until `exp(-d²·beta)`
+underflows to zero for that entire row, and the row of `P` collapses to zeros. Measured
+on the Quick Start blobs, `P.sum()` was then `0.88` instead of `1.0` (18 of the 150 rows
+gone), and below `1` the target entropy is negative, so **every** row dies and `P.sum()`
+falls to `~0.0` - a completely meaningless embedding, produced without a word of complaint.
+`fit_transform` now raises `ValueError` instead. The guard sits exactly on the
+mathematical boundary (entropy is `≥ 0`, and `= 0` only for a point mass at
+`beta → ∞`), so it rejects nothing that was ever computable: `perplexity=1.001` still
+runs and still gives `P.sum() = 1.0`. That is not a recommendation - stay in the
+documented 5-50 range.
 
 #### 2. Learning Rate
 

@@ -1168,6 +1168,18 @@ random_state=None       # None -> use numpy's global RNG (np.random.seed still w
 
 **Regression:**
 ```python
+# Setup: a fitted regression model to measure. As in the Quick Start above,
+# numpy is imported as np and the LightGBM class is in scope.
+np.random.seed(42)
+X = np.random.randn(200, 5)
+y = 2*X[:, 0] - 3*X[:, 1] + X[:, 2] + np.random.randn(200)*0.5
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
+
+model = LightGBM(n_estimators=100, learning_rate=0.1,
+                 num_leaves=31, min_data_in_leaf=5)
+model.fit(X_train, y_train)
+
 # R2 Score (coefficient of determination)
 r2 = model.score(X_test, y_test)
 print(f"R2: {r2:.4f}")  # 1.0 is perfect, 0.0 is baseline
@@ -1184,6 +1196,20 @@ print(f"RMSE: {rmse:.2f}")
 
 **Classification:**
 ```python
+# Setup: a fitted binary classifier - the two Gaussian blobs from the Quick Start
+np.random.seed(42)
+X = np.vstack([np.random.randn(100, 2) + np.array([-2, -2]),
+               np.random.randn(100, 2) + np.array([ 2,  2])])
+y = np.array([0]*100 + [1]*100)
+idx = np.random.permutation(200)
+X, y = X[idx], y[idx]
+X_train, X_test = X[:150], X[150:]
+y_train, y_test = y[:150], y[150:]
+
+model = LightGBM(n_estimators=40, learning_rate=0.1, num_leaves=15,
+                 min_data_in_leaf=10, objective='binary')
+model.fit(X_train, y_train)
+
 # Accuracy
 accuracy = model.score(X_test, y_test)
 print(f"Accuracy: {accuracy:.2%}")
@@ -1336,7 +1362,13 @@ splits away entirely - the totals move by more than a constant shift.
 ### Avoiding Overfitting
 
 **Signs of Overfitting:**
+
+This one is an excerpt rather than a script - the numbers are illustrative, and
+the `num_leaves` loop above is the runnable version of the same check.
+
 ```python
+# Excerpt: needs a fitted `model` plus X_train/y_train and a held-out
+# X_test/y_test already in scope. The values in the comments are made up.
 train_score = model.score(X_train, y_train)  # 0.95
 test_score = model.score(X_test, y_test)     # 0.75
 # Large gap = overfitting!
@@ -1375,11 +1407,23 @@ model = LightGBM(
 
 4. **Early Stopping:**
 ```python
+# Needs a validation split on top of the training split
+np.random.seed(42)
+X = np.random.randn(500, 10)
+y = 2*X[:, 0] - 3*X[:, 1] + X[:, 2]**2 + np.random.randn(500)*0.5
+X_train, X_val = X[:300], X[300:400]
+y_train, y_val = y[:300], y[300:400]
+
+model = LightGBM(n_estimators=500, learning_rate=0.1,
+                 num_leaves=31, min_data_in_leaf=10)
 model.fit(
     X_train, y_train,
     eval_set=[(X_val, y_val)],
     early_stopping_rounds=20
 )
+# Training stops once the validation loss has not improved for 20 rounds, and
+# the extra trees are discarded: len(model.trees) is what survived and
+# model.best_iteration_ is the index of the best one.
 ```
 
 ---
@@ -1551,30 +1595,30 @@ Why LightGBM can be better:
      *(explained here, not implemented - see Simplifications)*
 
 3. **Best Practices**
-   ```python
-   # Start here
-   model = LightGBM(
-       n_estimators=100,
-       learning_rate=0.1,
-       num_leaves=31,
-       min_data_in_leaf=20
-   )
-   
-   # If overfitting
-   model = LightGBM(
-       num_leaves=15,          # Reduce
-       min_data_in_leaf=50,    # Increase
-       lambda_l2=1.0,          # Add regularization
-       feature_fraction=0.8    # Add randomness
-   )
-   
-   # If underfitting
-   model = LightGBM(
-       num_leaves=63,          # Increase
-       n_estimators=200,       # More trees
-       learning_rate=0.05      # Lower rate, more trees
-   )
-   ```
+```python
+# Start here
+model = LightGBM(
+    n_estimators=100,
+    learning_rate=0.1,
+    num_leaves=31,
+    min_data_in_leaf=20
+)
+
+# If overfitting
+model = LightGBM(
+    num_leaves=15,          # Reduce
+    min_data_in_leaf=50,    # Increase
+    lambda_l2=1.0,          # Add regularization
+    feature_fraction=0.8    # Add randomness
+)
+
+# If underfitting
+model = LightGBM(
+    num_leaves=63,          # Increase
+    n_estimators=200,       # More trees
+    learning_rate=0.05      # Lower rate, more trees
+)
+```
 
 4. **When to Use LightGBM**
    - ✅ Large datasets (>100K samples)
