@@ -63,30 +63,7 @@ ML-Algorithms-from-scratch/
 │
 ...
 ...
-│
-├── 21. Gaussian Mixture Models/
-│   ├── _21_gmm.md                      # Comprehensive guide
-│   └── _21_gmm.py                      # Implementation
-│
-├── 22. UMAP/
-│   ├── _22_umap.md                     # Comprehensive guide
-│   └── _22_umap.py                     # Implementation
-│
-├── 23. Hidden Markov Models/
-│   ├── _23_hmm.md                      # Comprehensive guide
-│   └── _23_hmm.py                      # Implementation
-│
-├── 24. Autoencoders/
-│   ├── _24_autoencoders.md             # Comprehensive guide
-│   └── _24_autoencoders.py             # Implementation
-│
-├── 25. LDA/
-│   ├── _25_lda.md                      # Comprehensive guide
-│   └── _25_lda.py                      # Implementation
-│
-├── 26. Prophet/
-│   ├── _26_prophet.md                  # Comprehensive guide
-│   └── _26_prophet.py                  # Implementation
+...
 │
 ├── 27. Learning-to-Rank/
 │   ├── _27_learning_to_rank.md         # Comprehensive guide
