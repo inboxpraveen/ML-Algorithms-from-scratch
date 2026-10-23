@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.7%2B-blue.svg)](https://www.python.org/)
 [![NumPy](https://img.shields.io/badge/NumPy-Latest-orange.svg)](https://numpy.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: GPL 3.0](https://img.shields.io/badge/License-GPL%203.0-green.svg)](LICENSE)
 
 > Learn machine learning by understanding the math and code behind the algorithms!
 
@@ -34,7 +34,7 @@ Machine learning libraries like scikit-learn are powerful, but they hide the inn
 
 ## ✨ Key Features
 
-- **▶️ Runs Out of the Box**: `python "<any file>"` trains the model and prints results — NumPy only, no setup, no dataset to download
+- **▶️ Runs Out of the Box**: `python "<any file>"` trains the model and prints results, NumPy only, no setup, no dataset to download
 - **📖 Comprehensive Documentation**: Each algorithm includes detailed markdown files explaining concepts, math, and implementation
 - **💡 Step-by-Step Examples**: Real-world use cases with complete code examples
 - **🧮 Mathematical Foundations**: Equations derived in plain language, then mapped onto the code that implements them
@@ -142,7 +142,7 @@ pip install matplotlib scikit-learn
 ```
 
 **NumPy is the only requirement.** Every algorithm, and every runnable demo in every file,
-works with NumPy alone — including the boosting family, where the point is to see the
+works with NumPy alone, including the boosting family, where the point is to see the
 algorithm rather than call a library.
 
 ### Quick Start
@@ -175,49 +175,49 @@ Once you want to use an algorithm on your own data, they share a consistent inte
 
 Dimensionality-reduction algorithms (PCA, t-SNE, UMAP, Autoencoders) use
 `.fit_transform(X)` instead, and clustering algorithms add `.fit_predict(X)`. A few
-algorithms with no meaningful `fit/predict` shape — Apriori, HMM, Prophet — keep the API
+algorithms with no meaningful `fit/predict` shape, Apriori, HMM, Prophet, keep the API
 that is natural to them, documented in their own files.
 
 ### How to Use This Repository
 
-1. **Run the file** — `python "6. Decision Trees/_6_decision_trees.py"` — and see the
+1. **Run the file**, `python "6. Decision Trees/_6_decision_trees.py"`, and see the
    algorithm work before reading a single line about it
 2. **Read the Quick Start** at the top of the matching `.md` to understand what just happened
 3. **Read the Documentation** (click "View Details") for the intuition and the mathematics
-4. **Study the Code** in the `.py` file — it's heavily commented, and the formulas in the
+4. **Study the Code** in the `.py` file, it's heavily commented, and the formulas in the
    docs map directly onto the lines that implement them
-5. **Experiment** — modify parameters, try your own data!
+5. **Experiment**, modify parameters, try your own data!
 
 ### Learning Path
 
-The numbering is the recommended order — each algorithm leans on ideas from the ones before
+The numbering is the recommended order, each algorithm leans on ideas from the ones before
 it. If you are starting out, work through the stages rather than jumping to the famous names
 at the end; XGBoost makes far more sense once you have built a decision tree by hand.
 
-**Stage 1 — Foundations (1-4).** Start with **Linear Regression**: one feature, a closed-form
+**Stage 1, Foundations (1-4).** Start with **Linear Regression**: one feature, a closed-form
 solution, and the whole idea of fitting a model to data. **Multiple Regression** generalises
-it to many features, **Ridge Regression** introduces regularization — your first encounter
-with the bias-variance trade-off — and **Logistic Regression** turns regression into
+it to many features, **Ridge Regression** introduces regularization, your first encounter
+with the bias-variance trade-off, and **Logistic Regression** turns regression into
 classification and brings in gradient descent.
 
-**Stage 2 — Core classifiers (5-9).** **KNN** is the simplest possible classifier and needs
+**Stage 2, Core classifiers (5-9).** **KNN** is the simplest possible classifier and needs
 no training at all. **Decision Trees** introduce splitting criteria and are the single most
-important prerequisite in this repo — seven later algorithms are built out of them.
+important prerequisite in this repo, seven later algorithms are built out of them.
 **Random Forests** show why averaging many decorrelated models beats one good one. **SVM**
 brings margins and the kernel trick; **Naive Bayes** brings the probabilistic view.
 
-**Stage 3 — Unsupervised learning (10-13).** **k-Means** and **Hierarchical Clustering**
+**Stage 3, Unsupervised learning (10-13).** **k-Means** and **Hierarchical Clustering**
 find structure without labels, **PCA** introduces dimensionality reduction through
-eigenvectors, and **Apriori** mines association rules — a different kind of pattern entirely.
+eigenvectors, and **Apriori** mines association rules, a different kind of pattern entirely.
 
-**Stage 4 — Boosting (14-19).** Read these in order; they are a single conversation.
-**t-SNE** is the exception here (a visualization method — take it alongside PCA).
+**Stage 4, Boosting (14-19).** Read these in order; they are a single conversation.
+**t-SNE** is the exception here (a visualization method, take it alongside PCA).
 **AdaBoost** introduces the idea of training models on the mistakes of earlier ones,
 **Gradient Boosting** reframes that as gradient descent in function space, and **XGBoost**
 adds second-order optimization and regularization. **LightGBM** and **CatBoost** then each
 change one thing: leaf-wise growth, and ordered target statistics for categorical features.
 
-**Stage 5 — Specialised methods (20-28).** Pick by what you need. Anomaly detection
+**Stage 5, Specialised methods (20-28).** Pick by what you need. Anomaly detection
 (**Isolation Forest**), probabilistic clustering (**GMM**), manifold learning (**UMAP**),
 sequence models (**HMM**), neural representation learning (**Autoencoders**), topic modelling
 (**LDA**), forecasting (**Prophet**), search ranking (**Learning-to-Rank**), and
@@ -257,7 +257,7 @@ Each algorithm includes:
   - Every parameter documented with its type, default, effect, and a typical range
   - Inline comments at each non-obvious mathematical step
   - Multiple usage examples, each one executed to confirm it works
-  - A **Plug-and-Play Demo** you can run with `python <file>` — NumPy only, seeded, fast
+  - A **Plug-and-Play Demo** you can run with `python <file>`, NumPy only, seeded, fast
 
 ## 🤝 Contributing
 
@@ -276,7 +276,7 @@ Contributions are welcome and appreciated! Here's how you can help:
 
 When contributing, please:
 1. Follow the existing code style (clean, well-documented, educational)
-2. Include comprehensive docstrings and comments — every parameter gets its type, default,
+2. Include comprehensive docstrings and comments, every parameter gets its type, default,
    effect, and a typical range; every method states the formula it implements
 3. Add usage examples in the code, and **run every one of them** before submitting
 4. End the file with an `if __name__ == "__main__":` Plug-and-Play Demo: NumPy only,
@@ -284,12 +284,12 @@ When contributing, please:
 5. Update or create corresponding `.md` documentation, opening with a **Quick Start** whose
    expected output you captured from a real run
 6. Ensure code works with NumPy only (no additional ML libraries for core implementation)
-7. Validate against the canonical algorithm — scikit-learn or SciPy where an equivalent
+7. Validate against the canonical algorithm, scikit-learn or SciPy where an equivalent
    exists, otherwise a problem whose answer you can compute by hand
 8. Quote no number you have not measured. If your implementation simplifies the canonical
    algorithm, add a **Simplifications** section saying what differs and what it costs
 
-**Note**: The goal is education, not performance. Prioritize clarity over optimization —
+**Note**: The goal is education, not performance. Prioritize clarity over optimization, 
 but not over correctness. An implementation that is clear and wrong teaches the wrong thing.
 
 ## ❓ Frequently Asked Questions
@@ -301,7 +301,7 @@ A: No, these implementations prioritize learning over performance. Use scikit-le
 A: Basic knowledge helps, but each algorithm includes math explanations in plain language.
 
 **Q: Can I compare these with scikit-learn?**  
-A: Absolutely, and you should — many examples do exactly that. These implementations are
+A: Absolutely, and you should, many examples do exactly that. These implementations are
 checked against their canonical counterparts: where scikit-learn or SciPy has an equivalent,
 the results are expected to match closely, and where no library exists (XGBoost, LightGBM,
 CatBoost, UMAP, HMM, Prophet, Learning-to-Rank, Matrix Factorization) the implementation is
@@ -311,7 +311,7 @@ section rather than leaving you to discover it.
 
 **Q: How close are these to the real thing?**  
 A: Close on the mathematics, not on the engineering. The goal is that the algorithm behaves
-like the canonical one — same update rules, same objective, comparable accuracy on the same
+like the canonical one, same update rules, same objective, comparable accuracy on the same
 data. What you will not find is the engineering that makes production libraries fast:
 histogram-based split finding at scale, multithreading, cache-aware memory layouts, GPU
 kernels, or distributed training. A from-scratch tree here may be 20-300x slower than
@@ -333,7 +333,7 @@ A: With the documentation provided, expect 1-2 hours per algorithm for thorough 
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See [LICENSE](LICENSE) for the GNU General Public License v3.0.
 
 ## 🙏 Acknowledgments
 
