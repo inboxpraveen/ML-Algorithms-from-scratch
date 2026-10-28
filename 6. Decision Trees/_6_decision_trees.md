@@ -1,6 +1,6 @@
 # Decision Trees from Scratch: A Comprehensive Guide
 
-Welcome to the world of Decision Trees! 🌳 In this comprehensive guide, we'll explore one of the most intuitive and powerful machine learning algorithms. Think of it as a flowchart that makes decisions!
+Welcome to the world of Decision Trees! In this comprehensive guide, we'll explore one of the most intuitive and powerful machine learning algorithms. Think of it as a flowchart that makes decisions!
 
 ## Table of Contents
 0. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1221,7 +1221,7 @@ print(f"Best validation score: {best_score:.4f}")
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Highly Interpretable**
    - Easy to visualize and explain
@@ -1253,7 +1253,7 @@ print(f"Best validation score: {best_score:.4f}")
      already recorded, weighted by node size and normalised. See the worked
      example in [Understanding the Code](#understanding-the-code).
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Prone to Overfitting**
    - Can create overly complex trees
@@ -1284,18 +1284,18 @@ print(f"Best validation score: {best_score:.4f}")
 ### When to Use Decision Trees
 
 **Good Use Cases**:
-- ✅ Need interpretable model
-- ✅ Have mixed data types
-- ✅ Non-linear relationships
-- ✅ Feature interactions important
-- ✅ Don't want to scale features
+- ✓ Need interpretable model
+- ✓ Have mixed data types
+- ✓ Non-linear relationships
+- ✓ Feature interactions important
+- ✓ Don't want to scale features
 
 **Bad Use Cases**:
-- ❌ Need stable predictions
-- ❌ Linear relationships (use regression)
-- ❌ Very high dimensional data
-- ❌ Need to extrapolate
-- ❌ Imbalanced data (without handling)
+- ✗ Need stable predictions
+- ✗ Linear relationships (use regression)
+- ✗ Very high dimensional data
+- ✗ Need to extrapolate
+- ✗ Imbalanced data (without handling)
 
 ---
 
@@ -1613,20 +1613,20 @@ Decision Trees are a fundamental and powerful algorithm! By understanding:
 - How to prevent overfitting with constraints
 - How to interpret and visualize decisions
 
-You've gained a crucial tool in your machine learning toolkit! 🌳
+You've gained a crucial tool in your machine learning toolkit!
 
 **When to Use Decision Trees**:
-- ✅ Need interpretable model
-- ✅ Non-linear patterns
-- ✅ Mixed data types
-- ✅ Feature interactions matter
-- ✅ Classification or regression
+- ✓ Need interpretable model
+- ✓ Non-linear patterns
+- ✓ Mixed data types
+- ✓ Feature interactions matter
+- ✓ Classification or regression
 
 **When to Use Something Else**:
-- ❌ Need stable predictions → Use ensemble methods
-- ❌ High-dimensional sparse data → Use linear models
-- ❌ Linear relationships → Use linear/logistic regression
-- ❌ Need *calibrated* probabilities → Use logistic regression, or calibrate
+- ✗ Need stable predictions → Use ensemble methods
+- ✗ High-dimensional sparse data → Use linear models
+- ✗ Linear relationships → Use linear/logistic regression
+- ✗ Need *calibrated* probabilities → Use logistic regression, or calibrate
   the tree. `predict_proba` here returns raw leaf frequencies, so a pure leaf
   reports 1.0 however few samples it holds - confident, but not honest.
 
@@ -1638,5 +1638,5 @@ You've gained a crucial tool in your machine learning toolkit! 🌳
 - Explore feature importance analysis with `feature_importances_`
 - Visualize your trees to understand decisions
 
-Happy coding! 💻🌳
+Happy coding!
 

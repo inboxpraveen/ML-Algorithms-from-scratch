@@ -128,14 +128,14 @@ Read that output carefully, because it is the whole algorithm in three numbers:
 
 ### Key Concept
 
-Imagine you're a search engine. When someone searches for "machine learning tutorials", you have thousands of web pages to show. You don't just need to know which pages are good—you need to know the **order** to show them in. The first page needs to be better than the second, the second better than the third, and so on.
+Imagine you're a search engine. When someone searches for "machine learning tutorials", you have thousands of web pages to show. You don't just need to know which pages are good, you need to know the **order** to show them in. The first page needs to be better than the second, the second better than the third, and so on.
 
 Learning-to-Rank solves this by:
 1. Learning from examples of "this document should rank higher than that one"
 2. Optimizing directly for ranking quality (not prediction accuracy)
 3. Considering the relative order of items, not just their scores
 
-Think of it like training a judge to rank contestants in a competition—it's not about giving exact scores, it's about getting the order right!
+Think of it like training a judge to rank contestants in a competition. It's not about giving exact scores, it's about getting the order right!
 
 ## When to Use Learning-to-Rank
 
@@ -222,7 +222,7 @@ Where IDCG = DCG of the ideal ranking (sorted by true relevance)
 
 ### 4. LambdaRank Gradients
 
-This is where the magic happens! 🎯
+This is where the magic happens!
 
 **Traditional gradient descent**: Optimize loss function directly
 
@@ -243,7 +243,7 @@ Where:
 - `σ` = Shape parameter of the logistic (this implementation uses σ = 1.0)
 - The second factor is the **logistic** term, not the sigmoid derivative
 
-**How the logistic factor behaves** — this is the part that makes LambdaRank work:
+**How the logistic factor behaves**; this is the part that makes LambdaRank work:
 
 | Situation | `sᵢ - sⱼ` | Weight |
 |---|---|---|
@@ -252,14 +252,14 @@ Where:
 | Pair already confidently correct | very positive | → 0 (no push) |
 
 **Key Idea**: 
-- Every pair with *different* labels gets a gradient — there is **no** "only if the order is wrong" test
+- Every pair with *different* labels gets a gradient; there is **no** "only if the order is wrong" test
 - The logistic factor already fades a correctly-ordered pair out to zero on its own
 - Weight the push by how much exchanging their positions would change NDCG
 - Larger NDCG change → stronger push
 
-> **Why no ordering guard?** It is tempting to write `if relevance[i] > relevance[j] and score[i] < score[j]`. That version cannot learn. Boosting starts every document at the *same* constant base score, so on round 0 no pair is strictly mis-ordered, every lambda is 0, the first tree is a bare leaf of value 0, the scores never move — and the model stays frozen at its initialisation forever. The logistic factor is what makes the guard unnecessary *and* harmful.
+> **Why no ordering guard?** It is tempting to write `if relevance[i] > relevance[j] and score[i] < score[j]`. That version cannot learn. Boosting starts every document at the *same* constant base score, so on round 0 no pair is strictly mis-ordered, every lambda is 0, the first tree is a bare leaf of value 0, the scores never move, and the model stays frozen at its initialisation forever. The logistic factor is what makes the guard unnecessary *and* harmful.
 
-> **Why the logistic, not `σ'`?** The sigmoid derivative `σ'(x) = σ(x)(1 - σ(x))` **peaks at a tie** and decays toward 0 as a pair becomes more badly mis-ordered — precisely backwards. At a score gap of 5.0 it gives 0.0066 where the canonical logistic gives 0.9933. Burges (2010) uses the logistic form.
+> **Why the logistic, not `σ'`?** The sigmoid derivative `σ'(x) = σ(x)(1 - σ(x))` **peaks at a tie** and decays toward 0 as a pair becomes more badly mis-ordered, precisely backwards. At a score gap of 5.0 it gives 0.0066 where the canonical logistic gives 0.9933. Burges (2010) uses the logistic form.
 
 ### 5. The LambdaRank Algorithm
 
@@ -296,7 +296,7 @@ for i in range(n_docs):
         gradient[lo] -= lambda_ij   # Push the less relevant document down
 ```
 
-This is exactly what `_compute_lambda_gradients` in `_27_learning_to_rank.py` does, line for line. Note step 3 in particular: `|ΔNDCG|` comes from the closed form over rank **positions**. Computing it by swapping the two *scores* and re-evaluating NDCG looks equivalent but is not — when the two scores are equal (as they all are on round 0) swapping them leaves the array byte-identical and `|ΔNDCG|` is identically zero.
+This is exactly what `_compute_lambda_gradients` in `_27_learning_to_rank.py` does, line for line. Note step 3 in particular: `|ΔNDCG|` comes from the closed form over rank **positions**. Computing it by swapping the two *scores* and re-evaluating NDCG looks equivalent but is not; when the two scores are equal (as they all are on round 0) swapping them leaves the array byte-identical and `|ΔNDCG|` is identically zero.
 
 ### 6. Gradient Boosting Framework
 
@@ -488,7 +488,7 @@ X_te, y_te, q_te = X[test], y[test], query_ids[test]
 # This leaks information (test documents from training queries)
 ```
 
-This is not just advice — it is what the Quick Start above and Examples 2 and 3 in
+This is not just advice; it is what the Quick Start above and Examples 2 and 3 in
 `_27_learning_to_rank.py` actually do. The difference is large and visible: on the
 e-commerce data the model reaches **NDCG@5 = 1.0000 on its training queries** but
 **0.9151 on the four queries it has never seen**. A document-level split would have
@@ -609,11 +609,11 @@ Raw scores: [1.4267 2.6406 1.4267]
 NDCG@3 on the new query: 1.0000
 ```
 
-Candidate B is ranked first, then A, then C — which is the right order, since B dominates
+Candidate B is ranked first, then A, then C, which is the right order, since B dominates
 A and C on every feature. Note that A and C receive the *same* score (1.4267): the trained
 trees route both of them to the same leaf, and `rank()` breaks the tie by input order.
 Identical scores for distinct documents are normal for a small tree ensemble, and they are
-also why `_compute_ndcg` uses a **stable** sort — so a tie is resolved reproducibly rather
+also why `_compute_ndcg` uses a **stable** sort, so a tie is resolved reproducibly rather
 than arbitrarily.
 
 ## Hyperparameter Tuning
@@ -668,8 +668,8 @@ than arbitrarily.
 - **Default**: 20
 - **Tuning**: set `verbose=0` inside loops, grid searches and scripts; the training NDCG
   it prints is a useful convergence check when exploring interactively
-- **Which NDCG**: the line reports the metric at the `ndcg_k` cutoff — the full list by
-  default, or `Avg NDCG@k` when `ndcg_k=k` is set — so the number you watch converging is
+- **Which NDCG**: the line reports the metric at the `ndcg_k` cutoff: the full list by
+  default, or `Avg NDCG@k` when `ndcg_k=k` is set, so the number you watch converging is
   the objective the gradients are actually optimising
 
 #### 7. `ndcg_k`
@@ -677,7 +677,7 @@ than arbitrarily.
 - **Default**: `None` (optimise the full result list)
 - **Tuning**: set it to the same k you report (`ndcg_k=5` alongside `evaluate(..., k=5)`)
   so training and evaluation optimise the same objective. On the Quick Start data this
-  lifts held-out NDCG@5 from 0.9151 to 0.9472 — `None` is the backward-compatible default,
+  lifts held-out NDCG@5 from 0.9151 to 0.9472, `None` is the backward-compatible default,
   not the best one. The exception is a very small k on a very long result list, where
   pairs that both sit below position k stop contributing any gradient
 
@@ -762,7 +762,7 @@ loop is quadratic in k, so 200 queries of 10 documents is far cheaper than 20 qu
 of 100 documents even though both are 2,000 rows.
 
 **Prediction**:
-- O(T × max_depth) per query-document pair — one root-to-leaf walk per tree.
+- O(T × max_depth) per query-document pair: one root-to-leaf walk per tree.
   It does **not** depend on the number of features, and it is not logarithmic in the depth.
 
 **Space Complexity**: O(T × 2^max_depth) in the worst case (a full binary tree of that depth).
@@ -781,10 +781,10 @@ median of 5 `fit()` calls, Python 3.13 / numpy 2.3:
 
 Read these as a shape, not a benchmark: wall clock varies by machine, and the label
 distribution matters as much as the row count: the pair loop visits every pair, but only
-pairs with *different* labels do any work inside it — the utility-derived labels above
+pairs with *different* labels do any work inside it: the utility-derived labels above
 leave fewer such pairs than uniform random labels would.
 
-The whole `__main__` demo — three examples and 400 boosting rounds in total — runs in
+The whole `__main__` demo (three examples and 400 boosting rounds in total) runs in
 about 5 seconds.
 
 **Small datasets** (< 1,000 rows):
@@ -839,21 +839,21 @@ where `w_i = ∂²C/∂s_i²` is the second derivative of the pairwise cost
 
 **Mind the sign convention.** The `λ` of sections 4-5 is the *ascent* direction `-∂C/∂s_i`
 (positive λ = push this document up), so `w_i = -∂λ_i/∂s_i`, **not** `+∂λ_i/∂s_i`. Writing
-it the other way round flips the sign of every non-zero `w_i` — central-differencing the code's own
+it the other way round flips the sign of every non-zero `w_i`, central-differencing the code's own
 `_compute_lambda_gradients` on `relevances = [3, 1]` gives `∂λ_hi/∂s_hi = -0.072548` at a
-tie against `w_ij = +0.072548` — and the Newton step `Σλ / Σw` would then push documents
+tie against `w_ij = +0.072548`, and the Newton step `Σλ / Σw` would then push documents
 the wrong way. Presentations that define `λ = +∂C/∂s` can write `w = +∂λ/∂s`; this file's
 `λ` is the negative of that, so the minus sign has to be carried over with it.
 
 **Here:** `_build_tree` returns `{'leaf': True, 'value': np.mean(gradients)}`.
 
 **Why omitted:** it requires threading a second per-document accumulator through the pair
-loop, the tree builder and both leaf sites — and, more importantly, it would hide the one
+loop, the tree builder and both leaf sites, and, more importantly, it would hide the one
 idea the file exists to show, that a *ranking metric* can be turned into a gradient at all.
 
 **Consequence:** the step size per leaf is not curvature-corrected, so convergence is slower
 and more sensitive to `learning_rate`. It does not change what the model converges *to*.
-This is the same relationship as plain gradient boosting versus XGBoost — compare
+This is the same relationship as plain gradient boosting versus XGBoost; compare
 `_17_xgboost.py`'s `_compute_gradient_hessian`, which does compute both.
 
 ### 2. The split search looks at 10 thresholds per feature
@@ -864,7 +864,7 @@ distinct feature values (or a weighted quantile sketch approximates them).
 **Here:** if a feature has more than 10 candidate midpoints, 10 evenly spaced ones are taken:
 `thresholds[np.linspace(0, len(thresholds) - 1, 10).astype(int)]`.
 
-**Consequence:** split points are quantised. Note the *evenly spaced* part matters — an
+**Consequence:** split points are quantised. Note the *evenly spaced* part matters: an
 earlier version of this file used `thresholds[:10]`, the 10 **smallest** midpoints, so the
 upper part of every feature's range was never considered and trees could only split near a
 feature's minimum.
@@ -874,7 +874,7 @@ feature's minimum.
 **Canonical:** LambdaMART truncates the discount at the target cutoff k, so training
 optimises the same NDCG@k that you report.
 
-**Here:** truncation *is* implemented — positions below the cutoff get a zero discount —
+**Here:** truncation *is* implemented (positions below the cutoff get a zero discount)
 but `ndcg_k=None` is the default, which optimises the full result list. Pass `ndcg_k=5`
 to match `evaluate(..., k=5)`.
 
@@ -1169,4 +1169,4 @@ This implementation is educational and demonstrates core concepts. For productio
 
 ---
 
-**Happy ranking!** 🏆📊🔍
+**Happy ranking!**

@@ -1,6 +1,6 @@
 # AdaBoost from Scratch: A Comprehensive Guide
 
-Welcome to the world of Ensemble Learning! 🚀 In this comprehensive guide, we'll explore AdaBoost (Adaptive Boosting) - one of the most powerful and elegant boosting algorithms. Think of it as combining the wisdom of many "weak" experts to make incredibly strong predictions!
+Welcome to the world of Ensemble Learning! In this comprehensive guide, we'll explore AdaBoost (Adaptive Boosting) - one of the most powerful and elegant boosting algorithms. Think of it as combining the wisdom of many "weak" experts to make incredibly strong predictions!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -392,7 +392,7 @@ learner is right and -1 when it is wrong):
 > already has.
 
 **Example** (a 4-sample dataset, so εₜ and αₜ must be derived from *these* four
-samples — do not reuse the 0.693 from the 10-sample illustration above):
+samples, do not reuse the 0.693 from the 10-sample illustration above):
 ```
 Current weights:  [0.25, 0.25, 0.25, 0.25]   (4 samples, uniform, sum = 1.0)
 Predictions:      [ ✓,    ✗,    ✓,    ✓   ]
@@ -413,7 +413,7 @@ After normalization:  [0.1667, 0.5000, 0.1667, 0.1667]  Sum = 1.0
 → Next learner focuses 50% attention on the misclassified sample!
 ```
 
-That 50% is not a coincidence — it *is* the invariant from the box above. This
+That 50% is not a coincidence; it *is* the invariant from the box above. This
 learner's weighted error under the new weights is exactly 0.500, so it is now no
 better than a coin flip on the re-weighted data. Whenever you work an example by
 hand, computing α from the same ε you use for the mistakes is what makes the
@@ -572,7 +572,7 @@ accepts `0/1`. The conversion is one line:
 y = np.where(y == 0, -1, 1)
 ```
 
-The ±1 convention is not arbitrary bookkeeping — the whole derivation depends on
+The ±1 convention is not arbitrary bookkeeping: the whole derivation depends on
 it. The product `yᵢ × hₜ(xᵢ)` is +1 exactly when the learner is right and -1
 when it is wrong, which is what lets a single `exp(-αₜ × yᵢ × hₜ(xᵢ))` express
 both the "shrink" and the "grow" branch of the weight update.
@@ -593,9 +593,9 @@ production library adds, and what it costs you here:
 | `alpha = ln((1-e)/e)` (sklearn SAMME) | Uses `0.5 × ln((1-e)/e)` | Freund-Schapire convention. Every stored alpha is exactly **half** of sklearn's. Predictions are identical, because `predict` only takes the *sign* of the weighted sum and `predict_proba` divides by `Σ|α|`. |
 | Per-round sample-weight floor at machine epsilon (sklearn issue #20320) | **Not implemented** | Did not bite in any configuration measured inside the documented `learning_rate` range of 0.1–1.0 (three datasets × `learning_rate` ∈ {0.1, 0.5, 1.0}, `n_estimators=100`: no α ever reached the clip). Above that range the weights collapse until α pins at the value the `1e-10` error clip implies. On `make_classification(n_samples=150, n_features=4, random_state=3)` with `n_estimators=50` the pinning starts at `learning_rate=2.0` (18 of 50 alphas pinned, train accuracy still 100%) and is ruinous at `learning_rate=5.0`: train accuracy **96.67% after the first stump → 4.67% after all 50**, 48 of the 50 alphas pinned at 57.5646. sklearn's `AdaBoostClassifier` with depth-1 stumps at the same `learning_rate` and `n_estimators` scores 96.67%. |
 
-Everything else — the stump search over both polarities, the alpha formula, the
+Everything else: the stump search over both polarities, the alpha formula, the
 weight update, the early stop on a perfect learner, the SAMME probability
-transform — matches the reference algorithm.
+transform, matches the reference algorithm.
 
 ---
 
@@ -675,7 +675,7 @@ A perfect stump leaves nothing to boost, so fit() STOPS EARLY:
 (scikit-learn's AdaBoostClassifier does exactly the same.)
 ```
 
-**Round 2**: *hypothetical* — this is what the next round would look like if the
+**Round 2**: *hypothetical*; this is what the next round would look like if the
 data were **not** perfectly separable. The 8-sample dataset above never reaches
 it; the numbers below imagine a first learner that got samples 2 and 5 wrong
 (2 of 8, so ε = 0.25 and α = 0.549).
@@ -781,7 +781,7 @@ its weighted error is 0, and `fit()` stops early. Requesting `n_estimators=3`
 does not force three learners when one is already perfect.
 
 To see a real multi-step learning curve you need data a single stump *cannot*
-solve — flip one label and re-run:
+solve, flip one label and re-run:
 
 ```python
 y_hard = y.copy()
@@ -804,7 +804,7 @@ for i, acc in enumerate(model.staged_score(X, y_hard), 1):
 ```
 
 Now the numbers tell a real story. Learner 1 gets 7 of 8 right, so
-ε = 1/8 = 0.125 and α = 0.5 × ln(0.875 / 0.125) = 0.5 × ln(7) = **0.973** —
+ε = 1/8 = 0.125 and α = 0.5 × ln(0.875 / 0.125) = 0.5 × ln(7) = **0.973**,
 exactly the first value printed. Learner 2 does not improve accuracy on its own,
 but it shifts the weighted vote; learner 3 finally flips the stubborn point and
 the ensemble reaches 100%. Note the alphas *rising* (0.97 → 1.28 → 1.61): each
@@ -970,7 +970,7 @@ weights = np.ones(8) / 8
 ### 2. Training Weak Learner (Decision Stump)
 
 The real helper is called **`_create_decision_stump`**, and it returns a stump
-*dictionary* plus the error — not a `(feature, threshold, error)` triple:
+*dictionary* plus the error, not a `(feature, threshold, error)` triple:
 
 ```python
 def _create_decision_stump(self, X, y, weights):
@@ -1034,8 +1034,8 @@ Three details that are easy to miss:
   residue of up to `2e-16` for a *flawless* mirrored stump instead of `0.0`, and
   it is simply wrong for any weight vector that is not normalized.
 - **The midpoint is guarded.** For two feature values one ULP apart,
-  `(v[i] + v[i+1]) / 2` rounds *up* onto `v[i+1]` — that happens for half of all
-  adjacent double pairs — and for values near `1e308` the sum overflows to
+  `(v[i] + v[i+1]) / 2` rounds *up* onto `v[i+1]`; that happens for half of all
+  adjacent double pairs, and for values near `1e308` the sum overflows to
   `inf`. Since the rule is `col <= threshold`, either case drags the upper value
   to the **left** and the intended split becomes unreachable: a perfectly
   separable two-value feature would score 0.5 error and α = 0. Falling back to
@@ -1046,8 +1046,8 @@ Three details that are easy to miss:
 One thing the midpoints *do* change: the old raw-value candidate list also
 contained `threshold = max(v)`, which sends every sample left and is therefore a
 constant classifier. Midpoints drop it, so the stump family here is one
-candidate smaller per feature. That is deliberate — sklearn's depth-1 tree
-cannot emit a constant classifier either — but it means the best achievable
+candidate smaller per feature. That is deliberate, sklearn's depth-1 tree
+cannot emit a constant classifier either, but it means the best achievable
 weighted error is occasionally a little higher than raw values would allow.
 
 **Step-by-step example**:
@@ -1073,7 +1073,7 @@ error_flipped  = 1.0        # polarity B: total_weight - 0.0, and here
 
 ### 3. Inside fit(): calculating alpha
 
-There is no `_calculate_alpha` method — the computation lives inline in the
+There is no `_calculate_alpha` method: the computation lives inline in the
 `fit()` loop:
 
 ```python
@@ -1117,7 +1117,7 @@ alpha = 0.693 * 0.5 = 0.347
 ```
 
 Because the learning rate scales α *before* it enters the weight update, the
-wrong-to-right re-weighting ratio becomes `e^(2α) = ((1-ε)/ε)^learning_rate` —
+wrong-to-right re-weighting ratio becomes `e^(2α) = ((1-ε)/ε)^learning_rate`,
 identical to scikit-learn's SAMME, which computes `exp(learning_rate × ln((1-ε)/ε))`.
 
 **The early stop**:
@@ -1147,11 +1147,11 @@ Note **what** is tested: the predictions, not the weighted error. The two agree
 whenever the weights still carry real mass, which is why `ε_t == 0` is the
 textbook way to state the condition. But at a large `learning_rate` the easy
 samples' weights collapse toward `0` and the misclassified mass collapses with
-them — long before any weight is literally `0`, and it never has to get there.
+them, long before any weight is literally `0`, and it never has to get there.
 On `make_moons(n_samples=120, noise=0.25, random_state=1)` at
 `learning_rate=3.0` the smallest weight is `4.3e-22` by round 5, and there a
 tolerance of `error <= 1e-10` fires on a stump
-that reports `ε = 1e-13` while getting 19 of 120 samples wrong — ending training
+that reports `ε = 1e-13` while getting 19 of 120 samples wrong, ending training
 at 84.17% where boosting on to 60 learners reaches 100%. Thirteen rounds later
 the reported error is exactly `0.0` on a stump with 79 of 120 wrong (the
 ensemble is at 69.17% there): its true misclassified mass, `9.5e-18`, disappears
@@ -1163,7 +1163,7 @@ only fire on a genuinely flawless learner.
 
 ### 4. Inside fit(): updating sample weights
 
-There is no `_update_weights` method either — this is also inline in `fit()`:
+There is no `_update_weights` method either; this is also inline in `fit()`:
 
 ```python
 # Make predictions with this stump
@@ -1363,11 +1363,11 @@ Low (0.1-0.3):
 ```
 
 **Supported range: `0.1` to `1.0`.** Values above `1.0` are neither validated nor
-rejected by `__init__` — they are simply not supported, and the reason is
+rejected by `__init__`; they are simply not supported, and the reason is
 numerical rather than stylistic. This class keeps no per-round sample-weight
 floor (see [Simplification vs. canonical AdaBoost](#simplification-vs-canonical-adaboost)),
 so a large learning rate drives the easy samples' weights down by dozens of
-orders of magnitude — at `learning_rate=2.0` and above, to between `1e-24` and
+orders of magnitude; at `learning_rate=2.0` and above, to between `1e-24` and
 `1e-152` in the runs measured for this note, and far enough out to **exactly
 `0.0`**. Those samples stop steering the
 stump search, the pool of stumps worth picking narrows, and the ensemble begins
@@ -1384,11 +1384,11 @@ ensemble ends up worse than the first learner it trained.
 
 This is degradation, not a stall: 15 distinct stumps is not one stump copied 60
 times, and the ensemble's prediction vector still changes at every one of the 59
-rounds after the first. The model keeps moving — it just stops improving. Within
+rounds after the first. The model keeps moving; it just stops improving. Within
 the supported range the weights stay far from the danger zone: across the four
 datasets measured for this note, at `learning_rate` ∈ {0.1, 0.5, 1.0} with
 `n_estimators=60`, the smallest sample weight in any round never fell below
-`2e-5` — nowhere near underflow. That is evidence from four datasets rather than
+`2e-5`, nowhere near underflow. That is evidence from four datasets rather than
 a guarantee, but the mechanism is general: underflow needs the weight ratio
 `((1-e)/e)^learning_rate` to compound, and at `learning_rate <= 1.0` it does not
 compound fast enough to reach the limits of double precision in a normal number
@@ -1499,7 +1499,7 @@ plt.show()
 
 ### Comparing with Base Learner
 
-You do not need sklearn for this — `AdaBoost(n_estimators=1)` *is* a single
+You do not need sklearn for this, `AdaBoost(n_estimators=1)` *is* a single
 decision stump, fitted by exactly the same search:
 
 ```python
@@ -1527,7 +1527,7 @@ print(f"AdaBoost (50): {adaboost.score(X_test, y_test):.2%}")
 ```
 
 A single axis-aligned cut has essentially no purchase on a radially symmetric
-target — on this 60-row test set it lands *below* chance, at 45%. Fifty of them,
+target; on this 60-row test set it lands *below* chance, at 45%. Fifty of them,
 weighted, box in the circle well enough for 95%. (The Quick Start at the top of
 this page runs the same experiment at a different point in the random stream and
 gets 61.67% → 93.33%; the gap is large either way, but the single-stump number
@@ -1535,7 +1535,7 @@ is noisy because it is one arbitrary cut.)
 
 Report the gap in **percentage points**, not with `:.2%`. Formatting the
 *difference* of two proportions as a percentage invites the reader to hear
-"50% improvement", which is a different quantity — the relative gain here is
+"50% improvement", which is a different quantity: the relative gain here is
 95.00/45.00 - 1 = 111%.
 
 ### Cross-Validation
@@ -1572,7 +1572,7 @@ n_estimators=100: 90.00% (+/- 10.95%)
 
 The curve is flat-to-slightly-falling: on 100 overlapping points, 10 stumps are
 already enough, and adding 90 more only fits noise. This is exactly the
-"plateau" you are looking for — and a useful reminder that more estimators is
+"plateau" you are looking for, and a useful reminder that more estimators is
 not automatically better.
 
 ---
@@ -1679,7 +1679,7 @@ Feature search: ✅ Parallelizable (within each estimator)
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **High Accuracy**
    - Often matches or beats complex models
@@ -1713,7 +1713,7 @@ Feature search: ✅ Parallelizable (within each estimator)
    - Minority class often hard to classify
    - AdaBoost naturally pays more attention to it
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Sensitive to Noisy Data and Outliers**
    ```
@@ -1795,20 +1795,20 @@ Feature search: ✅ Parallelizable (within each estimator)
 ### When to Use AdaBoost
 
 **Good Use Cases**:
-- ✅ Binary classification with clean data
-- ✅ Medium-sized datasets (1K-100K samples)
-- ✅ Moderate number of features (<100)
-- ✅ Need interpretable model
-- ✅ Have well-defined weak learner
-- ✅ Want feature importance
+- ✓ Binary classification with clean data
+- ✓ Medium-sized datasets (1K-100K samples)
+- ✓ Moderate number of features (<100)
+- ✓ Need interpretable model
+- ✓ Have well-defined weak learner
+- ✓ Want feature importance
 
 **Bad Use Cases**:
-- ❌ Very noisy data with many outliers → Use robust methods
-- ❌ Need fast training and parallel processing → Use Random Forest
-- ❌ Very large datasets (millions of samples) → Use XGBoost, LightGBM
-- ❌ High-dimensional sparse data → Use Linear models
-- ❌ Complex multi-class problems → Use Neural Networks
-- ❌ Time series with temporal dependencies → Use RNNs, LSTMs
+- ✗ Very noisy data with many outliers → Use robust methods
+- ✗ Need fast training and parallel processing → Use Random Forest
+- ✗ Very large datasets (millions of samples) → Use XGBoost, LightGBM
+- ✗ High-dimensional sparse data → Use Linear models
+- ✗ Complex multi-class problems → Use Neural Networks
+- ✗ Time series with temporal dependencies → Use RNNs, LSTMs
 
 ---
 
@@ -1955,21 +1955,21 @@ AdaBoost is a powerful and elegant algorithm that demonstrates the principle of 
 - How to choose n_estimators and learning_rate
 - When AdaBoost excels and when to use alternatives
 
-You've gained insight into one of the most important algorithms in machine learning! 🚀
+You've gained insight into one of the most important algorithms in machine learning!
 
 **When to Use AdaBoost**:
-- ✅ Binary classification with clean data
-- ✅ Need interpretable ensemble model
-- ✅ Want automatic feature importance
-- ✅ Have effective weak learner
-- ✅ Medium-sized datasets
+- ✓ Binary classification with clean data
+- ✓ Need interpretable ensemble model
+- ✓ Want automatic feature importance
+- ✓ Have effective weak learner
+- ✓ Medium-sized datasets
 
 **When to Use Something Else**:
-- ❌ Very noisy/outlier-heavy data → Random Forest, robust methods
-- ❌ Very large datasets → XGBoost, LightGBM
-- ❌ Need parallelizable training → Random Forest
-- ❌ Complex multi-class problems → Neural Networks, Gradient Boosting
-- ❌ High-dimensional sparse data → Linear models, Neural Networks
+- ✗ Very noisy/outlier-heavy data → Random Forest, robust methods
+- ✗ Very large datasets → XGBoost, LightGBM
+- ✗ Need parallelizable training → Random Forest
+- ✗ Complex multi-class problems → Neural Networks, Gradient Boosting
+- ✗ High-dimensional sparse data → Linear models, Neural Networks
 
 **Next Steps**:
 - Try AdaBoost on your own classification problems
@@ -1979,5 +1979,5 @@ You've gained insight into one of the most important algorithms in machine learn
 - Explore XGBoost and LightGBM for production use
 - Study other ensemble methods (Bagging, Stacking)
 
-Happy Boosting! 💻🚀📊
+Happy Boosting!
 

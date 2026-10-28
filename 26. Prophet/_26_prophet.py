@@ -261,7 +261,7 @@ class Prophet:
         Why Fourier series?
             Any smooth repeating function with period P can be written as an
             infinite sum of sin/cos harmonics (Fourier's theorem). With enough
-            harmonics (n_terms), we can approximate any seasonal shape —
+            harmonics (n_terms), we can approximate any seasonal shape,
             whether it's a simple summer peak or a complex multi-modal pattern.
 
         Visual intuition:

@@ -1,6 +1,6 @@
 # Apriori Algorithm from Scratch: A Comprehensive Guide
 
-Welcome to the world of Association Rule Mining! 🛒 In this comprehensive guide, we'll explore the Apriori algorithm - one of the most important algorithms for discovering patterns in transactional data. Think of it as the "frequently bought together" algorithm!
+Welcome to the world of Association Rule Mining! In this comprehensive guide, we'll explore the Apriori algorithm - one of the most important algorithms for discovering patterns in transactional data. Think of it as the "frequently bought together" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1617,7 +1617,7 @@ that never happens.
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Easy to Understand**
    - Intuitive algorithm
@@ -1644,7 +1644,7 @@ that never happens.
    - Discovers unknown patterns
    - Exploratory data analysis
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Computationally Expensive**
    ```
@@ -1703,19 +1703,19 @@ that never happens.
 ### When to Use Apriori
 
 **Good Use Cases**:
-- ✅ Market basket analysis (retail, e-commerce)
-- ✅ Recommendation systems
-- ✅ Web usage mining
-- ✅ Medical diagnosis (symptom patterns)
-- ✅ Categorical data with clear transactions
-- ✅ Need interpretable results
+- ✓ Market basket analysis (retail, e-commerce)
+- ✓ Recommendation systems
+- ✓ Web usage mining
+- ✓ Medical diagnosis (symptom patterns)
+- ✓ Categorical data with clear transactions
+- ✓ Need interpretable results
 
 **Bad Use Cases**:
-- ❌ Very large datasets (millions of transactions) → Use FP-Growth
-- ❌ Continuous numerical data → Use clustering or regression
-- ❌ Sequential patterns → Use sequential pattern mining
-- ❌ Temporal patterns → Use time series analysis
-- ❌ Text data → Use topic modeling or NLP methods
+- ✗ Very large datasets (millions of transactions) → Use FP-Growth
+- ✗ Continuous numerical data → Use clustering or regression
+- ✗ Sequential patterns → Use sequential pattern mining
+- ✗ Temporal patterns → Use time series analysis
+- ✗ Text data → Use topic modeling or NLP methods
 
 ---
 
@@ -1806,21 +1806,21 @@ The Apriori algorithm is a fundamental tool for discovering patterns in transact
 - How to choose appropriate thresholds
 - How to interpret and apply discovered rules
 
-You've gained a powerful technique for extracting actionable insights from data! 🛒
+You've gained a powerful technique for extracting actionable insights from data!
 
 **When to Use Apriori**:
-- ✅ Market basket analysis
-- ✅ Recommendation systems
-- ✅ Pattern discovery in categorical data
-- ✅ Need interpretable, actionable rules
-- ✅ Moderate-sized datasets
+- ✓ Market basket analysis
+- ✓ Recommendation systems
+- ✓ Pattern discovery in categorical data
+- ✓ Need interpretable, actionable rules
+- ✓ Moderate-sized datasets
 
 **When to Use Something Else**:
-- ❌ Very large datasets → FP-Growth, sampling
-- ❌ Continuous data → Clustering, regression
-- ❌ Sequential patterns → Sequential mining
-- ❌ Personalization → Collaborative filtering
-- ❌ Complex relationships → Graph mining
+- ✗ Very large datasets → FP-Growth, sampling
+- ✗ Continuous data → Clustering, regression
+- ✗ Sequential patterns → Sequential mining
+- ✗ Personalization → Collaborative filtering
+- ✗ Complex relationships → Graph mining
 
 **Next Steps**:
 - Try Apriori on your own transactional data
@@ -1830,5 +1830,5 @@ You've gained a powerful technique for extracting actionable insights from data!
 - Study sequential pattern mining for ordered data
 - Investigate multi-level association rules
 
-Happy pattern mining! 💻🛒📊
+Happy pattern mining!
 

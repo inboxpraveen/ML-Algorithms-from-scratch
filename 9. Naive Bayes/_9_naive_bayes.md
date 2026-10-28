@@ -1,6 +1,6 @@
 # Naive Bayes from Scratch: A Comprehensive Guide
 
-Welcome to the world of Naive Bayes! 🎯 In this comprehensive guide, we'll explore one of the most elegant and efficient machine learning algorithms. Think of it as the "assume the best, calculate probabilities" algorithm!
+Welcome to the world of Naive Bayes! In this comprehensive guide, we'll explore one of the most elegant and efficient machine learning algorithms. Think of it as the "assume the best, calculate probabilities" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -117,7 +117,7 @@ perfectly. Getting 100% there is evidence the multinomial likelihood table is ri
 Naive Bayes is a **probabilistic classification algorithm** based on Bayes' Theorem with a "naive" assumption that all features are independent of each other. Despite this strong assumption, it works surprisingly well in practice!
 
 **Real-world analogy**: 
-Imagine diagnosing a disease. A doctor looks at symptoms (fever, cough, fatigue) and calculates: "Given these symptoms, what's the probability it's the flu?" Naive Bayes does exactly this—it calculates the probability of each possible class and picks the most likely one.
+Imagine diagnosing a disease. A doctor looks at symptoms (fever, cough, fatigue) and calculates: "Given these symptoms, what's the probability it's the flu?" Naive Bayes does exactly this, it calculates the probability of each possible class and picks the most likely one.
 
 ### Key Characteristics
 
@@ -290,7 +290,7 @@ P(Not Spam|features) ∝ P(Not Spam) × P("free"=yes|Not Spam) × P("meeting"=no
 Prediction: Spam (0.252 > 0.030)
 ```
 
-> **Note on this hand calculation**: it uses *presence/absence* probabilities — the
+> **Note on this hand calculation**: it uses *presence/absence* probabilities: the
 > `(1 - 0.1)` term is "the probability that 'meeting' is **absent** from a spam email".
 > That is **Bernoulli** Naive Bayes, which is the easiest variant to work by hand but is
 > **not** one of the two variants this class implements. The variants you can actually run
@@ -340,7 +340,7 @@ P(xᵢ|class) = (count of feature i in class + α) / (total count in class + α�
 Where α is a smoothing parameter (usually 1, called Laplace smoothing).
 
 **In this implementation α is hard-wired to 1**, so `fit` computes exactly
-`(feature_counts + 1) / (total_count + n_features)` — the same table as
+`(feature_counts + 1) / (total_count + n_features)`: the same table as
 `sklearn.naive_bayes.MultinomialNB(alpha=1.0)`. There is no `alpha` argument; see
 [Simplifications vs. Canonical Naive Bayes](#simplifications-vs-canonical-naive-bayes).
 
@@ -399,7 +399,7 @@ class NaiveBayes:
    - Reshapes a 1-D input: a row of length `n_features` becomes one sample,
      anything else becomes a single-feature column
    - After `fit`, raises `ValueError` if the feature count does not match
-     `n_features` — otherwise NumPy would silently broadcast a wrong-width row
+     `n_features`; otherwise NumPy would silently broadcast a wrong-width row
      against the stored means and return a confident, meaningless prediction
    - Called at the top of `fit`, `predict` and `predict_proba`
 
@@ -494,7 +494,7 @@ Weight: mean=360g, variance=250
 Diameter: mean=9.05cm, variance=0.1325
 ```
 
-These are **population** variances (`np.var`, i.e. dividing by n, not n-1) — the
+These are **population** variances (`np.var`, i.e. dividing by n, not n-1): the
 same convention scikit-learn's `GaussianNB` uses. You can check the weight
 variance for Apples by hand: `mean((150-155)^2, (170-155)^2, (140-155)^2, (160-155)^2)`
 `= mean(25, 225, 225, 25) = 125`.
@@ -551,7 +551,7 @@ for i, probs in enumerate(probabilities):
 # Sample 2: Apple=0.0000, Orange=1.0000
 ```
 
-Those are not exact 0s and 1s — `.4f` is just rounding. The raw posteriors are
+Those are not exact 0s and 1s, `.4f` is just rounding. The raw posteriors are
 
 ```
 [[1.0,          8.4446e-43],
@@ -667,7 +667,7 @@ var_weight = mean((150-155)², (170-155)², (140-155)², (160-155)²)
 **Why the `+ epsilon`? (variance smoothing)**
 
 The likelihood divides by the variance. If a feature happens to be **constant inside one
-class** — say every patient diagnosed with allergy has `fever_days = 0` — then
+class** (say every patient diagnosed with allergy has `fever_days = 0`) then
 `np.var(X_c, axis=0)` is exactly `0` for that feature and the very next step divides by
 zero, producing `inf` and then `nan`. The epsilon is a floor that keeps the division
 finite.
@@ -709,7 +709,7 @@ def _calculate_gaussian_likelihood(self, x, class_idx):
 **Where do those two lines come from?**
 
 This is the step most readers skip past, so let's do it properly. Start from the naive
-independence assumption — the *only* thing that makes the whole algorithm tractable:
+independence assumption: the *only* thing that makes the whole algorithm tractable:
 
 ```
 Step 1 - the naive assumption turns a joint density into a product:
@@ -744,7 +744,7 @@ log_likelihood -= 0.5 * np.sum(((x - mean) ** 2) / variance)    # second sum
 Read the second term out loud and Naive Bayes stops being mysterious: it is a
 **variance-weighted squared distance from the sample to the class mean**. A class wins
 when the sample sits close to its mean *relative to how spread out that class is*. The
-first term is the price a class pays for being spread out at all — a wide class has large
+first term is the price a class pays for being spread out at all: a wide class has large
 `sigma^2`, so `log(2*pi*sigma^2)` is large and gets subtracted.
 
 Note that `variance`, `mean` and `x` here are whole vectors of length `d`, so
@@ -798,7 +798,7 @@ can call `np.log(feature_probs)` directly with no `log(0)` risk and no epsilon f
 log_likelihood = np.sum(x * np.log(feature_probs))   # sum_i  x_i * log(p_i)
 ```
 
-An epsilon inside that log would not be "safe" — it would be a silent bias on every
+An epsilon inside that log would not be "safe"; it would be a silent bias on every
 log-likelihood, and the bias grows as the vocabulary grows and the individual `p_i`
 shrink.
 
@@ -849,7 +849,7 @@ Dividing every score by the same positive constant cannot change which score is 
 and `predict` only needs `argmax`. That is what the `∝` ("proportional to") symbol
 throughout this document means.
 
-`predict_proba`, however, *does* need real probabilities that sum to 1 — and it gets
+`predict_proba`, however, *does* need real probabilities that sum to 1, and it gets
 `P(x)` for free. By the law of total probability, `P(x)` is just the sum of the
 numerators over all classes:
 
@@ -962,7 +962,7 @@ Note that `sklearn.model_selection.cross_val_score` **cannot** be used on this c
 it calls `sklearn.base.clone`, which requires a `get_params` method, so passing our
 `NaiveBayes` object raises
 `TypeError: Cannot clone object ... it does not seem to be a scikit-learn estimator`.
-Either subclass `sklearn.base.BaseEstimator`, or just write the K-fold loop — it is
+Either subclass `sklearn.base.BaseEstimator`, or just write the K-fold loop; it is
 eight lines and uses nothing but the class's own API:
 
 ```python
@@ -1006,7 +1006,7 @@ of your program.
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Fast and Efficient**
    - Training is very fast (just calculate statistics)
@@ -1042,7 +1042,7 @@ of your program.
      model completely. See
      [Simplifications vs. Canonical Naive Bayes](#simplifications-vs-canonical-naive-bayes).
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Independence Assumption**
    - Assumes features are independent (often false)
@@ -1074,20 +1074,20 @@ of your program.
 ### When to Use Naive Bayes
 
 **Good Use Cases**:
-- ✅ Text classification (spam, sentiment, topics)
-- ✅ Document categorization
-- ✅ Real-time prediction (fast inference)
-- ✅ High-dimensional data (many features)
-- ✅ Small to medium datasets
-- ✅ Need probabilistic predictions
-- ✅ Features are mostly independent
+- ✓ Text classification (spam, sentiment, topics)
+- ✓ Document categorization
+- ✓ Real-time prediction (fast inference)
+- ✓ High-dimensional data (many features)
+- ✓ Small to medium datasets
+- ✓ Need probabilistic predictions
+- ✓ Features are mostly independent
 
 **Bad Use Cases**:
-- ❌ Features are highly correlated
-- ❌ Need to capture complex feature interactions
-- ❌ Features don't fit assumed distributions
-- ❌ Requires best possible accuracy (use ensemble methods)
-- ❌ Very imbalanced classes (without adjustments)
+- ✗ Features are highly correlated
+- ✗ Need to capture complex feature interactions
+- ✗ Features don't fit assumed distributions
+- ✗ Requires best possible accuracy (use ensemble methods)
+- ✗ Very imbalanced classes (without adjustments)
 
 ---
 
@@ -1295,7 +1295,7 @@ print("Accuracy with uniform priors:", model.score(X_test, y_test))
 ```
 
 On a 90/10 imbalanced two-class problem this typically trades a little overall accuracy
-for much better recall on the minority class — exactly the trade you usually want when
+for much better recall on the minority class, exactly the trade you usually want when
 the rare class is the one that matters (fraud, disease, defects).
 
 ### 5. Log Probabilities
@@ -1346,20 +1346,20 @@ Naive Bayes is an elegant and powerful algorithm! By understanding:
 - How different variants handle different data types
 - How to interpret probability predictions
 
-You've gained a fundamental tool that's still widely used in practice! 🎯
+You've gained a fundamental tool that's still widely used in practice!
 
 **When to Use Naive Bayes**:
-- ✅ Text classification
-- ✅ Need fast predictions
-- ✅ High-dimensional data
-- ✅ Small datasets
-- ✅ Need probability estimates
+- ✓ Text classification
+- ✓ Need fast predictions
+- ✓ High-dimensional data
+- ✓ Small datasets
+- ✓ Need probability estimates
 
 **When to Use Something Else**:
-- ❌ Features are highly correlated → Use logistic regression, neural networks
-- ❌ Need best accuracy → Use Random Forests, XGBoost
-- ❌ Need to capture interactions → Use decision trees, SVM
-- ❌ Non-normal continuous features → Transform or use other methods
+- ✗ Features are highly correlated → Use logistic regression, neural networks
+- ✗ Need best accuracy → Use Random Forests, XGBoost
+- ✗ Need to capture interactions → Use decision trees, SVM
+- ✗ Non-normal continuous features → Transform or use other methods
 
 **Next Steps**:
 - Try Naive Bayes on your own datasets
@@ -1369,5 +1369,5 @@ You've gained a fundamental tool that's still widely used in practice! 🎯
 - Learn about calibration techniques
 - Explore semi-supervised Naive Bayes
 
-Happy coding! 💻🎯
+Happy coding!
 

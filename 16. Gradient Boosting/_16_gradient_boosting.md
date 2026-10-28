@@ -1,6 +1,6 @@
 # Gradient Boosting from Scratch: A Comprehensive Guide
 
-Welcome to the world of Gradient Boosting! 🚀 In this comprehensive guide, we'll explore one of the most powerful machine learning algorithms - Gradient Boosting. Think of it as training a team of specialists where each new member focuses on correcting the mistakes of the previous team!
+Welcome to the world of Gradient Boosting! In this comprehensive guide, we'll explore one of the most powerful machine learning algorithms - Gradient Boosting. Think of it as training a team of specialists where each new member focuses on correcting the mistakes of the previous team!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1723,7 +1723,7 @@ with that row.
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **High Predictive Accuracy**
    - Often wins Kaggle competitions
@@ -1768,7 +1768,7 @@ with that row.
      rebuilds the ensemble from scratch. Calling `fit()` twice with
      `n_estimators=5` leaves you with 5 trees, not 10
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Sequential Training (Slower)**
    ```
@@ -1874,21 +1874,21 @@ with that row.
 ### When to Use Gradient Boosting
 
 **Good Use Cases**:
-- ✅ Structured/tabular data (most common)
-- ✅ Medium to large datasets (1K-1M+ samples)
-- ✅ Regression or classification
-- ✅ Need high accuracy
-- ✅ Feature importance required
-- ✅ Competitions (Kaggle)
-- ✅ Moderate number of features (<1000)
+- ✓ Structured/tabular data (most common)
+- ✓ Medium to large datasets (1K-1M+ samples)
+- ✓ Regression or classification
+- ✓ Need high accuracy
+- ✓ Feature importance required
+- ✓ Competitions (Kaggle)
+- ✓ Moderate number of features (<1000)
 
 **Bad Use Cases**:
-- ❌ Very high-dimensional sparse data → Use Linear Models
-- ❌ Images, audio, video → Use Neural Networks (CNNs, RNNs)
-- ❌ Natural language processing → Use Transformers
-- ❌ Need very fast training → Use Random Forest
-- ❌ Real-time training required → Use online learning algorithms
-- ❌ Extrapolation critical → Use parametric models
+- ✗ Very high-dimensional sparse data → Use Linear Models
+- ✗ Images, audio, video → Use Neural Networks (CNNs, RNNs)
+- ✗ Natural language processing → Use Transformers
+- ✗ Need very fast training → Use Random Forest
+- ✗ Real-time training required → Use online learning algorithms
+- ✗ Extrapolation critical → Use parametric models
 
 ---
 
@@ -2103,23 +2103,23 @@ Gradient Boosting is one of the most powerful machine learning algorithms, espec
 - When Gradient Boosting excels and when to use alternatives
 - The importance of regularization and early stopping
 
-You've gained deep insight into the algorithm that powers many winning Kaggle solutions and production systems! 🚀
+You've gained deep insight into the algorithm that powers many winning Kaggle solutions and production systems!
 
 **When to Use Gradient Boosting**:
-- ✅ Structured/tabular data (CSV files, databases)
-- ✅ Need high accuracy (competitions, critical applications)
-- ✅ Regression or classification tasks
-- ✅ Feature importance required
-- ✅ Have time for hyperparameter tuning
-- ✅ Medium to large datasets
+- ✓ Structured/tabular data (CSV files, databases)
+- ✓ Need high accuracy (competitions, critical applications)
+- ✓ Regression or classification tasks
+- ✓ Feature importance required
+- ✓ Have time for hyperparameter tuning
+- ✓ Medium to large datasets
 
 **When to Use Something Else**:
-- ❌ Images, audio, video → Use Neural Networks (CNNs)
-- ❌ Natural language → Use Transformers (BERT, GPT)
-- ❌ Very high-dimensional sparse data → Use Linear Models
-- ❌ Need very fast training → Use Random Forest
-- ❌ Simple problem, limited data → Use Logistic Regression
-- ❌ Real-time online learning → Use online algorithms
+- ✗ Images, audio, video → Use Neural Networks (CNNs)
+- ✗ Natural language → Use Transformers (BERT, GPT)
+- ✗ Very high-dimensional sparse data → Use Linear Models
+- ✗ Need very fast training → Use Random Forest
+- ✗ Simple problem, limited data → Use Logistic Regression
+- ✗ Real-time online learning → Use online algorithms
 
 **Next Steps**:
 - Try Gradient Boosting on your own datasets
@@ -2136,5 +2136,5 @@ Always use optimized libraries:
 - **LightGBM**: Fastest, best for large datasets
 - **CatBoost**: Best for categorical features
 
-Happy Boosting! 💻🚀📊
+Happy Boosting!
 

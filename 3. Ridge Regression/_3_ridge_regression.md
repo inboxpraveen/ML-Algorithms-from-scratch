@@ -1,6 +1,6 @@
 # Ridge Regression from Scratch: A Comprehensive Guide
 
-Welcome to the world of Ridge Regression! 🎯 In this comprehensive guide, we'll explore how to predict outcomes using regularized linear regression. Think of it as an improved version of linear regression that prevents overfitting and handles multicollinearity like a pro!
+Welcome to the world of Ridge Regression! In this comprehensive guide, we'll explore how to predict outcomes using regularized linear regression. Think of it as an improved version of linear regression that prevents overfitting and handles multicollinearity like a pro!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1107,19 +1107,19 @@ Ridge Regression is a powerful enhancement to linear regression that provides:
 - **Better generalization** to new data
 - **Computational efficiency** with closed-form solution
 
-By adding a simple regularization term, we get a model that is more reliable and practical for real-world applications! 🎯
+By adding a simple regularization term, we get a model that is more reliable and practical for real-world applications!
 
 **When to Use Ridge Regression**:
-- ✅ Many features relative to samples
-- ✅ Features are correlated
-- ✅ Overfitting is a concern
-- ✅ Want stable, interpretable coefficients
-- ✅ Need all features in the model
+- ✓ Many features relative to samples
+- ✓ Features are correlated
+- ✓ Overfitting is a concern
+- ✓ Want stable, interpretable coefficients
+- ✓ Need all features in the model
 
 **When to Use Something Else**:
-- ❌ Need feature selection → Use Lasso
-- ❌ Non-linear relationships → Use polynomial features or tree models
-- ❌ Very large datasets → Consider gradient descent methods
+- ✗ Need feature selection → Use Lasso
+- ✗ Non-linear relationships → Use polynomial features or tree models
+- ✗ Very large datasets → Consider gradient descent methods
 
 **Next Steps**:
 - Try with your own data
@@ -1128,6 +1128,6 @@ By adding a simple regularization term, we get a model that is more reliable and
 - Visualize coefficient paths
 - Learn about cross-validation for alpha selection
 
-Happy coding! 💻📊
+Happy coding!
 
 

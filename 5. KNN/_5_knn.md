@@ -1,6 +1,6 @@
 # K-Nearest Neighbors (KNN) from Scratch: A Comprehensive Guide
 
-Welcome to the world of K-Nearest Neighbors! 🎯 In this comprehensive guide, we'll explore one of the simplest yet most powerful machine learning algorithms. Think of it as the "birds of a feather flock together" algorithm!
+Welcome to the world of K-Nearest Neighbors! In this comprehensive guide, we'll explore one of the simplest yet most powerful machine learning algorithms. Think of it as the "birds of a feather flock together" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -105,7 +105,7 @@ Test  R2 : 0.9806
 
 Notice rows 3 and 4 of the classification output: `P0=0.40, P1=0.60` means 2 of the
 5 neighbors were class 0 and 3 were class 1. Those two points sit in the overlap
-between the blobs, and the model gets them wrong — but it tells you it is unsure.
+between the blobs, and the model gets them wrong, but it tells you it is unsure.
 That is exactly what `predict_proba` is for.
 
 Running `python _5_knn.py` directly also prints a third demo sweeping `k`, the
@@ -352,7 +352,7 @@ P(C) = 1/5 = 0.20 (20%)
 
 ### Why Does Averaging Neighbors Work At All?
 
-The rules above can look like folk wisdom — "similar things are similar, so take
+The rules above can look like folk wisdom, "similar things are similar, so take
 the average". They are not. KNN is a **local, non-parametric estimator of a
 conditional expectation**, and that is where its rules come from.
 
@@ -372,10 +372,10 @@ P(y = c | X = x) = E[ 1{y = c} | X = x ]
 
 **Why we cannot compute it.** That expectation averages over all examples having
 *exactly* the value x. In continuous feature space we have exactly zero such
-examples — every training point is unique. The quantity we want is unobservable.
+examples: every training point is unique. The quantity we want is unobservable.
 
 **KNN's move.** Relax "exactly at x" to "near x". If we assume f is reasonably
-smooth — that points close together have similar targets — then averaging over a
+smooth (that points close together have similar targets) then averaging over a
 small neighborhood approximates averaging at the point:
 
 ```
@@ -385,7 +385,7 @@ f̂(x) = (1/k) × Σ y_i  for x_i in N_k(x)     ≈  E[y | X = x]
 where `N_k(x)` is the set of the k nearest training points. **That is exactly the
 regression rule** `prediction = np.mean(k_nearest_labels)`. Apply the same
 substitution to the class indicator and you get
-`P(class=c|x) = (count of c among neighbors) / k` — **exactly `predict_proba`** —
+`P(class=c|x) = (count of c among neighbors) / k`, **exactly `predict_proba`**,
 and taking the most probable class gives the majority vote. All three rules the
 implementation uses are the same idea applied to different targets.
 
@@ -394,13 +394,13 @@ errors, and `k` trades one against the other:
 
 | | Small k | Large k |
 |---|---|---|
-| **Neighborhood size** | tiny — genuinely local | wide — includes far-off points |
+| **Neighborhood size** | tiny, genuinely local | wide, includes far-off points |
 | **Bias** (is the neighborhood really "at x"?) | low | **high**: averages in regions where `f` differs |
 | **Variance** (how noisy is the average?) | **high**: averaging k values cuts noise by only 1/√k | low |
 
 That is the bias-variance story of KNN, derived rather than asserted. At `k=1`
 the neighborhood is as local as possible (minimum bias) but the estimate is a
-single noisy observation (maximum variance) — which is precisely why `k=1` scores
+single noisy observation (maximum variance), which is precisely why `k=1` scores
 1.0000 on training data and worse on test data.
 
 **Why it converges.** This is the theoretical result that justifies the whole
@@ -412,8 +412,8 @@ as n → ∞,  if  k → ∞  and  k/n → 0,  then  f̂(x) → E[y | X = x]
 
 The two conditions are the two errors above. `k → ∞` kills the variance (we
 average more points); `k/n → 0` keeps the neighborhood shrinking relative to the
-data, so the bias vanishes too. Note they must hold *together* — k growing, but
-more slowly than n. Satisfy both and KNN is **universally consistent** — it converges to the optimal
+data, so the bias vanishes too. Note they must hold *together*, k growing, but
+more slowly than n. Satisfy both and KNN is **universally consistent**; it converges to the optimal
 predictor for *any* underlying function, with no assumptions about its form. That
 is a remarkably strong guarantee for such a simple rule, and it is what
 "non-parametric" buys you.
@@ -614,12 +614,12 @@ Which one wins? `np.argsort` is a **stable** sort, so it keeps the tied points i
 their original array order, and `[170, 9]` (index 1) comes before `[200, 9]`
 (index 6). The Apple takes the slot.
 
-This is not a defect — it is what every KNN implementation must do, and the rule
+This is not a defect; it is what every KNN implementation must do, and the rule
 has to be *deterministic* so that repeated runs agree. It is worth knowing that
 even scikit-learn's own backends split on this exact query: `algorithm='kd_tree'`
 and `'ball_tree'` return `0.33 / 0.00 / 0.67` (matching ours), while
 `algorithm='brute'` returns `0.00 / 0.00 / 1.00`. Both backends compute the tied
-distance as exactly `15.0` — the difference is not rounding. It is that brute's
+distance as exactly `15.0`: the difference is not rounding. It is that brute's
 k-smallest selection is not a *stable* sort, so it simply makes no promise about
 which of two exactly-tied points it keeps. Ours does, because `argsort` is stable.
 
@@ -776,7 +776,7 @@ prediction = unique_labels[0] = 0
 
 **What happens on a vote tie?** With `k=4` and labels `[0, 0, 1, 1]` both counts
 are 2. `np.unique` returns `unique_labels` in **sorted** order and `np.argmax`
-returns the **first** maximum, so the tie goes to the smallest class label — here,
+returns the **first** maximum, so the tie goes to the smallest class label; here,
 class 0. That is the same rule scikit-learn uses, and it is why odd `k` is
 recommended for binary classification: it makes the tie impossible.
 
@@ -815,7 +815,7 @@ for c in classes:
     class_probs.append(prob)
 ```
 
-Note the divisor is `total_weight` — the weight actually collected — and **not**
+Note the divisor is `total_weight` (the weight actually collected) and **not**
 `self.k`. Under uniform weights the two are the same number, but dividing by the
 real total is what guarantees every row sums to exactly 1.0 in all cases.
 
@@ -1006,7 +1006,7 @@ Best k on validation: 1  (val accuracy = 0.9667)
 Test accuracy with k=1: 0.9333
 ```
 
-**Read that result sceptically.** It says `k=1` — but eleven different values
+**Read that result sceptically.** It says `k=1`, but eleven different values
 (`k = 1, 3, 4, 6, 7, 9, 10, 11, 12, 14, 16`) *all* score exactly 0.9667 on the
 validation set, and `np.argmax` simply returned the first of them. The validation
 set has only 30 rows, so one sample is worth 3.3 percentage points and it cannot
@@ -1015,7 +1015,7 @@ distinguish these values at all.
 Two lessons, and they matter more than the number itself:
 1. With small data, prefer **k-fold cross-validation** over a single validation
    split; averaging over folds gives a far less noisy estimate.
-2. When several `k` values tie, do not take `argmax` at its word — prefer the
+2. When several `k` values tie, do not take `argmax` at its word, prefer the
    **largest** `k` among the tied values, since larger `k` means a smoother
    boundary and less variance for the same measured accuracy.
 
@@ -1083,7 +1083,7 @@ x_scaled = (x - min) / (max - min)
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Simple and Intuitive**
    - Easy to understand and explain
@@ -1105,7 +1105,7 @@ x_scaled = (x - min) / (max - min)
    - Often performs well with limited data
    - Can capture complex patterns
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Computationally Expensive**
    - O(n×d) for each prediction
@@ -1123,7 +1123,7 @@ x_scaled = (x - min) / (max - min)
 4. **Curse of Dimensionality**
    - Performance degrades in high dimensions
    - Distances become meaningless when d is large
-   - See [the demonstration below](#seeing-the-curse-of-dimensionality) — this is
+   - See [the demonstration below](#seeing-the-curse-of-dimensionality); this is
      usually asserted and rarely shown, but you can measure it in five lines
 
 5. **Sensitive to Irrelevant Features**
@@ -1137,18 +1137,18 @@ x_scaled = (x - min) / (max - min)
 ### When to Use KNN
 
 **Good Use Cases**:
-- ✅ Small to medium datasets (< 100k samples)
-- ✅ Low to moderate dimensions (< 20 features)
-- ✅ No time constraints for prediction
-- ✅ Need interpretable results
-- ✅ Complex, non-linear decision boundaries
+- ✓ Small to medium datasets (< 100k samples)
+- ✓ Low to moderate dimensions (< 20 features)
+- ✓ No time constraints for prediction
+- ✓ Need interpretable results
+- ✓ Complex, non-linear decision boundaries
 
 **Bad Use Cases**:
-- ❌ Large datasets (millions of samples)
-- ❌ High-dimensional data (100+ features)
-- ❌ Real-time predictions required
-- ❌ Features have very different scales (unless scaled)
-- ❌ Many irrelevant features
+- ✗ Large datasets (millions of samples)
+- ✗ High-dimensional data (100+ features)
+- ✗ Real-time predictions required
+- ✗ Features have very different scales (unless scaled)
+- ✗ Many irrelevant features
 
 ### Seeing the Curse of Dimensionality
 
@@ -1183,19 +1183,19 @@ dims    nearest     farthest    ratio near/far
 ```
 
 Read the last column. In 2-D the nearest point is **40x closer** than the farthest
-one — "nearest neighbor" is a meaningful distinction. By 500-D the nearest point
+one, "nearest neighbor" is a meaningful distinction. By 500-D the nearest point
 is 84% of the distance to the farthest one: **every point is roughly the same
 distance away**. The ratio is climbing toward 1.
 
 That is the whole curse in one number. KNN's entire premise is that "near" means
 "similar". When every point is equidistant, the k nearest neighbors are barely
 different from k points picked at random, and the algorithm degrades to guessing
-the majority class — while still costing you a full scan of the training set for
+the majority class, while still costing you a full scan of the training set for
 every prediction.
 
 **What to do about it**: reduce dimensionality first (PCA, feature selection), or
 use a metric less prone to concentration. This is also the real reason Manhattan
-(L1) is often recommended over Euclidean (L2) in high dimensions — lower-order
+(L1) is often recommended over Euclidean (L2) in high dimensions, lower-order
 norms concentrate more slowly.
 
 ---
@@ -1277,7 +1277,7 @@ Prediction = Σ(weight_i × vote_i) / Σ(weight_i)
 
 **Benefit**: Closer neighbors have more influence
 
-**This one is implemented** — pass `weights='distance'`:
+**This one is implemented**, pass `weights='distance'`:
 
 ```python
 model = KNearestNeighbors(k=5, task='classification', weights='distance')
@@ -1292,7 +1292,7 @@ of how far away it is.
 query point is itself a training point? Then `1 / 0` is a division by zero. The
 implementation follows scikit-learn's rule: if any neighbor is at distance 0,
 those exact-match neighbors take *all* the weight and the rest get zero. That is
-both numerically safe and the right answer — the query *is* that training point.
+both numerically safe and the right answer: the query *is* that training point.
 
 One consequence is worth knowing before it surprises you: with
 `weights='distance'`, **training accuracy is always 1.0000 for any k**, because
@@ -1365,20 +1365,20 @@ K-Nearest Neighbors is a simple yet powerful algorithm! By understanding:
 - How k controls model complexity
 - How feature scaling affects performance
 
-You've gained a fundamental tool in your machine learning toolkit! 🎯
+You've gained a fundamental tool in your machine learning toolkit!
 
 **When to Use KNN**:
-- ✅ Small to medium datasets
-- ✅ Non-linear decision boundaries
-- ✅ Need interpretable predictions
-- ✅ Multi-class classification
-- ✅ Both classification and regression
+- ✓ Small to medium datasets
+- ✓ Non-linear decision boundaries
+- ✓ Need interpretable predictions
+- ✓ Multi-class classification
+- ✓ Both classification and regression
 
 **When to Use Something Else**:
-- ❌ Large datasets → Use decision trees, random forests
-- ❌ High dimensions → Use dimensionality reduction first
-- ❌ Need fast predictions → Use logistic regression, SVM
-- ❌ Many irrelevant features → Use regularized models
+- ✗ Large datasets → Use decision trees, random forests
+- ✗ High dimensions → Use dimensionality reduction first
+- ✗ Need fast predictions → Use logistic regression, SVM
+- ✗ Many irrelevant features → Use regularized models
 
 **Next Steps**:
 - Try KNN on your own datasets
@@ -1388,5 +1388,5 @@ You've gained a fundamental tool in your machine learning toolkit! 🎯
 - Explore KNN for anomaly detection
 - Study curse of dimensionality in depth
 
-Happy coding! 💻🎯
+Happy coding!
 

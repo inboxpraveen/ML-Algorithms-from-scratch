@@ -1,6 +1,6 @@
 # Hierarchical Clustering from Scratch: A Comprehensive Guide
 
-Welcome to the world of Hierarchical Clustering! 🎯 In this comprehensive guide, we'll explore one of the most intuitive and powerful unsupervised learning algorithms. Think of it as the "family tree" of data clustering!
+Welcome to the world of Hierarchical Clustering! In this comprehensive guide, we'll explore one of the most intuitive and powerful unsupervised learning algorithms. Think of it as the "family tree" of data clustering!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -115,13 +115,13 @@ Merge heights: [ 3.38  5.21  5.6   6.44 12.   16.78 40.95]
 ```
 
 Two things to read off that output. First, **every** linkage gets purity 1.000 on
-well-separated blobs — the linkage choice only starts to matter on harder data.
+well-separated blobs: the linkage choice only starts to matter on harder data.
 
 Second, look at the three merge heights on each row. They are the last three merges:
 4->3 clusters, then 3->2, then 2->1. In every row the jump happens between the
 **first and second** number (ward: 3.75 then 25.50), not between the second and third
 (25.50 then 27.46, barely a step). Merging the last three blobs down to two is what
-costs a lot, so you cut below that jump — and are left with 3 clusters. That is the
+costs a lot, so you cut below that jump, and are left with 3 clusters. That is the
 dendrogram saying "stop at 3".
 
 ---
@@ -190,7 +190,7 @@ Continue until each point is alone
      ●  ●  ●  ●  ●  ●
 ```
 
-**We'll focus on Agglomerative** as it's more popular and intuitive — and it is the
+**We'll focus on Agglomerative** as it's more popular and intuitive, and it is the
 only one `HierarchicalClustering` implements. The divisive sketch above is background
 only; there is no code behind it (see
 [Simplifications vs. Canonical Hierarchical Clustering](#simplifications-vs-canonical-hierarchical-clustering)).
@@ -411,7 +411,7 @@ discourages merging two already-large clusters.
 ### The Dendrogram
 
 A tree diagram showing the clustering hierarchy. This is the *actual* tree for the
-six points A..F from the Visual Example under average linkage — the four heights on
+six points A..F from the Visual Example under average linkage: the four heights on
 the axis are the four distinct values in `linkage_matrix_[:, 2]`:
 
 ```
@@ -431,7 +431,7 @@ Height
 - **Height**: Distance at which merge occurs
 - **Horizontal cut**: Determines number of clusters
 
-**Example** — every cut here is `model.set_n_clusters(k)` on the same fitted model:
+**Example**: every cut here is `model.set_n_clusters(k)` on the same fitted model:
 ```
 Cut anywhere between 1.21 and 9.93 (say height 5):
     → 2 clusters: {A,B,C} and {D,E,F}          k = 2
@@ -445,7 +445,7 @@ Cut below 1.00 (say height 0.5):
 
 Notice there is no cut that gives 3 or 5 clusters *cleanly* here: those cuts would
 have to slice through a tie (two merges at exactly the same height). The tree still
-returns a 3-cluster answer if you ask for one — it just replays one of the two tied
+returns a 3-cluster answer if you ask for one; it just replays one of the two tied
 merges and stops.
 
 ---
@@ -639,7 +639,7 @@ for cluster in range(3):
 ```
 
 Changed your mind about `k`? The hierarchy is already built, so ask it a different
-question — no refitting:
+question: no refitting:
 
 ```python
 model.set_n_clusters(4)
@@ -1149,7 +1149,7 @@ Use business understanding:
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **No Need to Specify k in Advance**
    - Explore different numbers of clusters
@@ -1185,7 +1185,7 @@ Use business understanding:
    - More flexible than k-Means
    - No shape assumptions
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Computationally Expensive**
    - O(n²) space for distance matrix
@@ -1220,19 +1220,19 @@ Use business understanding:
 ### When to Use Hierarchical Clustering
 
 **Good Use Cases**:
-- ✅ Small to medium datasets (< 10,000 points)
-- ✅ Need to see hierarchy of relationships
-- ✅ Don't know number of clusters in advance
-- ✅ Want deterministic results
-- ✅ Creating taxonomies or dendrograms
-- ✅ Analyzing biological/genealogical data
+- ✓ Small to medium datasets (< 10,000 points)
+- ✓ Need to see hierarchy of relationships
+- ✓ Don't know number of clusters in advance
+- ✓ Want deterministic results
+- ✓ Creating taxonomies or dendrograms
+- ✓ Analyzing biological/genealogical data
 
 **Bad Use Cases**:
-- ❌ Large datasets (> 50,000 points)
-- ❌ Need real-time clustering
-- ❌ Flat clustering sufficient
-- ❌ Memory constrained environments
-- ❌ Need to update clusters incrementally
+- ✗ Large datasets (> 50,000 points)
+- ✗ Need real-time clustering
+- ✗ Flat clustering sufficient
+- ✗ Memory constrained environments
+- ✗ Need to update clusters incrementally
 
 ### Hierarchical vs k-Means
 
@@ -1243,8 +1243,8 @@ Use business understanding:
 | **Speed** | Slow O(n³) | Fast O(nkdi) |
 | **Memory** | High O(n²) | Low O(n) |
 | **Hierarchy** | Yes | No |
-| **Large data** | ❌ | ✅ |
-| **Dendrogram** | ✅ | ❌ |
+| **Large data** | ✗ | ✓ |
+| **Dendrogram** | ✓ | ✗ |
 
 ---
 
@@ -1467,7 +1467,7 @@ Unlike k-Means, you can decide the number of clusters after seeing the dendrogra
 Build the hierarchy once with `fit(X)`, then try different numbers of clusters with
 `set_n_clusters(k)`. `fit` always merges all the way down to one cluster, so the
 whole tree is stored in `linkage_matrix_` and re-cutting is just a replay of the
-recorded merges — no distance is recomputed.
+recorded merges: no distance is recomputed.
 
 ```python
 import numpy as np
@@ -1502,21 +1502,21 @@ Hierarchical Clustering is a powerful and intuitive algorithm for discovering ne
 - How to choose the right number of clusters
 - When hierarchical clustering is appropriate
 
-You've gained a valuable tool for exploratory data analysis! 🎯
+You've gained a valuable tool for exploratory data analysis!
 
 **When to Use Hierarchical Clustering**:
-- ✅ Creating taxonomies or hierarchies
-- ✅ Small to medium datasets
-- ✅ Unknown number of clusters
-- ✅ Need interpretable structure
-- ✅ Biological/genealogical analysis
+- ✓ Creating taxonomies or hierarchies
+- ✓ Small to medium datasets
+- ✓ Unknown number of clusters
+- ✓ Need interpretable structure
+- ✓ Biological/genealogical analysis
 
 **When to Use Something Else**:
-- ❌ Large datasets → Use k-Means, DBSCAN
-- ❌ Need speed → Use k-Means, Mini-Batch k-Means
-- ❌ Flat clustering sufficient → Use k-Means
-- ❌ Memory constrained → Use online algorithms
-- ❌ Need probabilistic assignments → Use GMM
+- ✗ Large datasets → Use k-Means, DBSCAN
+- ✗ Need speed → Use k-Means, Mini-Batch k-Means
+- ✗ Flat clustering sufficient → Use k-Means
+- ✗ Memory constrained → Use online algorithms
+- ✗ Need probabilistic assignments → Use GMM
 
 **Next Steps**:
 - Try hierarchical clustering on your own datasets
@@ -1527,5 +1527,5 @@ You've gained a valuable tool for exploratory data analysis! 🎯
 - Study cophenetic correlation
 - Try different distance metrics
 
-Happy Clustering! 💻🎯
+Happy Clustering!
 

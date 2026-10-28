@@ -1210,4 +1210,4 @@ differences from `umap-learn`.
 
 ---
 
-**Happy embedding!** 🎨📊🔍
+**Happy embedding!**

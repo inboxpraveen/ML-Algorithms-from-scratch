@@ -1,6 +1,6 @@
 # Autoencoders from Scratch: A Comprehensive Guide
 
-Welcome to the fascinating world of Autoencoders! 🧠 In this comprehensive guide, we'll explore autoencoders - neural networks that learn to compress and reconstruct data. Think of them as intelligent data compressors that learn the most important features automatically!
+Welcome to the fascinating world of Autoencoders! In this comprehensive guide, we'll explore autoencoders - neural networks that learn to compress and reconstruct data. Think of them as intelligent data compressors that learn the most important features automatically!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1929,17 +1929,17 @@ Autoencoders are powerful unsupervised learning tools that learn efficient data 
 5. **Scalable**: Works with any data type and dimension
 
 **When to Use Autoencoders**:
-- ✅ Need non-linear dimensionality reduction
-- ✅ Have unlabeled data
-- ✅ Want to learn features automatically
-- ✅ Need to detect anomalies
-- ✅ Want to compress/denoise data
+- ✓ Need non-linear dimensionality reduction
+- ✓ Have unlabeled data
+- ✓ Want to learn features automatically
+- ✓ Need to detect anomalies
+- ✓ Want to compress/denoise data
 
 **When to Use Alternatives**:
-- ❌ Need interpretable components → Use PCA
-- ❌ Only need visualization → Use t-SNE
-- ❌ Have small dataset → Use PCA (more stable)
-- ❌ Need very fast processing → Use PCA
+- ✗ Need interpretable components → Use PCA
+- ✗ Only need visualization → Use t-SNE
+- ✗ Have small dataset → Use PCA (more stable)
+- ✗ Need very fast processing → Use PCA
 
 ### Next Steps
 
@@ -1951,7 +1951,7 @@ To deepen your understanding:
 4. **Apply**: Use for real problems (anomaly detection, compression)
 5. **Extend**: Learn about VAEs, denoising autoencoders, sparse autoencoders
 
-Happy encoding! 🚀
+Happy encoding!
 
 ---
 

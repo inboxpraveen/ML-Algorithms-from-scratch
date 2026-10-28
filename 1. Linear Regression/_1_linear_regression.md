@@ -1,6 +1,6 @@
 # Simple Linear Regression from Scratch: A Comprehensive Guide
 
-Welcome to the world of Linear Regression! 📈 In this comprehensive guide, we'll explore how to predict outcomes using a single input feature. Think of it as finding the best-fit line through a scatter plot of points!
+Welcome to the world of Linear Regression! In this comprehensive guide, we'll explore how to predict outcomes using a single input feature. Think of it as finding the best-fit line through a scatter plot of points!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -218,7 +218,7 @@ J(b₀, b₁) = Σ (y_i - b₀ - b₁x_i)²
 ```
 
 "Fitting the model" means finding the (b₀, b₁) that makes J as small as
-possible. This is why the method is called **Ordinary Least Squares** — we
+possible. This is why the method is called **Ordinary Least Squares**; we
 are literally minimising a sum of squares.
 
 ### Deriving the closed form
@@ -247,7 +247,7 @@ mass of the data, the point (x̄, ȳ).
 This is worth internalising because it makes simple linear regression
 hand-computable, and because it is the same answer the matrix code returns.
 Demo 4 of `_1_linear_regressions.py` checks exactly this and prints a
-difference of about `3.55e-15` — floating-point noise, i.e. the same number.
+difference of about `3.55e-15`, floating-point noise, i.e. the same number.
 
 You can verify it yourself:
 
@@ -262,7 +262,7 @@ print(f"Normal Equation : b0={coeffs['intercept']:.4f}  b1={coeffs['slope']:.4f}
 ```
 
 On the salary data above both lines print
-`b0=25000.0000  b1=5000.0000` — the same answer by two different routes.
+`b0=25000.0000  b1=5000.0000`: the same answer by two different routes.
 
 ### Matrix Representation
 
@@ -302,7 +302,7 @@ Differentiating with respect to the vector θ and setting the result to zero:
    =>   θ = (XᵀX)⁻¹Xᵀy
 ```
 
-So the matrix formula is not a separate trick to memorise — it is the
+So the matrix formula is not a separate trick to memorise; it is the
 two-equation derivation above, generalised to any number of features.
 
 **Breaking it down**:
@@ -314,7 +314,7 @@ two-equation derivation above, generalised to any number of features.
 ### When XᵀX cannot be inverted
 
 The formula above quietly assumes XᵀX has an inverse. It does not when two
-columns of X are perfectly collinear — the matrix is **singular**. This is
+columns of X are perfectly collinear: the matrix is **singular**. This is
 easy to walk into:
 
 - A **constant feature column**. Combined with the bias column of ones, the
@@ -326,7 +326,7 @@ easy to walk into:
 - **More features than samples** (n < p), where XᵀX is always singular.
 
 Here is what that costs you. Take `X = [[1,7],[2,7],[3,7],[4,7],[5,7]]` and
-`y = [2,4,6,8,10]` — the second column is constant, and the true relationship
+`y = [2,4,6,8,10]`: the second column is constant, and the true relationship
 is simply `y = 2x`:
 
 | Solver | Result |
@@ -334,7 +334,7 @@ is simply `y = 2x`:
 | `np.linalg.inv(XᵀX)` | coefficients `[5.625, 2.0, 0.65625]`, **R² = -12.05** |
 | `np.linalg.pinv(X)` | coefficients `[0.0, 2.0, 0.0]`, **R² = 1.0** |
 
-The exact inverse does not raise an error here — the condition number of
+The exact inverse does not raise an error here: the condition number of
 XᵀX is about `3.9e17`, so numerically it is "invertible" and returns
 confident nonsense. (With a *duplicated* column it fails louder, raising
 `LinAlgError: Singular matrix`.)
@@ -346,27 +346,27 @@ That is why the implementation uses the **pseudo-inverse**:
 ```
 
 The Moore-Penrose pseudo-inverse returns the **minimum-norm least-squares
-solution** — among all the coefficient vectors that fit the data equally
-well, it picks the smallest one — instead of failing or returning garbage.
+solution**: among all the coefficient vectors that fit the data equally
+well, it picks the smallest one; instead of failing or returning garbage.
 On full-rank, well-conditioned data it lands on the answer `inv` gives to
 machine precision, so you lose nothing.
 
 ### Why the code never forms XᵀX
 
 Look closely at that formula: it is `pinv(X)`, not `pinv(XᵀX)Xᵀ`. In algebra
-those are **the same operator** — `pinv(XᵀX)Xᵀ = pinv(X)` is an identity, and
+those are **the same operator**, `pinv(XᵀX)Xᵀ = pinv(X)` is an identity, and
 θ = (XᵀX)⁻¹Xᵀy is still the equation being solved. In floating point they are
 not the same at all, and the reason is one of the most useful lessons in
 numerical linear algebra.
 
 **Forming XᵀX squares the condition number.** The singular values of XᵀX are
 the *squares* of those of X. So any rank cutoff applied to XᵀX is testing
-squared numbers, and NumPy's `pinv` — which zeroes singular values smaller
-than `1e-15` times the largest — throws away a direction the data genuinely
+squared numbers, and NumPy's `pinv`, which zeroes singular values smaller
+than `1e-15` times the largest, throws away a direction the data genuinely
 had as soon as cond(X) exceeds `1/sqrt(1e-15)` ≈ **3×10⁷**.
 
 That threshold is not exotic. A single feature with a large offset and a
-modest spread — a meter reading, a price in cents, a Unix timestamp — reaches
+modest spread (a meter reading, a price in cents, a Unix timestamp) reaches
 it on its own, with one feature and no collinearity anywhere. Take
 `x = 100000 + Uniform(0, 100)` and `y = 3(x - 100000) + 50 + N(0, 1)`, with
 n = 100. The design matrix is full rank (`np.linalg.matrix_rank` = 2) and
@@ -379,7 +379,7 @@ the last digits):
 | `pinv(X) @ y` | 2.9994 | 99.2 | **0.9999** |
 | scikit-learn | 2.9994 | 99.2 | **0.9999** |
 
-Same algebra, same identity, completely different answers — because the first
+Same algebra, same identity, completely different answers, because the first
 route took the pseudo-inverse of a matrix whose conditioning it had already
 destroyed. Keep θ = (XᵀX)⁻¹Xᵀy in your head as the formula; solve it by taking
 the SVD of X.
@@ -389,7 +389,7 @@ step further by centring X and y before solving. Keep the example above and
 just enlarge the offset, and the two part company: at an offset of 10⁸
 (cond(X) = 3.5×10¹⁴) our uncentred `pinv(X) @ y` still scores R² = 0.999867,
 but at 10⁹ (cond(X) = 3.5×10¹⁶) it has collapsed to R² = 0.000000, while
-scikit-learn's centred solve still scores 0.999867 — and is still scoring
+scikit-learn's centred solve still scores 0.999867, and is still scoring
 0.999867 at an offset of 10¹³, where cond(X) = 3.5×10²⁴. That is a real
 limitation of the code here, and a deliberate one: centring X and y and
 reconstructing the intercept afterwards would stop `fit()` being a direct
@@ -397,13 +397,13 @@ transcription of θ = (XᵀX)⁻¹Xᵀy, which is the formula this guide teaches
 
 One subtlety worth knowing: on rank-deficient data our *fitted values* (the
 predictions on the training rows) match scikit-learn exactly, but the
-individual coefficients — and so the predictions at new points — can differ.
+individual coefficients (and so the predictions at new points) can differ.
 For example, fitting the single point `X = [[3.]]`, `y = [9.]`, both models
 predict 9.0 at x = 3, but ours predicts 14.4 at x = 5 where scikit-learn
 predicts 9.0. scikit-learn centres the data before solving, so its "smallest"
 solution minimises the norm of the slopes only, while ours includes the
 intercept. Both are legitimate
-least-squares answers — which is really the point: when features are
+least-squares answers, which is really the point: when features are
 collinear there is no unique set of coefficients, so you should not read
 meaning into any single one of them.
 
@@ -418,7 +418,7 @@ search for it with gradient descent, taking small downhill steps:
 
 Linear regression is one of the rare cases where you can set the derivative
 to zero and *solve* for the optimum directly. There is no learning rate, no
-number of epochs, no convergence to check — which is why `fit()` in this
+number of epochs, no convergence to check, which is why `fit()` in this
 implementation is one line of linear algebra and has no loop at all.
 
 The catch is cost: inverting a (p+1)x(p+1) matrix is roughly **O(p³)**, and
@@ -471,7 +471,7 @@ fit(X, y) first.")` rather than failing with a cryptic matrix error.
    - Measures how well the line fits the data
    - Returns a value **≤ 1**: 1 = perfect fit, 0 = no better than predicting
      the mean, and **negative = worse than predicting the mean**. R² has no
-     lower bound — see the interpretation ladder below.
+     lower bound; see the interpretation ladder below.
 
 ---
 
@@ -516,14 +516,14 @@ X = [[1, 1],        y = [30000,
      [1, 3]]             40000]
 ```
 
-**Step 1 — XᵀX** (a 2x2 matrix; the entries are n, Σx, Σx and Σx²):
+**Step 1: XᵀX** (a 2x2 matrix; the entries are n, Σx, Σx and Σx²):
 
 ```
 XᵀX = [[3,  6],        3 samples, Σx = 1+2+3 = 6
        [6, 14]]        Σx² = 1+4+9 = 14
 ```
 
-**Step 2 — invert it.** For a 2x2 matrix the inverse is
+**Step 2: invert it.** For a 2x2 matrix the inverse is
 `1/det * [[d, -b], [-c, a]]`, and here `det = 3*14 - 6*6 = 6`:
 
 ```
@@ -531,7 +531,7 @@ XᵀX = [[3,  6],        3 samples, Σx = 1+2+3 = 6
                   [-6,  3]]      [-1.0,     0.5]]
 ```
 
-**Step 3 — Xᵀy**:
+**Step 3: Xᵀy**:
 
 ```
 Xᵀy = [ Σy,   ]  = [105000,
@@ -539,7 +539,7 @@ Xᵀy = [ Σy,   ]  = [105000,
 ```
 (Σy = 30000+35000+40000 = 105000; Σxy = 1*30000 + 2*35000 + 3*40000 = 220000)
 
-**Step 4 — multiply**:
+**Step 4: multiply**:
 
 ```
 θ = (XᵀX)⁻¹Xᵀy = [ 2.3333*105000 + (-1.0)*220000,
@@ -655,7 +655,7 @@ it; the code takes the route that is safe in floating point.
   `LinAlgError` or, worse, silently returns nonsense (the constant-column
   example earlier scores R² = -12.05 with `inv` and R² = 1.0 with `pinv`).
 - Even using `pinv`, building `XᵀX` first squares the condition number and
-  silently drops a real direction of the data above cond(X) ≈ 3×10⁷ — on the
+  silently drops a real direction of the data above cond(X) ≈ 3×10⁷; on the
   meter-reading example, R² falls from 0.9999 to 0.0013.
 
 On full-rank, well-conditioned data all of these agree to machine precision,
@@ -751,7 +751,7 @@ The line that minimizes the sum of squared distances from all points to the line
 Linear regression rests on four assumptions. They are worth knowing not as
 trivia but because each one, when violated, breaks something specific.
 
-The single most useful diagnostic is a **residual plot** — plot
+The single most useful diagnostic is a **residual plot**, plot
 `y - model.predict(X)` on the vertical axis against the predictions on the
 horizontal axis. If the assumptions hold, it should look like a
 structureless horizontal band of points around zero:
@@ -788,7 +788,7 @@ the other three mostly breaks your *confidence claims* about the predictions.
 - **Interpretable.** The slope is a plain-English statement: "one more year
   of experience is worth $5,000." Almost no other model gives you that.
 - **No hyperparameters to tune.** There is no learning rate, no depth, no
-  number of estimators — the Normal Equation has one exact answer.
+  number of estimators: the Normal Equation has one exact answer.
 - **Fast and exact.** Fitting is a single matrix solve, not an iterative
   search, so there is no convergence to babysit.
 - **Needs little data.** With one feature you can fit a sensible line from a
@@ -809,7 +809,7 @@ the other three mostly breaks your *confidence claims* about the predictions.
   claim about intervening on x.
 - **Extrapolates confidently but blindly.** Predicting salary at 40 years of
   experience from data spanning 1-10 years gives a number with no warning
-  attached. (Unlike tree models, it *will* extrapolate — whether you should
+  attached. (Unlike tree models, it *will* extrapolate, whether you should
   trust it is another matter.)
 - **Collinear features break the exact inverse.** Handled here with the
   pseudo-inverse, but the underlying coefficients remain unstable and
@@ -869,7 +869,7 @@ For every 1 unit increase in BMI, disease progression
 increases by 998.58 units
 ```
 
-An R² of 0.23 is not a mistake — it is an honest result. BMI alone explains
+An R² of 0.23 is not a mistake; it is an honest result. BMI alone explains
 about 23% of the variance in diabetes progression, which is real signal but
 far from the whole story. This is what a *useful but incomplete* single
 feature looks like, and it is the motivation for Multiple Linear Regression:
@@ -886,7 +886,7 @@ Simple Linear Regression is the foundation of machine learning! By understanding
 - How to make predictions
 - How to evaluate model quality
 
-You've taken your first step into the world of machine learning! 🎯
+You've taken your first step into the world of machine learning!
 
 **Next Steps**:
 - Try with your own data
@@ -895,4 +895,4 @@ You've taken your first step into the world of machine learning! 🎯
 - Learn about Multiple Linear Regression (when you have multiple features)
 - Explore Ridge and Lasso regression (regularized versions)
 
-Happy coding! 💻📈
+Happy coding!

@@ -1146,7 +1146,7 @@ Use it in production; use this one to understand what it is doing.
 
 ---
 
-## 🎓 Further Learning
+## Further Learning
 
 ### Original Paper
 - Liu, F. T., Ting, K. M., & Zhou, Z. H. (2008). "Isolation Forest"
@@ -1165,7 +1165,7 @@ Use it in production; use this one to understand what it is doing.
 
 ---
 
-## 🔗 Quick Reference
+## Quick Reference
 
 ### Import and Basic Usage
 ```python
@@ -1210,4 +1210,4 @@ Isolation Forest is a powerful, efficient anomaly detection algorithm that:
 
 ---
 
-**Happy Anomaly Hunting!** 🔍🎯
+**Happy Anomaly Hunting!**

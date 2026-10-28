@@ -254,7 +254,7 @@ This is **intractable** to compute exactly, so we use **Gibbs Sampling** to appr
 
 A plain Gibbs sampler for LDA would cycle through **three** sets of unknowns: θ, φ and z.
 The *collapsed* sampler integrates θ and φ out of the joint distribution analytically and
-samples **only z** — one integer per word token.
+samples **only z**: one integer per word token.
 
 This is possible because the Dirichlet prior is **conjugate** to the multinomial
 likelihood. Integrating a multinomial over a Dirichlet prior has a closed form, so
@@ -264,7 +264,7 @@ P(w, z | α, β) = ∫∫ P(w, z, θ, φ | α, β) dθ dφ
 ```
 
 can be written down exactly, with no θ or φ left in it. Fewer variables to sample means a
-lower-variance, faster-mixing chain — and it is why this file never stores a sampled θ or
+lower-variance, faster-mixing chain, and it is why this file never stores a sampled θ or
 φ during inference. They are reconstructed at the very end, from counts.
 
 #### Where the formula comes from
@@ -283,7 +283,7 @@ token:
 P(z_i = k | z_-i, w) = P(w, z) / P(w, z_-i)
 ```
 
-Almost everything cancels — only the terms containing token *i* survive. And because
+Almost everything cancels, only the terms containing token *i* survive. And because
 Γ(n+1)/Γ(n) = n, each surviving Gamma ratio collapses to a plain **count**. What is left
 is the update rule the code implements:
 
@@ -308,7 +308,7 @@ with three count tables.
 **Note on the normalizer.** `V×β` is really `Σᵥ βᵥ`, the sum of the topic-word prior over
 the whole vocabulary. The two are identical when β is a single number (a *symmetric*
 prior), which is the usual case. This implementation computes `Σᵥ βᵥ` so that an
-asymmetric β vector — one pseudo-count per word — also works. The same is true of `K×α`
+asymmetric β vector (one pseudo-count per word) also works. The same is true of `K×α`
 versus `Σₖ αₖ` in the θ estimator below.
 
 ## Algorithm Steps
@@ -403,7 +403,7 @@ Counts of word 0 "game"   n_·,0  = [4, 6, 4]
 ### Step 1 - remove the token we are about to resample
 
 The first token of document 0 is the word **"game"** (word index 0), currently assigned to
-**topic 0**. We take it out of all three tables — this is the "excluding current word"
+**topic 0**. We take it out of all three tables; this is the "excluding current word"
 part of the formula, and it is the only reason the conditional is tractable:
 
 ```
@@ -429,7 +429,7 @@ unnormalized = [0.169193, 0.456456, 0.476610]
 normalized   = [0.1535,   0.4141,   0.4324  ]     (divide by the sum, 1.102259)
 ```
 
-A topic is drawn from that 3-way distribution — **not** the argmax. Sampling rather than
+A topic is drawn from that 3-way distribution, **not** the argmax. Sampling rather than
 maximizing is what lets the chain escape a bad start. At this point the model is nearly
 undecided, exactly as you would expect after one random pass.
 
@@ -453,7 +453,7 @@ normalized = [0.0000, 0.0000, 1.0000]
 The two factors now **agree**: document 0 has no tokens in topics 0 or 1, and topics 0 and
 1 have never seen the word "game". Both terms go to (nearly) zero together, and the
 sampler picks topic 2 with probability ~1. The corresponding θ row is
-`[0.006, 0.006, 0.988]` — the smoothing from α is the only reason it is not exactly
+`[0.006, 0.006, 0.988]`: the smoothing from α is the only reason it is not exactly
 `[0, 0, 1]`.
 
 **This is the whole algorithm.** Everything else in `_25_lda.py` is bookkeeping around
@@ -505,7 +505,7 @@ Controls how many topics each document can discuss.
 
 > **Caveat:** that is the Griffiths & Steyvers (2004) heuristic, tuned for *long*
 > documents (thousands of tokens each). For `n_components=10` it gives α = 5.0, which
-> the table just above classifies as "documents spread across many topics" — the
+> the table just above classifies as "documents spread across many topics": the
 > opposite of what most people want. For the short documents used throughout this guide
 > the sparser default `alpha=0.1` is the better starting point. Use `50/K` only when
 > your documents are genuinely long.
@@ -559,7 +559,7 @@ when `sample_lag > 0`. Typical: 20-50% of `max_iter`.
 
 **`sample_lag` (int, default 0):** collect and average the count matrices every this many
 sweeps after `burn_in`. `0` disables averaging and reports the final state only (the
-backward-compatible default). Typical: 5-10 — consecutive sweeps are highly correlated,
+backward-compatible default). Typical: 5-10, consecutive sweeps are highly correlated,
 so lag 1 collects near-duplicates.
 
 ```python
@@ -656,7 +656,7 @@ Everything hangs off three arrays created in `_initialize_parameters`:
 | `_topic_count` | (K,) | n_k | total tokens assigned to topic k |
 | `_topic_assignments` | list of lists | z | the current topic of every individual token |
 
-`_topic_assignments[d]` is a list of `(word_index, topic)` pairs — one entry per **token**,
+`_topic_assignments[d]` is a list of `(word_index, topic)` pairs: one entry per **token**,
 so a document with `X[d, w] = 5` contributes five entries for word `w`. That list *is* the
 state of the Markov chain.
 
@@ -664,9 +664,9 @@ state of the Markov chain.
 
 | Method | What it does | Formula it implements |
 |--------|--------------|-----------------------|
-| `_check_X(X)` | Accepts lists or arrays, promotes a 1-D vector to one document, rejects negatives, NaNs and fractional (TF-IDF) values | — |
+| `_check_X(X)` | Accepts lists or arrays, promotes a 1-D vector to one document, rejects negatives, NaNs and fractional (TF-IDF) values | n/a |
 | `_expand_priors(V)` | Turns scalar `alpha`/`beta` into vectors `_alpha_vec` (K,) and `_beta_vec` (V,), and precomputes `_beta_sum = Σᵥ βᵥ` | the Dirichlet normalizer |
-| `_check_is_fitted(caller)` | Raises a readable "not fitted yet" message instead of a `NoneType` crash | — |
+| `_check_is_fitted(caller)` | Raises a readable "not fitted yet" message instead of a `NoneType` crash | n/a |
 | `_initialize_parameters(X)` | Assigns every token a uniformly random topic and fills the three count tables | Step 1 of Algorithm Steps |
 | `_sample_topic(d, w)` | Scores all K topics for one token and draws one | `(n_d,k + α)(n_k,w + β)/(n_k + Σβ)` |
 | `_gibbs_sampling_iteration(X)` | One full sweep: decrement, `_sample_topic`, increment, store | Step 2 |
@@ -674,7 +674,7 @@ state of the Markov chain.
 | `_compute_perplexity(X, doc_topic_distr=None)` | Scores a corpus given its θ | `exp(-Σ c·log Σ_k φ θ / N)` |
 | `fit(X)` | Validates, reseeds the private RNG, initializes, runs `max_iter` sweeps, optionally collects samples, computes θ and φ | Steps 1-3 |
 | `transform(X)` | Folds new documents in against a **frozen** φ | `(n_d,k + α) · φ_k,w` |
-| `fit_transform(X)` | `fit(X)` then returns `doc_topic_distr_` | — |
+| `fit_transform(X)` | `fit(X)` then returns `doc_topic_distr_` | n/a |
 | `perplexity(X)` | Public, always-correct scorer: `transform(X)` first, then `_compute_perplexity` | held-out evaluation |
 | `get_top_words(names, n)` | Sorts each row of `components_` and maps indices to words | topic interpretation |
 
@@ -682,8 +682,8 @@ state of the Markov chain.
 
 | Attribute | Shape | Meaning |
 |-----------|-------|---------|
-| `components_` | (K, V) | φ — each row is a probability distribution over the vocabulary and **sums to 1** |
-| `doc_topic_distr_` | (D, K) | θ — each row sums to 1 |
+| `components_` | (K, V) | φ: each row is a probability distribution over the vocabulary and **sums to 1** |
+| `doc_topic_distr_` | (D, K) | θ: each row sums to 1 |
 | `n_features_` | int | vocabulary size V |
 | `n_samples_` | int | number of training documents D |
 | `n_gibbs_samples_` | int | how many Gibbs states were averaged (0 when `sample_lag=0`) |
@@ -698,7 +698,7 @@ slightly different numbers on the training corpus.
 **The nested `for k in range(self.n_components)` loop in `_sample_topic` is deliberate.**
 It could be one vectorized NumPy line, but written out it matches the formula term for
 term, which is the point of this repository. It is also the reason throughput is about
-60,000 token-samples per second — see [Performance Considerations](#performance-considerations).
+60,000 token-samples per second; see [Performance Considerations](#performance-considerations).
 
 ## Practical Use Cases
 
@@ -928,7 +928,7 @@ print(f"Perplexity: {perplexity:.2f}")
 
 Measures semantic similarity of top words in each topic. **Higher is better.**
 
-The **UMass** score is the easiest to compute from what you already have — it needs only
+The **UMass** score is the easiest to compute from what you already have; it needs only
 the document-term matrix, no external corpus. For a topic's top words ordered from most to
 least probable, it sums the log conditional probability of each word given every
 higher-ranked word:
@@ -1006,7 +1006,7 @@ Collapsed Gibbs sampling is a **Markov chain**, not an optimizer. It does not co
 an answer; it wanders around the posterior forever. Three consequences that every LDA user
 runs into:
 
-### 1. The first sweeps are not samples — burn in
+### 1. The first sweeps are not samples: burn in
 
 The chain starts from a uniformly random topic assignment, which is nowhere near the
 posterior. The first sweeps are the chain *walking towards* the high-probability region,
@@ -1019,7 +1019,7 @@ lda = LatentDirichletAllocation(n_components=10, max_iter=200,
 
 **By default (`sample_lag=0`) this implementation reports the single final Gibbs state.**
 That is one draw from the posterior rather than an average over several. It is also
-exactly what Griffiths & Steyvers (2004) did — they report "a single sample taken after
+exactly what Griffiths & Steyvers (2004) did; they report "a single sample taken after
 2,000 iterations of Gibbs sampling". Setting `sample_lag > 0` averages the post-burn-in
 count tables instead, which is ordinary MCMC variance reduction rather than a fidelity
 fix. Heinrich's widely copied `LdaGibbsSampler` averages the same sweeps but accumulates
@@ -1029,7 +1029,7 @@ and adding the prior once, as this file does, gives the identical answer for θ 
 very slightly different one for φ (the docstring of `_compute_distributions` derives the
 difference and measures it).
 
-### 2. Consecutive sweeps are correlated — use a lag
+### 2. Consecutive sweeps are correlated: use a lag
 
 Two adjacent sweeps differ by a handful of token reassignments, so averaging every sweep
 mostly averages the same state with itself. Collecting one state every 5-10 sweeps gives
@@ -1038,14 +1038,14 @@ were actually collected.
 
 Averaging is close to free (it costs one array addition per collected sweep) and cuts the
 variance of the estimate. In the `__main__` demo's Example 2 the largest per-entry change
-to θ is 0.0198 — small there, because those documents are nearly unambiguous. Where the
+to θ is 0.0198, small there, because those documents are nearly unambiguous. Where the
 posterior is genuinely spread out it moves much more: on a corpus of overlapping 60/40
 topic blends, `transform` with averaging turned on differs from the single-final-state
 answer by up to 0.11 per entry. Lower variance is not the same as a better answer on any
 one run, though: across the eight corpus seeds of the benchmark below, the averaged φ was
 closer to the planted truth on 5 of 8. Treat it as variance reduction, not a free win.
 
-### 3. Topic numbers are meaningless — label switching
+### 3. Topic numbers are meaningless: label switching
 
 Nothing in the model distinguishes "topic 0" from "topic 2". A different `random_state`
 gives the same topics under different numbers. In the Quick Start, sports lands on topic 2;
@@ -1053,7 +1053,7 @@ with another seed it might be topic 0. Practical rules:
 
 - **Never** compare topic *indices* across two fits. Compare top-word lists.
 - To score against ground truth, first map each true class to the topic its members
-  mostly chose — that is exactly what the `group_to_topic` step in the Quick Start does.
+  mostly chose; that is exactly what the `group_to_topic` step in the Quick Start does.
 - Report topics by their top words, never as "topic 3".
 - This is also the limit of `sample_lag` averaging. It is safe only *within* one chain
   that keeps its topics straight; if a chain relabels topic 0 as topic 2 halfway through,
@@ -1074,7 +1074,7 @@ lda.fit(X)
 
 If perplexity is still falling at the last iteration, raise `max_iter`. If it flattened
 long ago, you can lower it. Note that a *flat* perplexity means the chain is mixing in a
-stable region — it does not prove the chain found the global mode. Multiple restarts with
+stable region; it does not prove the chain found the global mode. Multiple restarts with
 different seeds are the honest check.
 
 ## Common Issues and Solutions
@@ -1126,7 +1126,7 @@ different seeds are the honest check.
 
 **Solutions:**
 - Improve stop word removal
-- Raise `max_df` filtering (drop words present in >90% of documents) — but keep raw
+- Raise `max_df` filtering (drop words present in >90% of documents), but keep raw
   integer counts. LDA is a multinomial model over word *tokens*, so TF-IDF weights are not
   valid input; this implementation raises a `ValueError` on fractional values rather than
   truncating them to zero. Filter the vocabulary, do not reweight it.
@@ -1279,7 +1279,7 @@ Allow topic correlations (LDA assumes independence):
 - **Initialization**: O(D × V + N) where D = documents, V = vocabulary size,
   N = total word tokens. `_initialize_parameters` scans every cell of the document-term
   matrix (D × V) and creates one assignment per token (N).
-- **Per iteration**: O(N × K) where K = number of topics — `_sample_topic` loops over
+- **Per iteration**: O(N × K) where K = number of topics, `_sample_topic` loops over
   all K topics for each of the N tokens
 - **Total**: O(D × V + iterations × N × K)
 
@@ -1299,7 +1299,7 @@ and will not reproduce on different hardware:
 | D=500, V=500, K=10 | 40,000 | 10 | 7.2 s | ~55k token-samples/s |
 
 Roughly **60,000 token-samples per second**. A 1,000-document corpus averaging 100 tokens
-each, with `max_iter=100`, is 10 million samples — about three minutes. That is fine for
+each, with `max_iter=100`, is 10 million samples, about three minutes. That is fine for
 learning and prototyping and hopeless for production; see the library recommendations in
 [Implementation Notes](#implementation-notes).
 
@@ -1397,7 +1397,7 @@ neither is "the" answer, and their perplexity numbers are not directly comparabl
 `exp(-Σ c·log Σ_k φθ / N)` from a point estimate).
 
 **2. Different `components_` scaling.** Our `components_` rows are probability
-distributions — each sums to exactly 1. scikit-learn stores the *unnormalized* variational
+distributions: each sums to exactly 1. scikit-learn stores the *unnormalized* variational
 parameter λ, whose rows sum to hundreds or thousands. Normalize before comparing:
 
 ```python
@@ -1438,7 +1438,7 @@ X = np.array([rng.multinomial(L, 0.75 * phi_true[k] + 0.25 * phi_true[(k + 1) % 
 | This file (`burn_in=50, sample_lag=5`) | 0.01521 | 1.000 | ~4 s |
 | scikit-learn (variational Bayes) | 0.01574 | 1.000 | ~0.4 s |
 
-The φ and agreement columns are deterministic — same seeds, same digits on any machine.
+The φ and agreement columns are deterministic, same seeds, same digits on any machine.
 The fit times are not: on a busy machine the same three fits measured 14 s / 14 s / 1.4 s.
 The *ratio* is the durable part.
 
@@ -1446,8 +1446,8 @@ Head to head, after aligning both to the planted truth: mean per-entry differenc
 the two θ matrices is **0.0040** and per-document dominant-topic agreement is **100%**.
 The top-5 word lists agree exactly on one topic and differ on the other two only where
 words are near-tied (0.0761 vs 0.0750 for the fifth slot of one topic; a swap of two words
-both at 0.0808 in another). The from-scratch implementation is algorithmically equivalent
-— it is just roughly 10x slower here. Sample averaging (`burn_in`/`sample_lag`) costs
+both at 0.0808 in another). The from-scratch implementation is algorithmically equivalent;
+it is just roughly 10x slower here. Sample averaging (`burn_in`/`sample_lag`) costs
 essentially nothing: it reuses the same sweeps.
 
 The three φ errors are within noise of each other, so do not read the ordering as a
@@ -1456,7 +1456,7 @@ dominant-topic agreement is 1.000 for both implementations on all eight, and thi
 φ error is at or below scikit-learn's on all eight (0.0019-0.0173 against 0.0157-0.0177).
 Gibbs sampling is not immune to a bad run, though: on an *easier* variant of this corpus
 (documents drawn from a single topic instead of a blend) one seed leaves the chain in a
-merged-topic mode — agreement 0.733, φ error 0.022 — while variational Bayes still
+merged-topic mode (agreement 0.733, φ error 0.022) while variational Bayes still
 recovers all three. That is the multiple-restarts caveat from
 [MCMC Hygiene](#mcmc-hygiene-burn-in-mixing-and-label-switching), measured.
 
@@ -1466,22 +1466,22 @@ Three deliberate omissions, all documented in the class docstring too:
 
 1. **Inference method.** Collapsed Gibbs sampling (Griffiths & Steyvers, PNAS 2004), not
    the variational Bayes of Blei et al. (2003) or the online/mini-batch variant that
-   scikit-learn defaults to. This is a choice, not a shortcut — Gibbs is the more
+   scikit-learn defaults to. This is a choice, not a shortcut, Gibbs is the more
    transparent algorithm to learn from.
 2. **Fixed hyperparameters.** α and β never move. Mallet and gensim can re-estimate an
    asymmetric α from the data with a fixed-point / Newton update (Minka, 2000), which
    usually improves fit on real corpora. Not implemented here; you can pass an asymmetric
    α or β vector yourself, but the model will not learn one.
 3. **Point estimate by default.** With `sample_lag=0` (the default) θ and φ come from the
-   single final Gibbs state rather than an average over post-burn-in sweeps — the same
+   single final Gibbs state rather than an average over post-burn-in sweeps: the same
    choice Griffiths & Steyvers (2004) made for their own results. Set `burn_in` and
    `sample_lag` to average instead, which lowers the variance of the estimate; the
    averaged φ is a hair away from the exact posterior mean, and the docstring of
-   `_compute_distributions` says exactly how far — see
+   `_compute_distributions` says exactly how far; see
    [MCMC Hygiene](#mcmc-hygiene-burn-in-mixing-and-label-switching).
 
 **Our implementation demonstrates the core LDA algorithm** so you can understand how topic modeling actually works!
 
 ---
 
-**Happy topic modeling!** 📚🔍📊
+**Happy topic modeling!**

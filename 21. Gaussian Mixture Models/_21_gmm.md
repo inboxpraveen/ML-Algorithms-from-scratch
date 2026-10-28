@@ -1,6 +1,6 @@
 # Gaussian Mixture Models (GMM) from Scratch: A Comprehensive Guide
 
-Welcome to Gaussian Mixture Models! 🚀 In this comprehensive guide, we'll explore GMM - a powerful probabilistic model for soft clustering and density estimation. Think of it as the "sophisticated probabilistic cousin" of K-means clustering!
+Welcome to Gaussian Mixture Models! In this comprehensive guide, we'll explore GMM - a powerful probabilistic model for soft clustering and density estimation. Think of it as the "sophisticated probabilistic cousin" of K-means clustering!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1609,17 +1609,17 @@ gmm.fit(X_reduced)
 
 ### Key Takeaways
 
-✅ **GMM provides soft clustering** - each point has probabilities for all clusters
+✓ **GMM provides soft clustering** - each point has probabilities for all clusters
 
-✅ **Flexible cluster shapes** - can model elliptical clusters of any orientation
+✓ **Flexible cluster shapes** - can model elliptical clusters of any orientation
 
-✅ **EM algorithm** - iteratively improves model by E-step (assign) and M-step (update)
+✓ **EM algorithm** - iteratively improves model by E-step (assign) and M-step (update)
 
-✅ **Multiple applications** - clustering, density estimation, anomaly detection, generation
+✓ **Multiple applications** - clustering, density estimation, anomaly detection, generation
 
-✅ **Model selection** - use BIC/AIC to choose optimal number of components
+✓ **Model selection** - use BIC/AIC to choose optimal number of components
 
-✅ **Covariance types** - trade-off between flexibility and complexity
+✓ **Covariance types** - trade-off between flexibility and complexity
 
 ### When to Use GMM
 
@@ -1638,7 +1638,7 @@ gmm.fit(X_reduced)
 
 ---
 
-**Congratulations!** 🎉 You now understand Gaussian Mixture Models from scratch. You've learned:
+**Congratulations!** You now understand Gaussian Mixture Models from scratch. You've learned:
 - How GMM models data as mixture of Gaussians
 - The EM algorithm for parameter estimation
 - Different covariance types and their trade-offs
@@ -1651,4 +1651,4 @@ gmm.fit(X_reduced)
 - Combine with dimensionality reduction (PCA)
 - Explore advanced variants (Bayesian GMM, Variational Inference)
 
-Happy clustering! 🚀
+Happy clustering!

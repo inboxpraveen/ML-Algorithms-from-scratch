@@ -1,6 +1,6 @@
 # Prophet from Scratch: A Comprehensive Guide
 
-Prophet is Facebook's answer to a very practical question: *how do you forecast thousands of business time series without a time series expert babysitting each one?* Its answer is an additive decomposition you can read off the page — a bendable trend, plus stacked seasonal waves — fitted in a single regularised linear solve.
+Prophet is Facebook's answer to a very practical question: *how do you forecast thousands of business time series without a time series expert babysitting each one?* Its answer is an additive decomposition you can read off the page (a bendable trend, plus stacked seasonal waves) fitted in a single regularised linear solve.
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -132,9 +132,9 @@ One caveat to carry with you from the start: the prior buys you a *sparse, stabl
 ### Key Concept
 
 Imagine you run an e-commerce store. Your daily sales data has three obvious patterns:
-1. A **long-term growth trend** — sales have been increasing year over year
-2. A **yearly seasonal pattern** — sales spike around holidays and dip in January
-3. A **weekly pattern** — sales are higher on weekdays than weekends
+1. A **long-term growth trend**, sales have been increasing year over year
+2. A **yearly seasonal pattern**, sales spike around holidays and dip in January
+3. A **weekly pattern**, sales are higher on weekdays than weekends
 
 Prophet models these three components separately and adds them together:
 
@@ -142,7 +142,7 @@ Prophet models these three components separately and adds them together:
 y(t) = trend(t) + seasonality(t) + error
 ```
 
-This is called an **additive decomposition model**. The result is not just an accurate forecast, but a fully interpretable one — you can see *exactly* how much each component contributes to any given prediction.
+This is called an **additive decomposition model**. The result is not just an accurate forecast, but a fully interpretable one; you can see *exactly* how much each component contributes to any given prediction.
 
 ### The Prophet Story
 
@@ -151,7 +151,7 @@ Think of it like a detective analysing crime rates in a city:
 - **Yearly seasonality**: Does crime spike in summer?
 - **Weekly seasonality**: Is it worse on weekends?
 
-By separating these signals, you understand *why* the numbers look the way they do — and can forecast more reliably because each component is modelled on its own terms.
+By separating these signals, you understand *why* the numbers look the way they do, and can forecast more reliably because each component is modelled on its own terms.
 
 ## When to Use Prophet
 
@@ -197,7 +197,7 @@ All components are estimated simultaneously by solving a single linear system.
 
 ---
 
-### 2. Trend — Piecewise Linear with Changepoints
+### 2. Trend: Piecewise Linear with Changepoints
 
 The trend is **linear but can change slope** at designated "changepoints":
 
@@ -210,7 +210,7 @@ Where:
 - **k**: Base growth rate (slope of the initial segment)
 - **s_j**: Location of changepoint j (in days)
 - **δ_j**: Rate change at changepoint j (positive = accelerating, negative = decelerating)
-- **max(0, t - s_j)**: Hinge function — equals 0 before s_j, then grows linearly after
+- **max(0, t - s_j)**: Hinge function, equals 0 before s_j, then grows linearly after
 
 #### Why Hinge Functions?
 
@@ -237,15 +237,15 @@ Sales
 
 Nothing is "detected" up front. Candidate changepoints are placed **uniformly** in the first `changepoint_range` fraction of training data (default: 80%), and the fit then decides which of them matter (large δ) and which are irrelevant (δ **exactly** 0).
 
-That last word is doing a lot of work. With plain least squares nothing is ever exactly zero: 25 hinge columns will all take some non-zero value, the trend becomes a wiggle that chases noise, and the extrapolated slope at the end of history is whatever the last few hinges happened to land on. Selection only happens because of the **Laplace prior on δ** — see Section 4, "Fitting — Penalised Least Squares", below. Read "changepoint detection" throughout this page as "place many candidates, then let the prior switch off the ones the data does not insist on."
+That last word is doing a lot of work. With plain least squares nothing is ever exactly zero: 25 hinge columns will all take some non-zero value, the trend becomes a wiggle that chases noise, and the extrapolated slope at the end of history is whatever the last few hinges happened to land on. Selection only happens because of the **Laplace prior on δ** (see Section 4, "Fitting) Penalised Least Squares", below. Read "changepoint detection" throughout this page as "place many candidates, then let the prior switch off the ones the data does not insist on."
 
-And read it with one further reservation: switching candidates off is not the same as switching the *right* ones off. On a series too short to distinguish a trend bend from a shift in the annual wave, the surviving bends can land nowhere near the real break — Section 4's "When the prior is not enough" measures exactly that.
+And read it with one further reservation: switching candidates off is not the same as switching the *right* ones off. On a series too short to distinguish a trend bend from a shift in the annual wave, the surviving bends can land nowhere near the real break, Section 4's "When the prior is not enough" measures exactly that.
 
 ---
 
-### 3. Seasonality — Fourier Series
+### 3. Seasonality: Fourier Series
 
-Seasonal patterns are modelled using **Fourier series** — sums of sine and cosine waves:
+Seasonal patterns are modelled using **Fourier series**, sums of sine and cosine waves:
 
 ```
 S(t) = Σ_{n=1}^{N} [ a_n · cos(2π·n·t/P) + b_n · sin(2π·n·t/P) ]
@@ -281,7 +281,7 @@ This gives 6 columns in the design matrix. Each column is a basis function; the 
 
 ---
 
-### 4. Fitting — Penalised Least Squares (the Laplace prior on δ)
+### 4. Fitting: Penalised Least Squares (the Laplace prior on δ)
 
 Once the design matrix X is built by stacking all features (trend + seasonality), the full model is simply:
 
@@ -289,7 +289,7 @@ Once the design matrix X is built by stacking all features (trend + seasonality)
 y = X · θ + ε
 ```
 
-Where θ is the vector of all parameters to estimate. The obvious thing to do is ordinary least squares — minimise the sum of squared errors:
+Where θ is the vector of all parameters to estimate. The obvious thing to do is ordinary least squares, minimise the sum of squared errors:
 
 ```
 θ_OLS = argmin_θ ||y - X·θ||²    with closed form   θ = (X^T X)^{-1} X^T y
@@ -301,13 +301,13 @@ Where θ is the vector of all parameters to estimate. The obvious thing to do is
 |---|---|---|---|
 | OLS, 25 changepoints | 0.9796 | **-17.84** | 69.1 (truth: 30) |
 | Penalised, 25 changepoints | 0.9788 | **+0.9102** | 29.9 (truth: 30) |
-| Oracle (knows the true components) | — | +0.9134 | 30 |
+| Oracle (knows the true components) | n/a | +0.9134 | 30 |
 
-The 25 hinge columns and the 20 low-order yearly Fourier columns are almost collinear: a slow bend in the trend and a slow annual wave look nearly the same over two years. OLS is unbiased but has enormous *variance* under collinearity, so it splits the signal between the two blocks in a wild, noise-driven way. In-sample it does not matter — the two errors cancel on the training window. Out of sample they do not cancel at all.
+The 25 hinge columns and the 20 low-order yearly Fourier columns are almost collinear: a slow bend in the trend and a slow annual wave look nearly the same over two years. OLS is unbiased but has enormous *variance* under collinearity, so it splits the signal between the two blocks in a wild, noise-driven way. In-sample it does not matter: the two errors cancel on the training window. Out of sample they do not cancel at all.
 
 #### The fix: a prior on δ
 
-Canonical Prophet puts a **Laplace(0, τ) prior on the changepoint rate adjustments δ** (and only on δ — the intercept, base slope and Fourier amplitudes stay unpenalised). Writing the negative log-posterior and dropping constants gives the objective this implementation minimises:
+Canonical Prophet puts a **Laplace(0, τ) prior on the changepoint rate adjustments δ** (and only on δ: the intercept, base slope and Fourier amplitudes stay unpenalised). Writing the negative log-posterior and dropping constants gives the objective this implementation minimises:
 
 ```
 θ* = argmin_θ  ½·||y - X·θ||²  +  λ · Σ_j |δ_j|
@@ -315,7 +315,7 @@ Canonical Prophet puts a **Laplace(0, τ) prior on the changepoint rate adjustme
 with  λ = σ² / changepoint_prior_scale
 ```
 
-- **σ²** is the residual variance of the unpenalised fit — the noise level of the series.
+- **σ²** is the residual variance of the unpenalised fit: the noise level of the series.
 - **`changepoint_prior_scale` (τ)** is the prior scale. Larger τ → smaller λ → more flexible trend. τ = ∞ removes the penalty and recovers plain OLS.
 - The penalty is an **L1** (absolute value) penalty, not L2. That is not an accident: L1 produces *exactly zero* coefficients, so the fit performs changepoint **selection**, not just changepoint shrinkage.
 
@@ -328,13 +328,13 @@ t  ->  (t - t_min) / (t_max - t_min)     # training span becomes 1.0
 y  ->  y / max|y|                        # Prophet's "absmax" scaling
 ```
 
-Least squares is scale-equivariant, so this changes *nothing* about an unpenalised fit — but it changes everything about a penalised one. Without it, `changepoint_prior_scale=0.05` would mean one thing for a 2-year series and something completely different for a 10-year series. After solving, `fit()` converts θ back to raw per-day units so `params_`, `predict()` and `get_components()` all stay in "days".
+Least squares is scale-equivariant, so this changes *nothing* about an unpenalised fit, but it changes everything about a penalised one. Without it, `changepoint_prior_scale=0.05` would mean one thing for a 2-year series and something completely different for a 10-year series. After solving, `fit()` converts θ back to raw per-day units so `params_`, `predict()` and `get_components()` all stay in "days".
 
 #### Solving it: coordinate descent + soft-thresholding
 
 An L1 penalty has no closed form, but the problem is convex and separable, so **coordinate descent** solves it: optimise one coefficient at a time, holding the rest fixed. Two refinements make that actually land on the minimum, and both are in `Prophet._solve_penalized`.
 
-**Refinement 1 — profile the unpenalised block away first.** Split the columns into the free block **A** (intercept, base slope, all Fourier terms) and the penalised block **H** (the 25 hinges). For any fixed δ the free coefficients have a closed form — they are just least squares of `y - H·δ` on `A`. Substituting that back (this is the Frisch–Waugh–Lovell theorem) leaves an ordinary lasso in δ alone:
+**Refinement 1: profile the unpenalised block away first.** Split the columns into the free block **A** (intercept, base slope, all Fourier terms) and the penalised block **H** (the 25 hinges). For any fixed δ the free coefficients have a closed form; they are just least squares of `y - H·δ` on `A`. Substituting that back (this is the Frisch–Waugh–Lovell theorem) leaves an ordinary lasso in δ alone:
 
 ```
 δ* = argmin_δ  ½·||y_p - H_p·δ||²  +  λ · Σ_j |δ_j|
@@ -343,7 +343,7 @@ with   y_p = y - A·lstsq(A, y)      # y with its projection onto col(A) removed
        H_p = H - A·lstsq(A, H)      # each hinge, likewise
 ```
 
-Same optimum, 25 coordinates instead of 53, and — the point — far less collinearity, because the worst of it (a slow bend versus a slow annual wave) has been projected out. Sweeping over the free columns as well, which is the obvious way to write this, makes the descent crawl. Holding the update rule and the stopping rule fixed and changing only that, Example 1's series needs **2814** sweeps to reach the same certified optimum instead of **18**, and Example 2's hardest panel needs **81,413** instead of **4808**.
+Same optimum, 25 coordinates instead of 53, and (the point) far less collinearity, because the worst of it (a slow bend versus a slow annual wave) has been projected out. Sweeping over the free columns as well, which is the obvious way to write this, makes the descent crawl. Holding the update rule and the stopping rule fixed and changing only that, Example 1's series needs **2814** sweeps to reach the same certified optimum instead of **18**, and Example 2's hardest panel needs **81,413** instead of **4808**.
 
 With G = H_p^T H_p and c = H_p^T y_p precomputed, the partial-residual numerator for hinge j is
 
@@ -367,7 +367,7 @@ shrink(z, λ) = z - λ    if z >  λ
 
 This is the same operator `_17_xgboost.py` uses for its L1 leaf weights, and it is the line of code that turns "penalty" into "selection": a changepoint whose evidence `z` is weaker than the prior's pull `λ` is switched off completely. On the demo series (all 730 days, τ = 0.05) **24 of the 25 candidate deltas come back as exact zeros**, leaving a single bend at day 163.
 
-**Refinement 2 — stop on the KKT conditions, not on "nothing moved".** The tempting stopping rule is "quit when no coordinate moved by more than `tol` in a full sweep". It is a trap here. Coordinate descent on nearly-collinear columns takes tiny steps for a very long time, so a small step size says nothing about how far the objective still has to fall. Stop it early and you do not get an approximate lasso solution — you get *a different estimator*, with different changepoints selected, whose behaviour depends on a sweep count nobody documented.
+**Refinement 2: stop on the KKT conditions, not on "nothing moved".** The tempting stopping rule is "quit when no coordinate moved by more than `tol` in a full sweep". It is a trap here. Coordinate descent on nearly-collinear columns takes tiny steps for a very long time, so a small step size says nothing about how far the objective still has to fall. Stop it early and you do not get an approximate lasso solution; you get *a different estimator*, with different changepoints selected, whose behaviour depends on a sweep count nobody documented.
 
 The honest stopping rule uses the optimality conditions themselves. Once a sweep leaves the sign pattern unchanged, take the active set S (the non-zero δ, with signs s) and solve the small linear system that the smooth part of the objective demands there:
 
@@ -375,33 +375,33 @@ The honest stopping rule uses the optimality conditions themselves. Once a sweep
 G[S,S] · δ_S = c_S - λ · s_S
 ```
 
-Then check two things: that δ_S came back with the signs it was supposed to have, and that every switched-off coordinate satisfies `|G[j]·δ - c_j| ≤ λ`. Those are the KKT conditions of the lasso, and because the problem is convex they are **sufficient** — a point that satisfies them is the global minimum, full stop. Not "close to"; *is*. If either check fails, the support is still moving and the sweeps continue. `_solve_penalized` records the outcome in `_n_sweeps_` and `_solver_certified_`, and the demo prints both.
+Then check two things: that δ_S came back with the signs it was supposed to have, and that every switched-off coordinate satisfies `|G[j]·δ - c_j| ≤ λ`. Those are the KKT conditions of the lasso, and because the problem is convex they are **sufficient**: a point that satisfies them is the global minimum, full stop. Not "close to"; *is*. If either check fails, the support is still moving and the sweeps continue. `_solve_penalized` records the outcome in `_n_sweeps_` and `_solver_certified_`, and the demo prints both.
 
 #### Why this still counts as "fast and transparent"
 
 Because all components are **additive and linear in the parameters**, the entire model is still one convex regression. Prophet remains:
-- **Fast** to fit — the Gram matrix is only 25×25 after profiling. Example 1's 730-day fit certifies after 18 sweeps in about 10 ms; the slowest fit in the whole demo (Example 2's 600-day panel, a genuinely ill-conditioned case) needs 4808 sweeps and about 0.3 s
+- **Fast** to fit: the Gram matrix is only 25×25 after profiling. Example 1's 730-day fit certifies after 18 sweeps in about 10 ms; the slowest fit in the whole demo (Example 2's 600-day panel, a genuinely ill-conditioned case) needs 4808 sweeps and about 0.3 s
 - **Stable** (convex objective, no local minima, no random restarts)
-- **Verifiable** (the solver does not report a guess — it reports a KKT certificate, or tells you it ran out of sweeps)
+- **Verifiable** (the solver does not report a guess; it reports a KKT certificate, or tells you it ran out of sweeps)
 - **Transparent** (every parameter has a clear geometric interpretation, and the zeros tell you which changepoints the data rejected)
 
 #### When the prior is not enough
 
-Sparsity is not the same as correctness, and it is worth seeing where this model's automatic changepoints genuinely fail. Example 2 in `_26_prophet.py` plants a real break — +0.15/day for a year, then -0.10/day — in a three-year series and fits the same default model on two different amounts of history:
+Sparsity is not the same as correctness, and it is worth seeing where this model's automatic changepoints genuinely fail. Example 2 in `_26_prophet.py` plants a real break (+0.15/day for a year, then -0.10/day) in a three-year series and fits the same default model on two different amounts of history:
 
 | Training window | Holdout R² (25 candidates) | Surviving bends | Holdout R² if you *tell* it the break is at day 365 |
 |---|---|---|---|
 | 900 days (2.5 yearly cycles) | **+0.9152** | days 345, 374 | +0.9155 |
 | 600 days (1.6 yearly cycles) | **-1.6993** | days 172, 268, 326, 383 | +0.7544 |
 
-Both fits are KKT-certified optima. The 600-day fit is not under-solved; it is *under-identified*. Over 1.6 yearly cycles, with 20 unpenalised yearly Fourier columns free to move, "the trend bent down at day 365" and "the annual wave sits a little lower and later" describe almost the same curve. Forcing the 600-day model to spend its single bend on the candidate nearest the true break — refitting at the same λ with the day-364 hinge free and every other δ pinned to 0 — raises the standardised objective by only **+2.4e-04** (0.2%) while turning the holdout from -1.6993 into +0.7535. Only the objective figure needs that hand-built fit — `fit()` recomputes σ², and with it λ, from whatever design it is handed, so λ cannot be pinned to the 25-candidate model's value through the public API. The forecast half is reproducible: `Prophet(n_changepoints=1, changepoint_range=364/599)` puts a single candidate on day 364 and scores +0.7537 on the same holdout, and the ORACLE row above (+0.7544, one candidate planted on day 365) is the version the demo prints. The likelihood surface simply does not care which of the two stories it tells, and the prior only penalises the *size* of a bend, not its *location*.
+Both fits are KKT-certified optima. The 600-day fit is not under-solved; it is *under-identified*. Over 1.6 yearly cycles, with 20 unpenalised yearly Fourier columns free to move, "the trend bent down at day 365" and "the annual wave sits a little lower and later" describe almost the same curve. Forcing the 600-day model to spend its single bend on the candidate nearest the true break, refitting at the same λ with the day-364 hinge free and every other δ pinned to 0, raises the standardised objective by only **+2.4e-04** (0.2%) while turning the holdout from -1.6993 into +0.7535. Only the objective figure needs that hand-built fit, `fit()` recomputes σ², and with it λ, from whatever design it is handed, so λ cannot be pinned to the 25-candidate model's value through the public API. The forecast half is reproducible: `Prophet(n_changepoints=1, changepoint_range=364/599)` puts a single candidate on day 364 and scores +0.7537 on the same holdout, and the ORACLE row above (+0.7544, one candidate planted on day 365) is the version the demo prints. The likelihood surface simply does not care which of the two stories it tells, and the prior only penalises the *size* of a bend, not its *location*.
 
 Two practical consequences:
 
 1. Give the model at least two full seasonal cycles before you trust an automatically-placed changepoint, and preferably a cycle of history on each side of the bend you care about.
 2. If you cannot get more history, take flexibility away from the competing block instead: a lower `yearly_fourier_order`, or `yearly_seasonality=False`, leaves the hinges as the only way to explain a bend.
 
-This is also a caution about how such demos are read. The reason to print the certificate is that a solver stopped short of the optimum will happily produce a *better-looking* forecast here — early stopping is itself a regulariser — and you would be reporting the accident, not the model.
+This is also a caution about how such demos are read. The reason to print the certificate is that a solver stopped short of the optimum will happily produce a *better-looking* forecast here (early stopping is itself a regulariser) and you would be reporting the accident, not the model.
 
 ---
 
@@ -425,7 +425,7 @@ For default settings (S=25, N_yr=10, N_wk=3): **total = 2 + 25 + 20 + 6 = 53 par
 
 > The five snippets in this section illustrate what `fit()` and `predict()` do
 > **internally**, quoted with the same variable names `_26_prophet.py` uses.
-> Steps 1 and 2 run as written — each defines the handful of names it reads.
+> Steps 1 and 2 run as written: each defines the handful of names it reads.
 > Step 3 is a layout sketch, and Steps 4 and 5 are excerpts that are *not*
 > standalone; each one says so in its first comment and names the public call
 > that does the same job. For copy-paste code, use the
@@ -452,7 +452,7 @@ print(t)   # [0, 14, 31]
 
 ### Step 2: Place Candidate Changepoints
 
-Spread `n_changepoints` candidates evenly over the first `changepoint_range` fraction of the training data. The four lines after the setup mirror `fit()` closely — `t_end` is inlined here and the `n_cp > 0` guard is omitted, but the placement arithmetic is identical:
+Spread `n_changepoints` candidates evenly over the first `changepoint_range` fraction of the training data. The four lines after the setup mirror `fit()` closely, `t_end` is inlined here and the `n_cp > 0` guard is omitted, but the placement arithmetic is identical:
 
 ```python
 # Excerpt from fit() - see the full method in _26_prophet.py. The three names it
@@ -475,7 +475,7 @@ print(f"{len(changepoints_t_)} candidates, first five: {changepoints_t_[:5]}")
 Three details are load-bearing:
 
 1. **The grid is built over INDICES, not time values.** That keeps the candidates evenly spread across *observations*, which is what you want when the dates are irregular.
-2. **Index 0 is dropped** (`cp_idx[1:]`). A changepoint at `t.min()` gives the hinge column `max(0, t - t_min) = t - t_min`, which is an exact duplicate of the linear slope column — it makes X rank deficient for no benefit.
+2. **Index 0 is dropped** (`cp_idx[1:]`). A changepoint at `t.min()` gives the hinge column `max(0, t - t_min) = t - t_min`, which is an exact duplicate of the linear slope column; it makes X rank deficient for no benefit.
 3. **`np.round`, not truncation.** Truncating (`dtype=int`) collapses candidates together on short series; `np.unique` then mops up any remaining duplicates.
 
 ### Step 3: Build Design Matrix
@@ -520,7 +520,7 @@ params_ = unstandardize(theta_std)
 # params_ = [m, k, d1, ..., dS, a1_yr, b1_yr, ..., a1_wk, b1_wk, ...]
 ```
 
-Set `changepoint_prior_scale=np.inf` and `lam` becomes 0, at which point `_solve_penalized` short-circuits to `np.linalg.lstsq(X, y, rcond=None)[0]` — the plain OLS fit, for comparison.
+Set `changepoint_prior_scale=np.inf` and `lam` becomes 0, at which point `_solve_penalized` short-circuits to `np.linalg.lstsq(X, y, rcond=None)[0]`: the plain OLS fit, for comparison.
 
 ### Step 5: Predict and Decompose
 
@@ -561,7 +561,7 @@ Controls how many potential "bends" the trend can have.
 
 **High (50+):**
 - Very flexible, wiggly trend
-- Risk of overfitting — the trend can memorise noise
+- Risk of overfitting: the trend can memorise noise
 - Use with caution; validate on held-out data
 
 **Rule of thumb:** n_changepoints = 15–25 for daily data spanning 1–3 years.
@@ -572,14 +572,14 @@ Controls how many potential "bends" the trend can have.
 
 ### changepoint_prior_scale
 
-The scale τ of the Laplace(0, τ) prior on the changepoint rate adjustments δ — **the most important parameter in Prophet**.
+The scale τ of the Laplace(0, τ) prior on the changepoint rate adjustments δ: **the most important parameter in Prophet**.
 
 | Value | Effect | Use when |
 |---|---|---|
 | 0.001 | Essentially a straight line; equivalent to `n_changepoints=0` | You know the trend is linear |
 | 0.05 (default) | Bends only where the data insists | Almost always start here |
 | 0.5 | Very flexible trend | The series genuinely breaks direction often |
-| `np.inf` | Penalty OFF → plain OLS | Only as a teaching contrast — the forecast will be wild |
+| `np.inf` | Penalty OFF → plain OLS | Only as a teaching contrast: the forecast will be wild |
 
 **Direction:** larger = more flexible trend (weaker penalty, more non-zero δ); smaller = more rigid.
 
@@ -814,11 +814,11 @@ print("Major trend shifts at days:", major_changes)
 A caveat on that last test, so the empty array it prints here is not a surprise:
 the fitted trend is **piecewise linear**, so `trend_velocity` only ever takes as
 many distinct values as there are surviving bends, plus one. A 2-sigma outlier
-test on so few levels usually flags nothing, or flags whole segments at once —
+test on so few levels usually flags nothing, or flags whole segments at once;
 it asks how fast the trend is moving relative to how much that speed varies,
 which is not the same question as where the speed *changed*.
-`model.changepoints_t_` filtered by the non-zero deltas — the
-`Surviving bend days` line above — is the reliable way to ask this one.
+`model.changepoints_t_` filtered by the non-zero deltas: the
+`Surviving bend days` line above, is the reliable way to ask this one.
 
 ### 4. Monthly Forecasting (Aggregated Data)
 
@@ -1007,7 +1007,7 @@ This is also the right harness for tuning `changepoint_prior_scale`: run it once
 - Too many changepoints for the length of data
 - Very noisy data
 
-**Solutions:** reach for the prior first — it is the knob designed for this.
+**Solutions:** reach for the prior first; it is the knob designed for this.
 ```python
 # BEST: tighten the Laplace prior. Keeps all 25 candidates available but
 # demands stronger evidence before any of them is allowed to bend the trend.
@@ -1065,7 +1065,7 @@ model = Prophet(weekly_fourier_order=5)
 
 **Symptom:** The trend curves unrealistically near the end of training data.
 
-**Cause:** Changepoints placed too close to the end (overfitting the training tail). A hinge near the end of history has very few observations after it, so its δ is estimated from almost nothing — and yet it sets the slope that gets extrapolated forever.
+**Cause:** Changepoints placed too close to the end (overfitting the training tail). A hinge near the end of history has very few observations after it, so its δ is estimated from almost nothing, and yet it sets the slope that gets extrapolated forever.
 
 **Solution:**
 ```python
@@ -1161,7 +1161,7 @@ Ask yourself:
 ### 2. Start with Defaults, Then Tune
 
 ```python
-# Good first model — works for most daily business time series
+# Good first model: works for most daily business time series
 model = Prophet(
     n_changepoints=25,            # Default
     yearly_seasonality=True,      # Default
@@ -1266,7 +1266,7 @@ If seasonal swings **grow proportionally with the trend** (e.g., 10% higher in s
 import numpy as np
 
 # Log-transform before fitting
-y_log = np.log1p(y)   # log(1 + y) — handles zeros safely
+y_log = np.log1p(y)   # log(1 + y), handles zeros safely
 
 model = Prophet(yearly_seasonality=True)
 model.fit(dates, y_log)
@@ -1278,7 +1278,7 @@ forecast = np.expm1(forecast_log)   # exp(x) - 1
 
 ### 2. External Regressors (Custom Features)
 
-This implementation focuses on core Prophet components. To add external features (e.g. a holiday binary flag, a marketing spend variable), extend the design matrix. The clean hook is `_make_design_matrix`, because `fit`, `predict` and `get_components` all go through it — override it once and every path stays consistent:
+This implementation focuses on core Prophet components. To add external features (e.g. a holiday binary flag, a marketing spend variable), extend the design matrix. The clean hook is `_make_design_matrix`, because `fit`, `predict` and `get_components` all go through it, override it once and every path stays consistent:
 
 ```python
 import numpy as np
@@ -1306,7 +1306,7 @@ model.fit(dates, y)
 print("Black Friday effect:", model.params_[-1].round(2))
 ```
 
-Two caveats. The extra columns land at the END of `params_`, so `get_components()` (which slices by the trend/yearly/weekly counts) will still return only the three built-in components — the extra effect shows up in `yhat` but not in any component array. And the extra columns are **unpenalised**, because `fit()` marks only the δ block for the L1 penalty.
+Two caveats. The extra columns land at the END of `params_`, so `get_components()` (which slices by the trend/yearly/weekly counts) will still return only the three built-in components: the extra effect shows up in `yhat` but not in any component array. And the extra columns are **unpenalised**, because `fit()` marks only the δ block for the L1 penalty.
 
 ### 3. Uncertainty Intervals
 
@@ -1333,8 +1333,8 @@ lower, upper = yhat - 1.96 * se_obs, yhat + 1.96 * se_obs
 print(f"Day 1 forecast: {yhat[0]:.1f}  95% interval [{lower[0]:.1f}, {upper[0]:.1f}]")
 ```
 
-**Caveat:** this is the *OLS* covariance formula, and the fitted model is not OLS
-— the L1 penalty on δ makes the estimator biased and its true sampling
+**Caveat:** this is the *OLS* covariance formula, and the fitted model is not OLS:
+the L1 penalty on δ makes the estimator biased and its true sampling
 distribution non-Gaussian. Treat the band as a rough guide, not a calibrated
 interval. Canonical Prophet gets honest intervals by sampling the posterior
 (MCMC) and by simulating future changepoints; a from-scratch equivalent would
@@ -1342,7 +1342,7 @@ bootstrap the residuals and refit.
 
 ### 4. Trend Saturation (Logistic Growth)
 
-For metrics with natural capacity limits (e.g., market share, user adoption), a logistic (S-curve) trend is more realistic than unbounded linear growth. This requires replacing the linear trend formula with a logistic function — not implemented here but a natural extension.
+For metrics with natural capacity limits (e.g., market share, user adoption), a logistic (S-curve) trend is more realistic than unbounded linear growth. This requires replacing the linear trend formula with a logistic function, not implemented here but a natural extension.
 
 ### 5. Cross-Validation Strategy for Time Series
 
@@ -1360,18 +1360,18 @@ Fold 3: Train [t=0..160],   Test [t=161..190]
 
 | Operation | Complexity | Notes |
 |---|---|---|
-| `fit` — build X | O(n · F) | n = time points, F = total features |
-| `fit` — unpenalised solve (for σ²) | O(n · F² + F³) | one `lstsq` |
-| `fit` — profiling out the free block | O(n · F · S) | two `lstsq` solves, computed once |
-| `fit` — Gram matrix | O(n · S²) | H_p^T H_p and H_p^T y_p, computed once |
-| `fit` — coordinate descent | O(K · S²) | K = sweeps; independent of n |
-| `fit` — KKT certificate | O(S³) per check | one small solve on the active set |
+| `fit`, build X | O(n · F) | n = time points, F = total features |
+| `fit`, unpenalised solve (for σ²) | O(n · F² + F³) | one `lstsq` |
+| `fit`, profiling out the free block | O(n · F · S) | two `lstsq` solves, computed once |
+| `fit`, Gram matrix | O(n · S²) | H_p^T H_p and H_p^T y_p, computed once |
+| `fit`, coordinate descent | O(K · S²) | K = sweeps; independent of n |
+| `fit`; KKT certificate | O(S³) per check | one small solve on the active set |
 | `predict` | O(m · F) | m = future time points |
 | `get_components` | O(m · F) | similar to predict |
 
-Here F is the total number of columns (≈ 53 for the defaults) and S is the number of changepoint candidates (25) — only the S penalised columns are iterated, because the rest are profiled out first.
+Here F is the total number of columns (≈ 53 for the defaults) and S is the number of changepoint candidates (25), only the S penalised columns are iterated, because the rest are profiled out first.
 
-Measured on the demo series with default settings and n = 730 days: the fit certifies after 18 sweeps in about **10 ms**. K is data-dependent, not a fixed budget: an easy series certifies in a handful of sweeps, while Example 2's deliberately ill-conditioned 600-day panel needs 4808 sweeps and about 0.3 s — and roughly half of that is the certificate rather than the sweeps, because on that fit the sign pattern is unchanged on almost every sweep, so ~4.8k active-set solves get attempted and rejected. The whole 4-example `__main__` demo runs in about **1.2 s** of wall clock for `python _26_prophet.py`, interpreter start-up and the NumPy import included (median 1.20 s over 9 runs, spread 1.16-1.31 s). Every timing on this page is a quiet-machine figure; the same code on a loaded machine can measure several times slower. `max_iter=50000` is a backstop, not the normal exit; if it is ever reached, `_solver_certified_` comes back `False`. Because coordinate descent works on the S×S Gram matrix rather than the n×F design matrix, its per-sweep cost does not grow with the length of the series — only the one-off Gram and projection construction does.
+Measured on the demo series with default settings and n = 730 days: the fit certifies after 18 sweeps in about **10 ms**. K is data-dependent, not a fixed budget: an easy series certifies in a handful of sweeps, while Example 2's deliberately ill-conditioned 600-day panel needs 4808 sweeps and about 0.3 s, and roughly half of that is the certificate rather than the sweeps, because on that fit the sign pattern is unchanged on almost every sweep, so ~4.8k active-set solves get attempted and rejected. The whole 4-example `__main__` demo runs in about **1.2 s** of wall clock for `python _26_prophet.py`, interpreter start-up and the NumPy import included (median 1.20 s over 9 runs, spread 1.16-1.31 s). Every timing on this page is a quiet-machine figure; the same code on a loaded machine can measure several times slower. `max_iter=50000` is a backstop, not the normal exit; if it is ever reached, `_solver_certified_` comes back `False`. Because coordinate descent works on the S×S Gram matrix rather than the n×F design matrix, its per-sweep cost does not grow with the length of the series, only the one-off Gram and projection construction does.
 
 ### Space Complexity
 
@@ -1381,15 +1381,15 @@ Measured on the demo series with default settings and n = 730 days: the fit cert
 
 ### Scaling Tips
 
-1. **For large n (> 100K points):** Sub-sample data to daily/weekly aggregations before fitting — Prophet is a macro-level model
+1. **For large n (> 100K points):** Sub-sample data to daily/weekly aggregations before fitting, Prophet is a macro-level model
 2. **For very high F (many changepoints + high Fourier orders):** Tighten `changepoint_prior_scale` first; if it is still slow, reduce `n_changepoints` (coordinate descent is O(S²) per sweep in the number of changepoints, and badly-conditioned hinge blocks need many more sweeps)
-3. **For many predictions:** Batch `predict()` calls — vectorised matrix multiply handles large future arrays efficiently
+3. **For many predictions:** Batch `predict()` calls, vectorised matrix multiply handles large future arrays efficiently
 
 ## Simplification vs. canonical Prophet
 
 This file implements the core of Taylor & Letham (2018): the additive
 decomposition, the piecewise-linear trend with hinge changepoints, Fourier
-seasonality, and — crucially — the **Laplace prior on the changepoint
+seasonality, and (crucially) the **Laplace prior on the changepoint
 magnitudes**, which is what makes automatic changepoints usable at all.
 
 The following features of the official `prophet` library are deliberately
@@ -1398,8 +1398,8 @@ file omits it, and what it costs you in practice.
 
 | Feature | What canonical Prophet does | Why omitted here | Practical consequence |
 |---|---|---|---|
-| **Uncertainty intervals** | Samples the posterior with Stan (MCMC), and simulates *future* changepoints drawn from the fitted δ distribution, to produce `yhat_lower` / `yhat_upper` | Requires an MCMC sampler and a changepoint-simulation loop — well past the size budget for one teaching file | `predict()` returns point forecasts only. See "Uncertainty Intervals" under Advanced Topics for a rough analytical band and its caveats |
-| **Logistic (saturating) growth** | `growth='logistic'` with a per-row `cap` column: `trend(t) = C(t) / (1 + exp(-(k + A·δ)(t - (m + A·γ))))` | A different trend family with its own non-linear solve | Forecasts grow (or shrink) without bound. For a metric with a real ceiling — market share, adoption rate — extrapolate with care |
+| **Uncertainty intervals** | Samples the posterior with Stan (MCMC), and simulates *future* changepoints drawn from the fitted δ distribution, to produce `yhat_lower` / `yhat_upper` | Requires an MCMC sampler and a changepoint-simulation loop, well past the size budget for one teaching file | `predict()` returns point forecasts only. See "Uncertainty Intervals" under Advanced Topics for a rough analytical band and its caveats |
+| **Logistic (saturating) growth** | `growth='logistic'` with a per-row `cap` column: `trend(t) = C(t) / (1 + exp(-(k + A·δ)(t - (m + A·γ))))` | A different trend family with its own non-linear solve | Forecasts grow (or shrink) without bound. For a metric with a real ceiling, market share, adoption rate, extrapolate with care |
 | **Holiday effects** | A `holidays` DataFrame becomes extra binary regressors with their own `holiday_prior_scale` | Needs calendar handling plus a second prior block | One-off spikes are pure error to this model. Example 4 in the `.py` demo quantifies exactly that: MAE 23.1 on ordinary days vs 147.0 on holiday-spike days. See "External Regressors" for the subclass hook |
 | **Multiplicative seasonality** | `seasonality_mode='multiplicative'`: seasonality multiplies the trend instead of adding to it | Changes the model from linear-in-parameters to a product form | Use the log-transform recipe in Advanced Topics: fit on `log1p(y)`, back-transform with `expm1` |
 | **Daily / custom seasonalities** | `add_seasonality(name, period, fourier_order)` for any period | Only yearly (365.25) and weekly (7.0) are wired in | No sub-daily patterns. Adding one is a two-line change to `_make_design_matrix` |
@@ -1411,7 +1411,7 @@ file omits it, and what it costs you in practice.
 
 ### Original Papers and Documentation
 
-- **Taylor & Letham (2018)**: "Forecasting at Scale" — Original Prophet paper from Facebook
+- **Taylor & Letham (2018)**: "Forecasting at Scale", Original Prophet paper from Facebook
   - Introduces the additive model, changepoints, and Fourier seasonality
   - [Available at: research.fb.com/publications](https://research.fb.com/publications/)
 
@@ -1437,11 +1437,11 @@ file omits it, and what it costs you in practice.
 
 **Key takeaways:**
 
-1. ✓ **Interpretable**: Decomposes forecast into trend + yearly + weekly — you always know *why* the model predicts what it does
-2. ✓ **Automatic**: Candidate changepoints are placed on a fixed grid, and the Laplace prior selects which ones survive (most δ come back exactly 0). Selection is not the same as *correct* selection — see "When the prior is not enough" in Section 4
+1. ✓ **Interpretable**: Decomposes forecast into trend + yearly + weekly; you always know *why* the model predicts what it does
+2. ✓ **Automatic**: Candidate changepoints are placed on a fixed grid, and the Laplace prior selects which ones survive (most δ come back exactly 0). Selection is not the same as *correct* selection; see "When the prior is not enough" in Section 4
 3. ✓ **Flexible**: Handles trend bends, multiple seasonal periods, and custom frequencies
-4. ✓ **Fast**: Fitted via penalised least squares — one 25×25 Gram matrix and coordinate-descent sweeps to a KKT-certified optimum; about 10 ms on a well-conditioned two-year series, a few tenths of a second on a badly conditioned one
-5. ✓ **Handles gaps**: Any set of dates works, regular or not — the design matrix is built from the numeric times you supply
+4. ✓ **Fast**: Fitted via penalised least squares: one 25×25 Gram matrix and coordinate-descent sweeps to a KKT-certified optimum; about 10 ms on a well-conditioned two-year series, a few tenths of a second on a badly conditioned one
+5. ✓ **Handles gaps**: Any set of dates works, regular or not: the design matrix is built from the numeric times you supply
 6. ✗ **Not outlier-robust**: the loss is squared error, so a single extreme point moves the whole fit in proportion to its magnitude. Winsorise or log-transform obvious outliers before fitting
 
 **Best practices:**
@@ -1458,8 +1458,8 @@ file omits it, and what it costs you in practice.
 
 ## Implementation Notes
 
-This implementation fits the model by **penalised least squares** — the MAP
-estimate under Prophet's Laplace prior on δ — which is:
+This implementation fits the model by **penalised least squares**: the MAP
+estimate under Prophet's Laplace prior on δ, which is:
 - Conceptually clear and educational (a convex objective, one soft-thresholding rule)
 - Numerically stable (the unpenalised path uses `numpy.linalg.lstsq`; the penalised path works on the Gram matrix)
 - Verifiable: the solver stops on the lasso KKT conditions, so it either returns a proven global optimum or reports `_solver_certified_ = False`
@@ -1479,11 +1479,11 @@ columns that remain, and certifies the result against the KKT conditions;
 `Prophet._soft_threshold` implements `shrink(z, lam)`.
 
 The official Facebook Prophet library uses **Stan MCMC / L-BFGS** optimisation with:
-- The same Laplace prior on changepoint magnitudes (sparse changepoints) — implemented here
-- Full posterior uncertainty intervals — not implemented here
-- Holiday effects as extra regressors — not implemented here
-- Logistic growth option for saturating trends — not implemented here
-- A Normal prior on the seasonality amplitudes — not implemented here
+- The same Laplace prior on changepoint magnitudes (sparse changepoints), implemented here
+- Full posterior uncertainty intervals, not implemented here
+- Holiday effects as extra regressors, not implemented here
+- Logistic growth option for saturating trends, not implemented here
+- A Normal prior on the seasonality amplitudes, not implemented here
 
 See the "Simplification vs. canonical Prophet" section above for what each of
 those omissions costs you in practice.
@@ -1497,4 +1497,4 @@ pip install prophet
 
 ---
 
-**Happy forecasting!** 📈🔮📊
+**Happy forecasting!**

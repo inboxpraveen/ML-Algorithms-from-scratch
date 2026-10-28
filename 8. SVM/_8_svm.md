@@ -1,6 +1,6 @@
 # Support Vector Machine (SVM) from Scratch: A Comprehensive Guide
 
-Welcome to the world of Support Vector Machines! 🎯 In this comprehensive guide, we'll explore one of the most powerful and elegant machine learning algorithms. Think of it as finding the "widest street" that separates two neighborhoods!
+Welcome to the world of Support Vector Machines! In this comprehensive guide, we'll explore one of the most powerful and elegant machine learning algorithms. Think of it as finding the "widest street" that separates two neighborhoods!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1350,7 +1350,7 @@ With Scaling:
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Effective in High Dimensions**
    - Works well with many features
@@ -1381,7 +1381,7 @@ With Scaling:
    - Easy to visualize and understand
    - Decision boundary has clear meaning
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Binary Classification Only** (this implementation)
    - Need modifications for multi-class
@@ -1415,20 +1415,20 @@ With Scaling:
 ### When to Use SVM
 
 **Good Use Cases**:
-- ✅ Binary classification problems
-- ✅ High-dimensional data (many features)
-- ✅ Clear margin of separation exists
-- ✅ Small to medium datasets (< 10k samples)
-- ✅ Want maximum-margin solution
-- ✅ Data is standardized
+- ✓ Binary classification problems
+- ✓ High-dimensional data (many features)
+- ✓ Clear margin of separation exists
+- ✓ Small to medium datasets (< 10k samples)
+- ✓ Want maximum-margin solution
+- ✓ Data is standardized
 
 **Bad Use Cases**:
-- ❌ Very large datasets (millions of samples)
-- ❌ Need probability estimates (use logistic regression)
-- ❌ Multi-class with many classes (complex)
-- ❌ Need interpretable feature importance
-- ❌ Overlapping classes with no clear separation
-- ❌ Real-time predictions needed (KNN might be slow too)
+- ✗ Very large datasets (millions of samples)
+- ✗ Need probability estimates (use logistic regression)
+- ✗ Multi-class with many classes (complex)
+- ✗ Need interpretable feature importance
+- ✗ Overlapping classes with no clear separation
+- ✗ Real-time predictions needed (KNN might be slow too)
 
 ---
 
@@ -1752,21 +1752,21 @@ Support Vector Machine is a powerful and elegant algorithm! By understanding:
 - How regularization controls model complexity
 - How feature scaling affects performance
 
-You've gained a fundamental tool in your machine learning toolkit! 🎯
+You've gained a fundamental tool in your machine learning toolkit!
 
 **When to Use SVM**:
-- ✅ Binary classification with clear separation
-- ✅ High-dimensional data
-- ✅ Want maximum-margin solution
-- ✅ Small to medium datasets
-- ✅ Can standardize features
+- ✓ Binary classification with clear separation
+- ✓ High-dimensional data
+- ✓ Want maximum-margin solution
+- ✓ Small to medium datasets
+- ✓ Can standardize features
 
 **When to Use Something Else**:
-- ❌ Very large datasets → Use logistic regression, neural networks
-- ❌ Need probabilities → Use logistic regression
-- ❌ Multi-class with many classes → Use decision trees, neural networks
-- ❌ Need interpretability → Use decision trees, linear regression
-- ❌ Can't scale features → Use tree-based methods
+- ✗ Very large datasets → Use logistic regression, neural networks
+- ✗ Need probabilities → Use logistic regression
+- ✗ Multi-class with many classes → Use decision trees, neural networks
+- ✗ Need interpretability → Use decision trees, linear regression
+- ✗ Can't scale features → Use tree-based methods
 
 **Next Steps**:
 - Try SVM on your own datasets
@@ -1779,5 +1779,5 @@ You've gained a fundamental tool in your machine learning toolkit! 🎯
 - Study multi-class SVM extensions
 - Explore support vector regression (SVR)
 
-Happy coding! 💻🎯
+Happy coding!
 

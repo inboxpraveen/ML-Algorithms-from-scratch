@@ -1,6 +1,6 @@
 # Random Forests from Scratch: A Comprehensive Guide
 
-Welcome to the world of Random Forests! 🌲🌲🌲 In this comprehensive guide, we'll explore one of the most powerful and popular machine learning algorithms. Think of it as a "committee of experts" where many decision trees vote together!
+Welcome to the world of Random Forests! In this comprehensive guide, we'll explore one of the most powerful and popular machine learning algorithms. Think of it as a "committee of experts" where many decision trees vote together!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1010,7 +1010,7 @@ SS_tot = Σ(y_true - y_mean)²  # Total sum of squares
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **High Accuracy**
    - Often outperforms single decision trees
@@ -1056,7 +1056,7 @@ SS_tot = Σ(y_true - y_mean)²  # Total sum of squares
    - Handles multi-class problems
    - Works with various data types
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Slower Prediction**
    - Must query every tree
@@ -1086,19 +1086,19 @@ SS_tot = Σ(y_true - y_mean)²  # Total sum of squares
 ### When to Use Random Forest
 
 **Good Use Cases**:
-- ✅ Medium to large datasets
-- ✅ Many features (high dimensions)
-- ✅ Need high accuracy
-- ✅ Have time for training
-- ✅ Want robust model with minimal tuning
-- ✅ Mixed data types
+- ✓ Medium to large datasets
+- ✓ Many features (high dimensions)
+- ✓ Need high accuracy
+- ✓ Have time for training
+- ✓ Want robust model with minimal tuning
+- ✓ Mixed data types
 
 **Bad Use Cases**:
-- ❌ Very small datasets (< 100 samples)
-- ❌ Need real-time predictions (milliseconds)
-- ❌ Require full interpretability
-- ❌ Very limited memory
-- ❌ Linear relationships (use regression instead)
+- ✗ Very small datasets (< 100 samples)
+- ✗ Need real-time predictions (milliseconds)
+- ✗ Require full interpretability
+- ✗ Very limited memory
+- ✗ Linear relationships (use regression instead)
 
 ---
 
@@ -1411,20 +1411,20 @@ Random Forests are one of the most powerful and practical machine learning algor
 - How hyperparameters control performance
 - When to use (and not use) random forests
 
-You've gained a versatile tool that works well across many different problems! 🌲🌲🌲
+You've gained a versatile tool that works well across many different problems!
 
 **When to Use Random Forest**:
-- ✅ Need high accuracy with minimal tuning
-- ✅ Have sufficient training data
-- ✅ Can afford slightly longer training time
-- ✅ Want robust predictions
-- ✅ Don't need real-time predictions
+- ✓ Need high accuracy with minimal tuning
+- ✓ Have sufficient training data
+- ✓ Can afford slightly longer training time
+- ✓ Want robust predictions
+- ✓ Don't need real-time predictions
 
 **When to Use Something Else**:
-- ❌ Need instant predictions → Use simpler models
-- ❌ Need full interpretability → Use single decision tree
-- ❌ Very small dataset → Use simpler models
-- ❌ Linear relationships → Use linear regression
+- ✗ Need instant predictions → Use simpler models
+- ✗ Need full interpretability → Use single decision tree
+- ✗ Very small dataset → Use simpler models
+- ✗ Linear relationships → Use linear regression
 
 **Next Steps**:
 - Run `python _7_random_forests.py` and read DEMO 3 - it measures the tree
@@ -1437,4 +1437,4 @@ You've gained a versatile tool that works well across many different problems! �
 - Explore Gradient Boosting as an alternative
 - Study ensemble methods in depth
 
-Happy coding! 🌲🤖
+Happy coding!

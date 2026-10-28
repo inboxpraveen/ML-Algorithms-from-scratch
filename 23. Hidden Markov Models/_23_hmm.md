@@ -1,6 +1,6 @@
 # Hidden Markov Models (HMM) from Scratch: A Comprehensive Guide
 
-Welcome to the fascinating world of Hidden Markov Models! 🔮 In this comprehensive guide, we'll explore HMMs - powerful statistical models for sequential data where the underlying process is hidden but observable through outputs. Think of it as understanding the "hidden story" behind what you can see!
+Welcome to the fascinating world of Hidden Markov Models! In this comprehensive guide, we'll explore HMMs - powerful statistical models for sequential data where the underlying process is hidden but observable through outputs. Think of it as understanding the "hidden story" behind what you can see!
 
 ## Table of Contents
 0. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -181,11 +181,11 @@ Imagine you're in a room without windows, trying to figure out the weather outsi
 - State estimation problems
 
 **Examples**:
-- 🗣️ Speech recognition (phonemes → acoustic signals)
-- 📝 Part-of-speech tagging (POS tags → words)
-- 🧬 Gene finding (gene regions → DNA sequences)
-- 📈 Market regime detection (bull/bear → price movements)
-- 🌤️ Weather prediction (weather → observations)
+- Speech recognition (phonemes → acoustic signals)
+- Part-of-speech tagging (POS tags → words)
+- Gene finding (gene regions → DNA sequences)
+- Market regime detection (bull/bear → price movements)
+- Weather prediction (weather → observations)
 
 ---
 
@@ -1886,7 +1886,7 @@ dozens of states, use a compiled library - the repo's standing advice.
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Handles Uncertainty**
    - Models probabilistic relationships
@@ -1919,7 +1919,7 @@ dozens of states, use a compiled library - the repo's standing advice.
    - Learning: Find parameters
    - Prediction: Future observations
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Markov Assumption**
    ```
@@ -1999,19 +1999,19 @@ dozens of states, use a compiled library - the repo's standing advice.
 ### When to Use HMMs
 
 **Good Use Cases**:
-- ✅ Sequential data with temporal dependencies
-- ✅ Hidden process with observable outputs
-- ✅ Moderate number of states (<20)
-- ✅ Need probabilistic predictions
-- ✅ Need interpretable model
-- ✅ Limited training data
+- ✓ Sequential data with temporal dependencies
+- ✓ Hidden process with observable outputs
+- ✓ Moderate number of states (<20)
+- ✓ Need probabilistic predictions
+- ✓ Need interpretable model
+- ✓ Limited training data
 
 **Bad Use Cases**:
-- ❌ Very long sequences (use RNNs/LSTMs)
-- ❌ Complex dependencies (use Deep Learning)
-- ❌ High-dimensional observations (use dimensionality reduction first)
-- ❌ Non-sequential data (use other models)
-- ❌ Need end-to-end differentiability (use neural networks)
+- ✗ Very long sequences (use RNNs/LSTMs)
+- ✗ Complex dependencies (use Deep Learning)
+- ✗ High-dimensional observations (use dimensionality reduction first)
+- ✗ Non-sequential data (use other models)
+- ✗ Need end-to-end differentiability (use neural networks)
 
 ---
 
@@ -2115,20 +2115,20 @@ Hidden Markov Models are powerful tools for modeling sequential data with hidden
 - The three problems (Evaluation, Decoding, Learning)
 - The three algorithms (Forward, Viterbi, Baum-Welch)
 
-You've gained a fundamental technique used across many domains! 🔮
+You've gained a fundamental technique used across many domains!
 
 **When to Use HMM**:
-- ✅ Sequential/temporal data
-- ✅ Hidden states with observable outputs
-- ✅ Need probabilistic model
-- ✅ Want interpretability
-- ✅ Moderate complexity
+- ✓ Sequential/temporal data
+- ✓ Hidden states with observable outputs
+- ✓ Need probabilistic model
+- ✓ Want interpretability
+- ✓ Moderate complexity
 
 **When to Use Something Else**:
-- ❌ Very long sequences → RNN/LSTM
-- ❌ Complex patterns → Deep Learning
-- ❌ Non-sequential data → Other models
-- ❌ Very large state space → Approximate methods
+- ✗ Very long sequences → RNN/LSTM
+- ✗ Complex patterns → Deep Learning
+- ✗ Non-sequential data → Other models
+- ✗ Very large state space → Approximate methods
 
 **Next Steps**:
 - Try HMM on your sequential data
@@ -2138,4 +2138,4 @@ You've gained a fundamental technique used across many domains! 🔮
 - Explore modern deep learning sequence models (RNN, LSTM, Transformers)
 - Read about hierarchical and infinite HMMs
 
-Happy sequence modeling! 💻🔮📊
+Happy sequence modeling!

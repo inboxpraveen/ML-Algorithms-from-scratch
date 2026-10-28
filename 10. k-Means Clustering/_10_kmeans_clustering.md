@@ -1,6 +1,6 @@
 # k-Means Clustering from Scratch: A Comprehensive Guide
 
-Welcome to the world of k-Means Clustering! 🎯 In this comprehensive guide, we'll explore one of the most popular unsupervised machine learning algorithms. Think of it as the "find natural groups in your data" algorithm!
+Welcome to the world of k-Means Clustering! In this comprehensive guide, we'll explore one of the most popular unsupervised machine learning algorithms. Think of it as the "find natural groups in your data" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -617,7 +617,7 @@ Reduce colors in an image:
 - Input: Pixel RGB values
 - Output: k dominant colors
 - Example: "Reduce 16 million colors to 16 representative colors"
-- ⚠️ With *this* teaching implementation, fit the palette on a random **subsample** of a few thousand pixels and then call `predict()` on the full image. The assignment loop here is a readable Python `for` over samples, so fitting a full 256×256 image (65,536 pixels, k=8, capped at 20 iterations) takes about 10 seconds, while a 2,000-pixel subsample finds the same palette in 0.4s:
+- Warning: With *this* teaching implementation, fit the palette on a random **subsample** of a few thousand pixels and then call `predict()` on the full image. The assignment loop here is a readable Python `for` over samples, so fitting a full 256×256 image (65,536 pixels, k=8, capped at 20 iterations) takes about 10 seconds, while a 2,000-pixel subsample finds the same palette in 0.4s:
   ```python
   sub = pixels[np.random.RandomState(0).choice(len(pixels), 2000, replace=False)]
   model = KMeansClustering(n_clusters=8, init='kmeans++', n_init=10, random_state=0)
@@ -1132,7 +1132,7 @@ x_scaled = (x - mean) / std_dev
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Simple and Fast**
    - Easy to understand and implement
@@ -1156,7 +1156,7 @@ x_scaled = (x - mean) / std_dev
    - Works on many types of data
    - Can be adapted for various domains
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Must Specify k in Advance**
    - Need to know how many clusters
@@ -1191,18 +1191,18 @@ x_scaled = (x - mean) / std_dev
 ### When to Use k-Means
 
 **Good Use Cases**:
-- ✅ Roughly spherical clusters
-- ✅ Clusters of similar sizes
-- ✅ Clear separation between groups
-- ✅ Know approximate number of clusters
-- ✅ Need fast, simple clustering
+- ✓ Roughly spherical clusters
+- ✓ Clusters of similar sizes
+- ✓ Clear separation between groups
+- ✓ Know approximate number of clusters
+- ✓ Need fast, simple clustering
 
 **Bad Use Cases**:
-- ❌ Unknown number of clusters
-- ❌ Irregular cluster shapes (crescents, nested circles)
-- ❌ Very different cluster sizes
-- ❌ Many outliers in data
-- ❌ Need hierarchical relationships
+- ✗ Unknown number of clusters
+- ✗ Irregular cluster shapes (crescents, nested circles)
+- ✗ Very different cluster sizes
+- ✗ Many outliers in data
+- ✗ Need hierarchical relationships
 
 ---
 
@@ -1357,20 +1357,20 @@ k-Means Clustering is a powerful tool for discovering patterns in data! By under
 - How feature scaling affects results
 - When k-means works well (and when it doesn't)
 
-You've gained a fundamental tool for unsupervised learning! 🎯
+You've gained a fundamental tool for unsupervised learning!
 
 **When to Use k-Means**:
-- ✅ Customer segmentation
-- ✅ Image compression
-- ✅ Document clustering
-- ✅ Anomaly detection
-- ✅ Market segmentation
+- ✓ Customer segmentation
+- ✓ Image compression
+- ✓ Document clustering
+- ✓ Anomaly detection
+- ✓ Market segmentation
 
 **When to Use Something Else**:
-- ❌ Don't know number of clusters → Use DBSCAN, hierarchical clustering
-- ❌ Non-spherical clusters → Use DBSCAN, spectral clustering
-- ❌ Need cluster hierarchy → Use hierarchical clustering
-- ❌ Need probabilistic assignments → Use Gaussian Mixture Models
+- ✗ Don't know number of clusters → Use DBSCAN, hierarchical clustering
+- ✗ Non-spherical clusters → Use DBSCAN, spectral clustering
+- ✗ Need cluster hierarchy → Use hierarchical clustering
+- ✗ Need probabilistic assignments → Use Gaussian Mixture Models
 
 **Next Steps**:
 - Try k-means on your own datasets
@@ -1380,5 +1380,5 @@ You've gained a fundamental tool for unsupervised learning! 🎯
 - Explore dimensionality reduction before clustering (PCA)
 - Study cluster validation techniques
 
-Happy Clustering! 💻🎯
+Happy Clustering!
 

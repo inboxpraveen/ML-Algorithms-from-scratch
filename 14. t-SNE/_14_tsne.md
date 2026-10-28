@@ -167,17 +167,17 @@ Unlike PCA (which preserves global structure linearly), t-SNE:
 ### When to Use t-SNE
 
 **Perfect for:**
-- 📊 Visualizing high-dimensional datasets (100+ dimensions)
-- 🔍 Exploring cluster structure in your data
-- 🖼️ Visualizing image embeddings, word vectors, or features
-- 🧬 Analyzing biological data (gene expression, protein structures)
-- 🎨 Understanding neural network representations
+- Visualizing high-dimensional datasets (100+ dimensions)
+- Exploring cluster structure in your data
+- Visualizing image embeddings, word vectors, or features
+- Analyzing biological data (gene expression, protein structures)
+- Understanding neural network representations
 
 **Not ideal for:**
-- ❌ Exact distance preservation (use MDS)
-- ❌ Interpretable dimensions (use PCA)
-- ❌ Very large datasets (>10,000 points) without optimization
-- ❌ Finding outliers (t-SNE can hide them)
+- ✗ Exact distance preservation (use MDS)
+- ✗ Interpretable dimensions (use PCA)
+- ✗ Very large datasets (>10,000 points) without optimization
+- ✗ Finding outliers (t-SNE can hide them)
 
 ---
 
@@ -539,9 +539,9 @@ Y(t+1) = Y(t) - α × ∂C/∂Y(t) + momentum × (Y(t) - Y(t-1))
 
 Note the **minus** sign in front of the gradient: this is gradient *descent*, we move
 against the gradient. (The original van der Maaten & Hinton paper prints this update with
-a **plus** sign — both where it introduces the momentum term and again in the t-SNE
+a **plus** sign: both where it introduces the momentum term and again in the t-SNE
 pseudocode of Algorithm 1, it reads
-`Y(t) = Y(t-1) + η ∂C/∂Y + α(t)(Y(t-1) - Y(t-2))` — and it defines no separate
+`Y(t) = Y(t-1) + η ∂C/∂Y + α(t)(Y(t-1) - Y(t-2))`, and it defines no separate
 negative-gradient symbol, so as printed it is gradient *ascent*. Do not copy the paper's
 sign: van der Maaten's own reference `tsne.py` descends,
 `iY = momentum * iY - eta * (gains * dY)`. The code follows the minus-sign convention
@@ -1840,7 +1840,7 @@ defines the *cost function*: the same conditional Gaussians, the same binary sea
 `H(P_i) = log₂(perplexity)`, the same symmetrization `(p(j|i) + p(i|j)) / 2n`, the same
 Student-t `q_ij`, the same KL cost, the same 4-factor gradient.
 
-The *optimizer schedule*, however, follows **sklearn**, not the paper — worth knowing
+The *optimizer schedule*, however, follows **sklearn**, not the paper, worth knowing
 before you cite this file:
 
 | schedule constant | this code | vdM & Hinton 2008 | vdM's reference `tsne.py` | sklearn 1.7.2 |
@@ -1921,7 +1921,7 @@ noticeably more global structure.
 
 **Here:** `init` is always random: `rng.randn(n, n_components) * 1e-4`, which is the
 scale sklearn uses (`1e-4 * standard_normal(...)`). The paper's Algorithm 1 samples
-`Y(0)` from `N(0, 10⁻⁴ I)` — a *variance* of `10⁻⁴`, i.e. a standard deviation of `10⁻²`,
+`Y(0)` from `N(0, 10⁻⁴ I)`: a *variance* of `10⁻⁴`, i.e. a standard deviation of `10⁻²`,
 a hundred times wider. Measured on the Quick Start blobs, that hundredfold change moves
 the final KL from `0.9288` to `0.8209` and neighbour preservation from `0.463` to
 `0.486`: a different random map of the same quality, because early exaggeration blows the
@@ -1962,7 +1962,7 @@ mapping, use PCA, an autoencoder, or parametric t-SNE. This is discussed again u
 
 ## Advantages and Limitations
 
-### Advantages ✅
+### Advantages ✓
 
 1. **Excellent Visualization**
    - Creates beautiful, interpretable plots
@@ -1989,7 +1989,7 @@ mapping, use PCA, an autoencoder, or parametric t-SNE. This is discussed again u
    - Exploratory analysis tool
    - Discovers hidden patterns
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Computationally Expensive**
    ```
@@ -2043,20 +2043,20 @@ mapping, use PCA, an autoencoder, or parametric t-SNE. This is discussed again u
 ### When to Use t-SNE
 
 **Good Use Cases:**
-- ✅ Visualizing high-dimensional data (images, embeddings)
-- ✅ Exploring cluster structure
-- ✅ Comparing different datasets visually
-- ✅ Understanding neural network representations
-- ✅ Exploratory data analysis
-- ✅ Presentation and communication
+- ✓ Visualizing high-dimensional data (images, embeddings)
+- ✓ Exploring cluster structure
+- ✓ Comparing different datasets visually
+- ✓ Understanding neural network representations
+- ✓ Exploratory data analysis
+- ✓ Presentation and communication
 
 **Bad Use Cases:**
-- ❌ Feature extraction for downstream tasks → Use PCA or autoencoders
-- ❌ Embedding new/unseen data → Use parametric methods
-- ❌ Very large datasets (>50k) → Use UMAP or approximations
-- ❌ Measuring exact distances → Use MDS
-- ❌ Need deterministic results → Use PCA
-- ❌ Real-time applications → Use PCA or random projections
+- ✗ Feature extraction for downstream tasks → Use PCA or autoencoders
+- ✗ Embedding new/unseen data → Use parametric methods
+- ✗ Very large datasets (>50k) → Use UMAP or approximations
+- ✗ Measuring exact distances → Use MDS
+- ✗ Need deterministic results → Use PCA
+- ✗ Real-time applications → Use PCA or random projections
 
 ---
 
@@ -2114,21 +2114,21 @@ t-SNE is a powerful tool for visualizing and exploring high-dimensional data! By
 - How gradient descent optimizes the embedding
 - Best practices for hyperparameter selection
 
-You've gained an essential technique for making sense of complex, high-dimensional datasets! 🎨📊
+You've gained an essential technique for making sense of complex, high-dimensional datasets!
 
 **When to Use t-SNE:**
-- ✅ Visualizing complex datasets
-- ✅ Exploring cluster structure
-- ✅ Understanding embeddings and features
-- ✅ Communicating patterns to stakeholders
-- ✅ Moderate-sized datasets (<10k points)
+- ✓ Visualizing complex datasets
+- ✓ Exploring cluster structure
+- ✓ Understanding embeddings and features
+- ✓ Communicating patterns to stakeholders
+- ✓ Moderate-sized datasets (<10k points)
 
 **When to Use Something Else:**
-- ❌ Need fast results → PCA, random projection
-- ❌ Large datasets → UMAP, PCA
-- ❌ Feature extraction → PCA, autoencoders
-- ❌ Preserve exact distances → MDS
-- ❌ Interpretable components → PCA, ICA
+- ✗ Need fast results → PCA, random projection
+- ✗ Large datasets → UMAP, PCA
+- ✗ Feature extraction → PCA, autoencoders
+- ✗ Preserve exact distances → MDS
+- ✗ Interpretable components → PCA, ICA
 
 **Next Steps:**
 - Try t-SNE on your own dataset
@@ -2138,5 +2138,5 @@ You've gained an essential technique for making sense of complex, high-dimension
 - Study Barnes-Hut t-SNE for large datasets
 - Explore parametric t-SNE for new point embedding
 
-Happy visualizing! 💻🎨📈
+Happy visualizing!
 

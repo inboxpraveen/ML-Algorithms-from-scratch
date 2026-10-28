@@ -1,6 +1,6 @@
 # XGBoost from Scratch: A Comprehensive Guide
 
-Welcome to the world of XGBoost! 🚀 In this comprehensive guide, we'll explore XGBoost (Extreme Gradient Boosting) - one of the most powerful and widely-used machine learning algorithms. Think of it as gradient boosting on steroids, with advanced optimizations and regularization techniques!
+Welcome to the world of XGBoost! In this comprehensive guide, we'll explore XGBoost (Extreme Gradient Boosting) - one of the most powerful and widely-used machine learning algorithms. Think of it as gradient boosting on steroids, with advanced optimizations and regularization techniques!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -2317,7 +2317,7 @@ and it is the reason to use the real library for anything real.
 > item is a library feature this implementation does not have, it is marked. See
 > [Simplification vs. Canonical XGBoost](#simplification-vs-canonical-xgboost).
 
-### Advantages ✅
+### Advantages ✓
 
 1. **State-of-the-Art Accuracy**
    - Best algorithm for structured/tabular data
@@ -2386,7 +2386,7 @@ and it is the reason to use the real library for anything real.
    Works with mixed data types
    ```
 
-### Limitations ❌
+### Limitations ✗
 
 1. **Many Hyperparameters**
    ```
@@ -2474,23 +2474,23 @@ and it is the reason to use the real library for anything real.
 ### When to Use XGBoost
 
 **Excellent Use Cases:**
-- ✅ Structured/tabular data (CSV, databases)
-- ✅ Kaggle competitions
-- ✅ Classification and regression
-- ✅ Mixed data types (numerical + categorical)
-- ✅ Need best possible accuracy
-- ✅ Feature importance required
-- ✅ Medium to large datasets (1K-10M samples)
-- ✅ Have time for hyperparameter tuning
+- ✓ Structured/tabular data (CSV, databases)
+- ✓ Kaggle competitions
+- ✓ Classification and regression
+- ✓ Mixed data types (numerical + categorical)
+- ✓ Need best possible accuracy
+- ✓ Feature importance required
+- ✓ Medium to large datasets (1K-10M samples)
+- ✓ Have time for hyperparameter tuning
 
 **Poor Use Cases:**
-- ❌ Images → Use CNNs (ResNet, EfficientNet)
-- ❌ Text → Use Transformers (BERT, GPT)
-- ❌ Time series → Use RNNs, Transformers
-- ❌ Very high-dimensional sparse data → Linear models
-- ❌ Need interpretability → Logistic Regression, Decision Trees
-- ❌ Real-time training → Online learning algorithms
-- ❌ Very small data (< 100 samples) → Simpler models
+- ✗ Images → Use CNNs (ResNet, EfficientNet)
+- ✗ Text → Use Transformers (BERT, GPT)
+- ✗ Time series → Use RNNs, Transformers
+- ✗ Very high-dimensional sparse data → Linear models
+- ✗ Need interpretability → Logistic Regression, Decision Trees
+- ✗ Real-time training → Online learning algorithms
+- ✗ Very small data (< 100 samples) → Simpler models
 
 ---
 
@@ -2698,30 +2698,30 @@ Tune systematically, not randomly!
 
 ## Conclusion
 
-XGBoost is the king of structured data machine learning! 👑 By understanding:
+XGBoost is the king of structured data machine learning! By understanding:
 - How second-order optimization improves gradient boosting
 - How regularization prevents overfitting at multiple levels
 - How to tune the many hyperparameters systematically
 - When XGBoost excels and when to use alternatives
 - The mathematical elegance behind the gain formula
 
-You've mastered one of the most powerful and practical machine learning algorithms! 🚀
+You've mastered one of the most powerful and practical machine learning algorithms!
 
 **When to Use XGBoost:**
-- ✅ Structured/tabular data (the #1 use case)
-- ✅ Kaggle competitions and challenges
-- ✅ Need best possible accuracy
-- ✅ Classification, regression, ranking tasks
-- ✅ Production machine learning systems
-- ✅ Have validation data for tuning
+- ✓ Structured/tabular data (the #1 use case)
+- ✓ Kaggle competitions and challenges
+- ✓ Need best possible accuracy
+- ✓ Classification, regression, ranking tasks
+- ✓ Production machine learning systems
+- ✓ Have validation data for tuning
 
 **When to Use Something Else:**
-- ❌ Images → CNNs (ResNet, EfficientNet)
-- ❌ Text → Transformers (BERT, GPT)
-- ❌ Time series → RNNs, Temporal Transformers
-- ❌ Need interpretability → Linear models, Decision Trees
-- ❌ Very simple problem → Logistic Regression
-- ❌ Real-time learning → Online algorithms
+- ✗ Images → CNNs (ResNet, EfficientNet)
+- ✗ Text → Transformers (BERT, GPT)
+- ✗ Time series → RNNs, Temporal Transformers
+- ✗ Need interpretability → Linear models, Decision Trees
+- ✗ Very simple problem → Logistic Regression
+- ✗ Real-time learning → Online algorithms
 
 **Next Steps:**
 - Try XGBoost on your own datasets
@@ -2750,7 +2750,7 @@ It includes:
 **Remember:**
 XGBoost = Gradient Boosting + Regularization + Second-Order + Engineering
 
-This simple formula has revolutionized machine learning on structured data! 💻🚀📊
+This simple formula has revolutionized machine learning on structured data!
 
-Happy Boosting! 🎉
+Happy Boosting!
 
