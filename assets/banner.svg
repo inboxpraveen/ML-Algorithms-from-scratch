@@ -4,33 +4,33 @@
 <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1220"/><stop offset="1" stop-color="#14213f"/></linearGradient><linearGradient id="mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0b1220"/></linearGradient><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0 H0 V40" fill="none" stroke="#ffffff" stroke-opacity="0.035"/></pattern></defs>
 <rect width="1280" height="640" fill="url(#bg)"/>
 <rect width="1280" height="640" fill="url(#grid)"/>
-<g transform="translate(72 70) scale(0.40625)"><rect width="256" height="256" rx="56" fill="url(#mark)" stroke="#2b4a8f" stroke-width="3"/><path d="M44 208 H212 M44 208 V48" stroke="#93a4bf" stroke-width="8" stroke-linecap="round" fill="none"/><line x1="62" y1="182" x2="206" y2="76" stroke="#fbbf24" stroke-width="12" stroke-linecap="round"/><circle cx="78" cy="150" r="12" fill="#38bdf8"/><circle cx="108" cy="168" r="12" fill="#38bdf8"/><circle cx="128" cy="116" r="12" fill="#38bdf8"/><circle cx="160" cy="132" r="12" fill="#38bdf8"/><circle cx="178" cy="86" r="12" fill="#38bdf8"/><circle cx="204" cy="104" r="12" fill="#38bdf8"/></g>
-<text x="72" y="256" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="78" font-weight="700" fill="#e6edf7">ML Algorithms</text>
-<text x="72" y="340" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="78" font-weight="700" fill="#fbbf24">from Scratch</text>
-<text x="72" y="398" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="26" fill="#9fb0ca">28 algorithms in plain NumPy, with the</text>
-<text x="72" y="432" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="26" fill="#9fb0ca">maths explained next to code you can run.</text>
-<rect x="72" y="466" width="188" height="42" rx="21" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-opacity="0.8"/>
-<text x="166.0" y="494" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="600" fill="#38bdf8">28 algorithms</text>
-<rect x="274" y="466" width="150" height="42" rx="21" fill="#34d399" fill-opacity="0.14" stroke="#34d399" stroke-opacity="0.8"/>
-<text x="349.0" y="494" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="600" fill="#34d399">NumPy only</text>
-<rect x="438" y="466" width="170" height="42" rx="21" fill="#a78bfa" fill-opacity="0.14" stroke="#a78bfa" stroke-opacity="0.8"/>
-<text x="523.0" y="494" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="600" fill="#a78bfa">Seeded demos</text>
-<rect x="700" y="96" width="508" height="396" rx="16" fill="#080e1c" stroke="#2a3a5e" stroke-width="1.5"/>
-<path d="M700 112 a16 16 0 0 1 16 -16 h476 a16 16 0 0 1 16 16 v28 h-508 z" fill="#101a31"/>
-<circle cx="726" cy="118" r="7" fill="#f87171"/>
-<circle cx="750" cy="118" r="7" fill="#fbbf24"/>
-<circle cx="774" cy="118" r="7" fill="#34d399"/>
-<text x="954.0" y="124" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" fill="#9fb0ca">terminal</text>
-<text x="728" y="180" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" fill="#fbbf24" xml:space="preserve">$</text>
-<text x="752" y="180" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" fill="#e6edf7" xml:space="preserve">python "17. XGBoost/_17_xgboost.py"</text>
-<text x="728" y="232" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" font-weight="700" fill="#38bdf8" xml:space="preserve">DEMO 1 - Regression: y = x^2 + noise</text>
-<text x="728" y="266" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" font-weight="400" fill="#d5deee" xml:space="preserve">Train R2 : 0.9832</text>
-<text x="728" y="300" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" font-weight="400" fill="#d5deee" xml:space="preserve">Test  R2 : 0.9534</text>
-<text x="728" y="352" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" font-weight="700" fill="#38bdf8" xml:space="preserve">DEMO 2 - Binary Classification</text>
-<text x="728" y="386" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" font-weight="400" fill="#d5deee" xml:space="preserve">Train Accuracy : 100.00%</text>
-<text x="728" y="420" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" font-weight="400" fill="#d5deee" xml:space="preserve">Test  Accuracy : 100.00%</text>
-<text x="728" y="466" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="20" fill="#fbbf24">$</text>
-<rect x="752" y="448" width="11" height="24" fill="#d5deee" fill-opacity="0.8"/>
-<line x1="72" y1="560" x2="1208" y2="560" stroke="#223152"/>
-<text x="72" y="598" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#9fb0ca" xml:space="preserve">Regression  /  Trees  /  Boosting  /  Clustering  /  Dimensionality reduction  /  Sequences  /  Ranking</text>
+<g transform="translate(100 70) scale(0.40625)"><rect width="256" height="256" rx="56" fill="url(#mark)" stroke="#2b4a8f" stroke-width="3"/><path d="M44 208 H212 M44 208 V48" stroke="#93a4bf" stroke-width="8" stroke-linecap="round" fill="none"/><line x1="62" y1="182" x2="206" y2="76" stroke="#fbbf24" stroke-width="12" stroke-linecap="round"/><circle cx="78" cy="150" r="12" fill="#38bdf8"/><circle cx="108" cy="168" r="12" fill="#38bdf8"/><circle cx="128" cy="116" r="12" fill="#38bdf8"/><circle cx="160" cy="132" r="12" fill="#38bdf8"/><circle cx="178" cy="86" r="12" fill="#38bdf8"/><circle cx="204" cy="104" r="12" fill="#38bdf8"/></g>
+<text x="100" y="256" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="78" font-weight="700" fill="#e6edf7">ML Algorithms</text>
+<text x="100" y="340" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="78" font-weight="700" fill="#fbbf24">from Scratch</text>
+<text x="100" y="398" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="26" fill="#9fb0ca">28 algorithms in plain NumPy, with the</text>
+<text x="100" y="432" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="26" fill="#9fb0ca">maths explained next to code you can run.</text>
+<rect x="100" y="466" width="188" height="42" rx="21" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-opacity="0.8"/>
+<text x="194.0" y="494" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="600" fill="#38bdf8">28 algorithms</text>
+<rect x="302" y="466" width="150" height="42" rx="21" fill="#34d399" fill-opacity="0.14" stroke="#34d399" stroke-opacity="0.8"/>
+<text x="377.0" y="494" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="600" fill="#34d399">NumPy only</text>
+<rect x="466" y="466" width="170" height="42" rx="21" fill="#a78bfa" fill-opacity="0.14" stroke="#a78bfa" stroke-opacity="0.8"/>
+<text x="551.0" y="494" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="600" fill="#a78bfa">Seeded demos</text>
+<rect x="706" y="96" width="474" height="380" rx="16" fill="#080e1c" stroke="#2a3a5e" stroke-width="1.5"/>
+<path d="M706 112 a16 16 0 0 1 16 -16 h442 a16 16 0 0 1 16 16 v28 h-474 z" fill="#101a31"/>
+<circle cx="732" cy="118" r="7" fill="#f87171"/>
+<circle cx="756" cy="118" r="7" fill="#fbbf24"/>
+<circle cx="780" cy="118" r="7" fill="#34d399"/>
+<text x="943.0" y="124" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" fill="#9fb0ca">terminal</text>
+<text x="734" y="180" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" fill="#fbbf24" xml:space="preserve">$</text>
+<text x="754" y="180" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" fill="#e6edf7" xml:space="preserve">python "17. XGBoost/_17_xgboost.py"</text>
+<text x="734" y="230" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" font-weight="700" fill="#38bdf8" xml:space="preserve">DEMO 1 - Regression: y = x^2 + noise</text>
+<text x="734" y="262" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" font-weight="400" fill="#d5deee" xml:space="preserve">Train R2 : 0.9832</text>
+<text x="734" y="294" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" font-weight="400" fill="#d5deee" xml:space="preserve">Test  R2 : 0.9534</text>
+<text x="734" y="344" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" font-weight="700" fill="#38bdf8" xml:space="preserve">DEMO 2 - Binary Classification</text>
+<text x="734" y="376" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" font-weight="400" fill="#d5deee" xml:space="preserve">Train Accuracy : 100.00%</text>
+<text x="734" y="408" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" font-weight="400" fill="#d5deee" xml:space="preserve">Test  Accuracy : 100.00%</text>
+<text x="734" y="452" font-family="Consolas, 'SFMono-Regular', Menlo, monospace" font-size="18" fill="#fbbf24">$</text>
+<rect x="754" y="435" width="10" height="22" fill="#d5deee" fill-opacity="0.8"/>
+<line x1="100" y1="560" x2="1180" y2="560" stroke="#223152"/>
+<text x="100" y="598" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#9fb0ca" xml:space="preserve">Regression  /  Trees  /  Boosting  /  Clustering  /  Dimensionality reduction  /  Sequences  /  Ranking</text>
 </svg>
