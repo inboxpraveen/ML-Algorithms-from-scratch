@@ -1,6 +1,6 @@
 # Simple Linear Regression from Scratch: A Comprehensive Guide
 
-Welcome to the world of Linear Regression! In this comprehensive guide, we'll explore how to predict outcomes using a single input feature. Think of it as finding the best-fit line through a scatter plot of points!
+This guide explores how to predict outcomes using a single input feature. Think of it as finding the best-fit line through a scatter plot of points!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -894,5 +894,3 @@ You've taken your first step into the world of machine learning!
 - Compare with scikit-learn's LinearRegression
 - Learn about Multiple Linear Regression (when you have multiple features)
 - Explore Ridge and Lasso regression (regularized versions)
-
-Happy coding!

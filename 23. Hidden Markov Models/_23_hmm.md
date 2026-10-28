@@ -1,6 +1,6 @@
 # Hidden Markov Models (HMM) from Scratch: A Comprehensive Guide
 
-Welcome to the fascinating world of Hidden Markov Models! In this comprehensive guide, we'll explore HMMs - powerful statistical models for sequential data where the underlying process is hidden but observable through outputs. Think of it as understanding the "hidden story" behind what you can see!
+This guide explores HMMs - powerful statistical models for sequential data where the underlying process is hidden but observable through outputs. Think of it as understanding the "hidden story" behind what you can see!
 
 ## Table of Contents
 0. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -2137,5 +2137,3 @@ You've gained a fundamental technique used across many domains!
 - Study Conditional Random Fields (discriminative alternative)
 - Explore modern deep learning sequence models (RNN, LSTM, Transformers)
 - Read about hierarchical and infinite HMMs
-
-Happy sequence modeling!

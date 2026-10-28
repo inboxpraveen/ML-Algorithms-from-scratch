@@ -1,6 +1,6 @@
 # Multiple Linear Regression from Scratch: A Comprehensive Guide
 
-Welcome to the world of Multiple Linear Regression! In this detailed guide, we'll explore how to predict outcomes using multiple input features. Think of it as upgrading from drawing a line in 2D to fitting a plane (or hyperplane) in multi-dimensional space!
+This guide explores how to predict outcomes using multiple input features. Think of it as upgrading from drawing a line in 2D to fitting a plane (or hyperplane) in multi-dimensional space!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -836,6 +836,3 @@ The beauty of implementing it from scratch is that you now understand exactly wh
 - Experiment with different features
 - Compare with scikit-learn's LinearRegression
 - Learn about Ridge and Lasso regression (regularized versions)
-
-Happy coding!
-

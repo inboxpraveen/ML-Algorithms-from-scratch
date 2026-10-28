@@ -1,6 +1,6 @@
 # Gaussian Mixture Models (GMM) from Scratch: A Comprehensive Guide
 
-Welcome to Gaussian Mixture Models! In this comprehensive guide, we'll explore GMM - a powerful probabilistic model for soft clustering and density estimation. Think of it as the "sophisticated probabilistic cousin" of K-means clustering!
+This guide explores GMM - a powerful probabilistic model for soft clustering and density estimation. Think of it as the "sophisticated probabilistic cousin" of K-means clustering!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1650,5 +1650,3 @@ gmm.fit(X_reduced)
 - Use BIC/AIC for model selection
 - Combine with dimensionality reduction (PCA)
 - Explore advanced variants (Bayesian GMM, Variational Inference)
-
-Happy clustering!

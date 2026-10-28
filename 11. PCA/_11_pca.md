@@ -1,6 +1,6 @@
 # Principal Component Analysis (PCA) from Scratch: A Comprehensive Guide
 
-Welcome to the world of Principal Component Analysis! In this comprehensive guide, we'll explore one of the most powerful dimensionality reduction techniques in machine learning. Think of it as finding the "essence" of your data!
+This guide explores one of the most powerful dimensionality reduction techniques in machine learning. Think of it as finding the "essence" of your data!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1887,6 +1887,3 @@ You've gained a powerful tool for:
 - Learn about kernel PCA for non-linear data
 - Explore other dimensionality reduction techniques (t-SNE, UMAP)
 - Study applications in specific domains (images, genomics, finance)
-
-Happy dimensionality reducing!
-

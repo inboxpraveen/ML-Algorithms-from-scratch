@@ -1481,7 +1481,3 @@ Three deliberate omissions, all documented in the class docstring too:
    [MCMC Hygiene](#mcmc-hygiene-burn-in-mixing-and-label-switching).
 
 **Our implementation demonstrates the core LDA algorithm** so you can understand how topic modeling actually works!
-
----
-
-**Happy topic modeling!**

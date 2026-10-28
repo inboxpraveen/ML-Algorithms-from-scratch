@@ -1,6 +1,6 @@
 # Decision Trees from Scratch: A Comprehensive Guide
 
-Welcome to the world of Decision Trees! In this comprehensive guide, we'll explore one of the most intuitive and powerful machine learning algorithms. Think of it as a flowchart that makes decisions!
+This guide explores one of the most intuitive and powerful machine learning algorithms. Think of it as a flowchart that makes decisions!
 
 ## Table of Contents
 0. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1637,6 +1637,3 @@ You've gained a crucial tool in your machine learning toolkit!
 - Study Gradient Boosting (sequential trees)
 - Explore feature importance analysis with `feature_importances_`
 - Visualize your trees to understand decisions
-
-Happy coding!
-

@@ -1207,7 +1207,3 @@ the 5 negative samples that ride along with every one. See
 differences from `umap-learn`.
 
 **Our implementation demonstrates the core algorithm** so you can understand how UMAP actually works!
-
----
-
-**Happy embedding!**

@@ -1,6 +1,6 @@
 # Autoencoders from Scratch: A Comprehensive Guide
 
-Welcome to the fascinating world of Autoencoders! In this comprehensive guide, we'll explore autoencoders - neural networks that learn to compress and reconstruct data. Think of them as intelligent data compressors that learn the most important features automatically!
+This guide explores autoencoders - neural networks that learn to compress and reconstruct data. Think of them as intelligent data compressors that learn the most important features automatically!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1951,7 +1951,6 @@ To deepen your understanding:
 4. **Apply**: Use for real problems (anomaly detection, compression)
 5. **Extend**: Learn about VAEs, denoising autoencoders, sparse autoencoders
 
-Happy encoding!
 
 ---
 
@@ -1961,4 +1960,3 @@ Happy encoding!
 - **Denoising**: "Extracting and Composing Robust Features with Denoising Autoencoders" (Vincent et al., 2008)
 - **VAE**: "Auto-Encoding Variational Bayes" (Kingma & Welling, 2013)
 - **Deep Learning Book**: Chapter 14 on Autoencoders (Goodfellow et al.)
-

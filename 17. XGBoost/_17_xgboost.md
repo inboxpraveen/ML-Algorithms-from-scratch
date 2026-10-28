@@ -1,6 +1,6 @@
 # XGBoost from Scratch: A Comprehensive Guide
 
-Welcome to the world of XGBoost! In this comprehensive guide, we'll explore XGBoost (Extreme Gradient Boosting) - one of the most powerful and widely-used machine learning algorithms. Think of it as gradient boosting on steroids, with advanced optimizations and regularization techniques!
+This guide explores XGBoost (Extreme Gradient Boosting) - one of the most powerful and widely-used machine learning algorithms. Think of it as gradient boosting on steroids, with advanced optimizations and regularization techniques!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -2751,6 +2751,3 @@ It includes:
 XGBoost = Gradient Boosting + Regularization + Second-Order + Engineering
 
 This simple formula has revolutionized machine learning on structured data!
-
-Happy Boosting!
-

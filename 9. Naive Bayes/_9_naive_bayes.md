@@ -1,6 +1,6 @@
 # Naive Bayes from Scratch: A Comprehensive Guide
 
-Welcome to the world of Naive Bayes! In this comprehensive guide, we'll explore one of the most elegant and efficient machine learning algorithms. Think of it as the "assume the best, calculate probabilities" algorithm!
+This guide explores one of the most elegant and efficient machine learning algorithms. Think of it as the "assume the best, calculate probabilities" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1368,6 +1368,3 @@ You've gained a fundamental tool that's still widely used in practice!
 - Compare with other algorithms
 - Learn about calibration techniques
 - Explore semi-supervised Naive Bayes
-
-Happy coding!
-

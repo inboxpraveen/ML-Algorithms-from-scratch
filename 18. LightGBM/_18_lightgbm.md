@@ -1,6 +1,6 @@
 # LightGBM from Scratch: A Comprehensive Guide
 
-Welcome to LightGBM! In this comprehensive guide, we'll explore LightGBM (Light Gradient Boosting Machine) - a fast, distributed, high-performance gradient boosting framework that's become the preferred choice for large-scale machine learning tasks. Think of it as the "speed champion" of gradient boosting!
+This guide explores LightGBM (Light Gradient Boosting Machine) - a fast, distributed, high-performance gradient boosting framework that's become the preferred choice for large-scale machine learning tasks. Think of it as the "speed champion" of gradient boosting!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1661,7 +1661,7 @@ model = LightGBM(
 
 ---
 
-**Remember**: LightGBM is "light" in memory and "heavy" in performance! Use it when you need speed without sacrificing accuracy. Happy learning!
+**Remember**: LightGBM is "light" in memory and "heavy" in performance! Use it when you need speed without sacrificing accuracy.
 
 ---
 

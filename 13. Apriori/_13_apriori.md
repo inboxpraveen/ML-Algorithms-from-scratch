@@ -1,6 +1,6 @@
 # Apriori Algorithm from Scratch: A Comprehensive Guide
 
-Welcome to the world of Association Rule Mining! In this comprehensive guide, we'll explore the Apriori algorithm - one of the most important algorithms for discovering patterns in transactional data. Think of it as the "frequently bought together" algorithm!
+This guide explores the Apriori algorithm - one of the most important algorithms for discovering patterns in transactional data. Think of it as the "frequently bought together" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1829,6 +1829,3 @@ You've gained a powerful technique for extracting actionable insights from data!
 - Explore weighted Apriori for non-uniform items
 - Study sequential pattern mining for ordered data
 - Investigate multi-level association rules
-
-Happy pattern mining!
-

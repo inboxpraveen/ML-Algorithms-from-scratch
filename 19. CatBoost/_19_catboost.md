@@ -1,6 +1,6 @@
 # CatBoost from Scratch: A Comprehensive Guide
 
-Welcome to CatBoost! In this comprehensive guide, we'll explore CatBoost (Categorical Boosting) - a powerful gradient boosting framework developed by Yandex that excels at handling categorical features and uses symmetric trees for better generalization. Think of it as the "smart handler" of gradient boosting!
+This guide explores CatBoost (Categorical Boosting) - a powerful gradient boosting framework developed by Yandex that excels at handling categorical features and uses symmetric trees for better generalization. Think of it as the "smart handler" of gradient boosting!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1918,7 +1918,7 @@ Limited time for tuning?
 
 ---
 
-**Remember**: CatBoost is robust and smart! It's especially powerful when you have categorical features and want excellent results without extensive tuning. Happy learning!
+**Remember**: CatBoost is robust and smart! It's especially powerful when you have categorical features and want excellent results without extensive tuning.
 
 ---
 

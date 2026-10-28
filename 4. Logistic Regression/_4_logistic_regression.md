@@ -1,6 +1,6 @@
 # Logistic Regression from Scratch: A Comprehensive Guide
 
-Welcome to the world of Logistic Regression! In this comprehensive guide, we'll explore how to solve binary classification problems. Think of it as the go-to algorithm when you need to answer yes/no questions based on data!
+This guide explores how to solve binary classification problems. Think of it as the go-to algorithm when you need to answer yes/no questions based on data!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1281,7 +1281,3 @@ You've gained a crucial tool in your machine learning toolkit!
   [Simplifications](#simplifications-vs-scikit-learn) section explains why
 - Explore ROC curves and AUC scores
 - Study multinomial logistic regression for multi-class
-
-Happy coding!
-
-

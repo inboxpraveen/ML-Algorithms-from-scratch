@@ -1,6 +1,6 @@
 # t-SNE Algorithm from Scratch: A Comprehensive Guide
 
-Welcome to the world of dimensionality reduction and visualization! In this comprehensive guide, we'll explore t-SNE (t-Distributed Stochastic Neighbor Embedding) - one of the most powerful algorithms for visualizing high-dimensional data in 2D or 3D space.
+This guide explores t-SNE (t-Distributed Stochastic Neighbor Embedding) - one of the most powerful algorithms for visualizing high-dimensional data in 2D or 3D space.
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -2137,6 +2137,3 @@ You've gained an essential technique for making sense of complex, high-dimension
 - Learn about UMAP for faster alternative
 - Study Barnes-Hut t-SNE for large datasets
 - Explore parametric t-SNE for new point embedding
-
-Happy visualizing!
-

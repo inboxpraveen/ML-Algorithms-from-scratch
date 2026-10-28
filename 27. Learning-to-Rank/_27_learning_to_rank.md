@@ -1166,7 +1166,3 @@ This implementation is educational and demonstrates core concepts. For productio
 - Implement caching for repeated queries
 
 **Our implementation shows how LambdaRank works under the hood!**
-
----
-
-**Happy ranking!**

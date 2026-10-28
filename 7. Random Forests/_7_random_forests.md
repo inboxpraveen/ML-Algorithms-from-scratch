@@ -1,6 +1,6 @@
 # Random Forests from Scratch: A Comprehensive Guide
 
-Welcome to the world of Random Forests! In this comprehensive guide, we'll explore one of the most powerful and popular machine learning algorithms. Think of it as a "committee of experts" where many decision trees vote together!
+This guide explores one of the most powerful and popular machine learning algorithms. Think of it as a "committee of experts" where many decision trees vote together!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1436,5 +1436,3 @@ You've gained a versatile tool that works well across many different problems!
 - Use `oob_score=True` instead of a validation split when data is scarce
 - Explore Gradient Boosting as an alternative
 - Study ensemble methods in depth
-
-Happy coding!

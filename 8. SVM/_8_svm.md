@@ -1,6 +1,6 @@
 # Support Vector Machine (SVM) from Scratch: A Comprehensive Guide
 
-Welcome to the world of Support Vector Machines! In this comprehensive guide, we'll explore one of the most powerful and elegant machine learning algorithms. Think of it as finding the "widest street" that separates two neighborhoods!
+This guide explores one of the most powerful and elegant machine learning algorithms. Think of it as finding the "widest street" that separates two neighborhoods!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1778,6 +1778,3 @@ You've gained a fundamental tool in your machine learning toolkit!
   this implementation deliberately leaves out
 - Study multi-class SVM extensions
 - Explore support vector regression (SVR)
-
-Happy coding!
-

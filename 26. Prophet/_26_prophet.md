@@ -1494,7 +1494,3 @@ For production forecasting, use the official library:
 ```bash
 pip install prophet
 ```
-
----
-
-**Happy forecasting!**

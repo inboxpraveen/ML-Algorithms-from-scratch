@@ -1,6 +1,6 @@
 # Matrix Factorization from Scratch: A Comprehensive Guide
 
-Welcome to the world of Matrix Factorization! In this comprehensive guide, we'll explore one of the most powerful techniques for collaborative filtering and recommender systems. Matrix Factorization powers recommendation engines at Netflix, Amazon, Spotify, and countless other platforms!
+This guide explores one of the most powerful techniques for collaborative filtering and recommender systems. Matrix Factorization powers recommendation engines at Netflix, Amazon, Spotify, and countless other platforms!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -2245,6 +2245,5 @@ Matrix Factorization is a powerful technique for collaborative filtering that:
 
 ---
 
-**Happy Recommending!**
 
 *Remember: Matrix Factorization powers the recommendations you see every day on Netflix, Amazon, Spotify, and more. Now you understand how it works under the hood!*

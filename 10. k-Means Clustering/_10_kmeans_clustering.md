@@ -1,6 +1,6 @@
 # k-Means Clustering from Scratch: A Comprehensive Guide
 
-Welcome to the world of k-Means Clustering! In this comprehensive guide, we'll explore one of the most popular unsupervised machine learning algorithms. Think of it as the "find natural groups in your data" algorithm!
+This guide explores one of the most popular unsupervised machine learning algorithms. Think of it as the "find natural groups in your data" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1379,6 +1379,3 @@ You've gained a fundamental tool for unsupervised learning!
 - Learn about advanced variants (k-means++, mini-batch k-means)
 - Explore dimensionality reduction before clustering (PCA)
 - Study cluster validation techniques
-
-Happy Clustering!
-

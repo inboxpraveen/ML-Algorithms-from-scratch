@@ -1207,7 +1207,3 @@ Isolation Forest is a powerful, efficient anomaly detection algorithm that:
 - Needs careful tuning of the **contamination parameter**
 
 **Best for**: Large-scale anomaly detection where speed matters and you have a rough idea of anomaly proportion.
-
----
-
-**Happy Anomaly Hunting!**

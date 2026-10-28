@@ -1,6 +1,6 @@
 # Ridge Regression from Scratch: A Comprehensive Guide
 
-Welcome to the world of Ridge Regression! In this comprehensive guide, we'll explore how to predict outcomes using regularized linear regression. Think of it as an improved version of linear regression that prevents overfitting and handles multicollinearity like a pro!
+This guide explores how to predict outcomes using regularized linear regression. Think of it as an improved version of linear regression that prevents overfitting and handles multicollinearity like a pro!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1127,7 +1127,3 @@ By adding a simple regularization term, we get a model that is more reliable and
 - Compare with Multiple Regression and Lasso
 - Visualize coefficient paths
 - Learn about cross-validation for alpha selection
-
-Happy coding!
-
-

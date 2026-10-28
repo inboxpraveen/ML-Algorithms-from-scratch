@@ -1,6 +1,6 @@
 # K-Nearest Neighbors (KNN) from Scratch: A Comprehensive Guide
 
-Welcome to the world of K-Nearest Neighbors! In this comprehensive guide, we'll explore one of the simplest yet most powerful machine learning algorithms. Think of it as the "birds of a feather flock together" algorithm!
+This guide explores one of the simplest yet most powerful machine learning algorithms. Think of it as the "birds of a feather flock together" algorithm!
 
 ## Table of Contents
 1. [Quick Start: Plug-and-Play Example](#quick-start-plug-and-play-example)
@@ -1387,6 +1387,3 @@ You've gained a fundamental tool in your machine learning toolkit!
 - Learn about weighted KNN and approximate methods
 - Explore KNN for anomaly detection
 - Study curse of dimensionality in depth
-
-Happy coding!
-
