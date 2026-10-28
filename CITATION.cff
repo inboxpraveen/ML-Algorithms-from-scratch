@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this repository in your teaching or research, please cite it as below."
+title: "Machine Learning Algorithms from Scratch"
+type: software
+authors:
+  - family-names: "Kumar"
+    given-names: "Praveen"
+repository-code: "https://github.com/inboxpraveen/ML-Algorithms-from-scratch"
+url: "https://inboxpraveen.github.io/projects/project-5.html"
+license: GPL-3.0-only
+abstract: >-
+  Twenty-eight machine learning algorithms implemented in plain NumPy, each with a
+  runnable demo and a guide that explains the mathematics and maps it onto the code.
+keywords:
+  - machine learning
+  - from scratch
+  - numpy
+  - education
+  - gradient boosting
+  - clustering
+  - dimensionality reduction
